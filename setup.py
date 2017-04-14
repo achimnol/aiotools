@@ -2,8 +2,13 @@
 
 from setuptools import setup
 
-version = "0.1"
-long_description = "Idiomatic asyncio utilities"
+version = "0.1.1"
+
+try:
+    import pypandoc
+    long_description = pypandoc.convert('README.md', 'rst')
+except (IOError, ImportError):
+    long_description = ""
 
 setup(
     name="aiotools",
@@ -13,7 +18,17 @@ setup(
     long_description=long_description,
     description="Idiomatic asyncio utilities",
     license="MIT",
-    url="",
+    classifiers=[
+        'Development Status :: 3 - Alpha',
+        'License :: OSI Approved :: MIT License',
+        'Intended Audience :: Developers',
+        'Framework :: AsyncIO',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.6',
+        'Topic :: Software Development',
+    ],
+    url="https://github.com/achimnol/aiotools",
     platforms=['any'],
     packages=[
         'aiotools',
