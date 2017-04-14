@@ -1,0 +1,9 @@
+language: python
+python:
+  - "3.6"
+install:
+  - pip install -U pip setuptools wheel
+  - pip install -r requirements-ci.txt
+  - pip install -e .
+script:
+  - python -m pytest
