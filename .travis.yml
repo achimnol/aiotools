@@ -6,4 +6,6 @@ install:
   - pip install -r requirements-ci.txt
   - pip install -e .
 script:
-  - python -m pytest
+  - python -m pytest --cov=aiotools tests
+after_success:
+  - codecov
