@@ -56,6 +56,25 @@ async def somewhere():
         print('caught!')  # you can catch exceptions here.
 ```
 
+You can also create a group of async context managers, which
+are entered/exited all at once using `asyncio.gather`.
+
+```python
+import asyncio
+import aiotools
+
+@aiotools.actxmgr
+async def mygen(a):
+    yield a + 10
+
+async def somewhere():
+    ctxgrp = aiotools.actxgroup(mygen(i) for i in range(10))
+    async with ctxgrp as values:
+        assert len(values) == 10
+        for i in range(10):
+            assert values[i] == i + 10
+```
+
 
 ## Async Timer
 
