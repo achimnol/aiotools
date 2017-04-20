@@ -1,8 +1,9 @@
 # aiotools
 
+[![PyPI version](https://badge.fury.io/py/aiotools.svg)](https://badge.fury.io/py/aiotools)
+[![Python Versions](https://img.shields.io/pypi/pyversions/aiotools.svg)](https://pypi.org/project/aiotools/)
 [![Build Status](https://travis-ci.org/achimnol/aiotools.svg?branch=master)](https://travis-ci.org/achimnol/aiotools)
 [![Code Coverage](https://codecov.io/gh/achimnol/aiotools/branch/master/graph/badge.svg)](https://codecov.io/gh/achimnol/aiotools)
-[![PyPI version](https://badge.fury.io/py/aiotools.svg)](https://badge.fury.io/py/aiotools)
 
 Idiomatic asyncio utilties
 
@@ -43,14 +44,14 @@ lock = asyncio.Lock()
 async def mygen(a):
     await lock.acquire()
     try:
-	yield a + 1
+        yield a + 1
     finally:
-	lock.release()
+        lock.release()
 
 async def somewhere():
     try:
         async with mygen(1) as b:
-	    raise RuntimeError('oops')
+            raise RuntimeError('oops')
     except RuntimeError:
         print('caught!')  # you can catch exceptions here.
 ```
