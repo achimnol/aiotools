@@ -60,33 +60,56 @@ class AsyncContextManager(AsyncContextDecorator, AbstractAsyncContextManager):
         try:
             return (await self._agen.__anext__())
         except StopAsyncIteration:
+            # The generator should yield at least once.
             raise RuntimeError("async-generator didn't yield") from None
 
     async def __aexit__(self, exc_type, exc_value, tb):
         if exc_type is None:
+            # This is the normal path when the context body
+            # did not raise any exception.
             try:
                 await self._agen.__anext__()
             except StopAsyncIteration:
                 return
             else:
+                # The generator has already yielded,
+                # no more yields are allowed.
                 raise RuntimeError("async-generator didn't stop") from None
         else:
+            # The context body has raised an exception.
             if exc_value is None:
+                # Ensure exc_value is a valid Exception.
                 exc_value = exc_type()
             try:
+                # Throw the catched exception into the generator,
+                # so that it can handle as it wants.
                 await self._agen.athrow(exc_type, exc_value, tb)
+                # Here the generator should have finished!
+                # (i.e., it should not yield again in except/finally blocks!)
                 raise RuntimeError("async-generator didn't stop after athrow()")
-            except StopAsyncIteration as exc:
-                return exc is not exc_value
-            except RuntimeError as exc:
-                if exc is exc_value:
+                # NOTE for PEP-479
+                #   StopAsyncIteration raised inside the context body
+                #   is converted to RuntimeError.
+                #   In the standard library's contextlib.py, there is
+                #   an extra except clause to catch StopIteration here,
+                #   but this is unnecessary now.
+            except RuntimeError as exc_new_value:
+                # When the context body did not catch the exception, re-raise.
+                if exc_new_value is exc_value:
                     return False
-                if exc.__cause__ is exc_value:
+                # When the context body's exception handler raises
+                # another chained exception, re-raise.
+                if exc_new_value.__cause__ is exc_value:
                     return False
+                # If this is a purely new exception, raise the new one.
                 raise
             except:
-                if sys.exc_info()[1] is not exc_value:
-                    raise
+                # If the finalization part of the generator throws a new
+                # exception, re-raise it.
+                if sys.exc_info()[1] is exc_value:
+                    # The context body did not catch the exception.
+                    return False  # re-raise original
+                raise
 
 
 def async_ctx_manager(func):
