@@ -17,8 +17,8 @@ def start_server(server_ctxmgr: AbstractAsyncContextManager,
                  logger=None,
                  loop=None):
 
-    loop = asyncio.get_event_loop()
-    term_ev = asyncio.Event()
+    loop = loop if loop else asyncio.get_event_loop()
+    term_ev = asyncio.Event(loop=loop)
     if not logger:
         logger = logging.getLogger(__name__)
     if not term_signals:

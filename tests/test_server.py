@@ -24,7 +24,9 @@ def test_server():
         yield
         terminated = True
 
-    aiotools.start_server(myserver)
+    loop = asyncio.new_event_loop()
+    aiotools.start_server(myserver, loop=loop)
 
     assert started
     assert terminated
+    assert loop.is_closed()
