@@ -552,9 +552,10 @@ async def test_actxgroup(event_loop):
         assert values[0] == 10
         assert values[1] == 11
         assert values[2] == 12
-        assert values == ctxgrp.contexts()
+        assert len(ctxgrp._cm_yields) == 3
 
     assert exit_count == 3
+    assert len(ctxgrp._cm_yields) == 0
 
     # Test generator/iterator initialization
     exit_count = 0
@@ -564,6 +565,102 @@ async def test_actxgroup(event_loop):
         assert values[0] == 10
         assert values[1] == 11
         assert values[2] == 12
-        assert values == ctxgrp.contexts()
+        assert len(ctxgrp._cm_yields) == 3
 
     assert exit_count == 3
+    assert len(ctxgrp._cm_yields) == 0
+
+
+@pytest.mark.asyncio
+async def test_actxgroup_exception_from_cm(event_loop):
+
+    @aiotools.actxmgr
+    async def ctx1(a):
+        raise asyncio.CancelledError
+        yield a
+
+    @aiotools.actxmgr
+    async def ctx2(a):
+        raise ZeroDivisionError
+        yield a
+
+    ctxgrp = aiotools.actxgroup([ctx1(1), ctx2(2)])
+
+    async with ctxgrp as values:
+        assert isinstance(values[0], asyncio.CancelledError)
+        assert isinstance(values[1], ZeroDivisionError)
+
+    @aiotools.actxmgr
+    async def ctx3(a):
+        yield a
+        raise asyncio.CancelledError
+
+    @aiotools.actxmgr
+    async def ctx4(a):
+        yield a
+        raise ZeroDivisionError
+
+    ctxgrp = aiotools.actxgroup([ctx3(1), ctx4(2)])
+
+    async with ctxgrp as values:
+        assert values[0] == 1
+        assert values[1] == 2
+
+    exits = ctxgrp.exit_states()
+    assert isinstance(exits[0], asyncio.CancelledError)
+    assert isinstance(exits[1], ZeroDivisionError)
+
+
+@pytest.mark.asyncio
+async def test_actxgroup_exception_from_body(event_loop):
+
+    exit_count = 0
+
+    @aiotools.actxmgr
+    async def ctx(a):
+        nonlocal exit_count
+        yield a
+        # yield raises the exception from the context body.
+        # If not handled, finalization will not be executed.
+        exit_count += 1
+
+    ctxgrp = aiotools.actxgroup([ctx(1), ctx(2)])
+
+    try:
+        async with ctxgrp as values:
+            assert values[0] == 1
+            assert values[1] == 2
+            raise ZeroDivisionError
+    except Exception as e:
+        assert isinstance(e, ZeroDivisionError)
+
+    exits = ctxgrp.exit_states()
+    assert exits[0] is False
+    assert exits[1] is False
+    assert exit_count == 0
+
+    exit_count = 0
+
+    @aiotools.actxmgr
+    async def ctx(a):
+        nonlocal exit_count
+        try:
+            yield a
+        finally:
+            # Ensure finalization is executed.
+            exit_count += 1
+
+    ctxgrp = aiotools.actxgroup([ctx(1), ctx(2)])
+
+    try:
+        async with ctxgrp as values:
+            assert values[0] == 1
+            assert values[1] == 2
+            raise ZeroDivisionError
+    except Exception as e:
+        assert isinstance(e, ZeroDivisionError)
+
+    exits = ctxgrp.exit_states()
+    assert exits[0] is False
+    assert exits[1] is False
+    assert exit_count == 2
