@@ -75,6 +75,38 @@ async def somewhere():
             assert values[i] == i + 10
 ```
 
+## Async Server
+
+This implements a common pattern to launch asyncio-based server daemons.
+
+```python
+import asyncio
+import aiotools
+
+async def echo(reader, writer):
+    data = await reader.read(100)
+    writer.write(data)
+    await writer.drain()
+    writer.close()
+
+@aiotools.actxmgr
+async def myserver(loop, pidx, args):
+    server = await asyncio.start_server(echo, '0.0.0.0', 8888,
+        reuse_port=True, loop=loop)
+    print(f'[{pidx}] started')
+    yield  # wait until terminated
+    server.close()
+    await server.wait_closed()
+    print(f'[{pidx}] terminated')
+
+if __name__ == '__main__':
+    # Run the above server using 4 worker processes.
+    aiotools.start_server(myserver, num_proc=4)
+```
+
+It handles SIGINT/SIGTERM signals automatically to stop the server,
+as well as lifecycle management of event loops running on multiple processes.
+
 
 ## Async Timer
 
