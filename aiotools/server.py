@@ -44,7 +44,11 @@ def start_server(server_ctxmgr: AbstractAsyncContextManager,
     try:
         server = _server()
         loop.run_until_complete(server.__anext__())
-        loop.run_forever()
+        try:
+            loop.run_forever()
+        except (SystemExit, KeyboardInterrupt):
+            # Emulate real signals.
+            _handle_term_signal()
         try:
             loop.run_until_complete(server.__anext__())
         except StopAsyncIteration:
