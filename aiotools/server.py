@@ -13,13 +13,12 @@ __all__ = (
 )
 
 
-def _worker_main(server_ctxmgr, proc_idx, args=None):
+def _worker_main(server_ctxmgr, stop_signals, proc_idx, args=None):
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     log = logging.getLogger(__name__)
 
-    term_signals = (signal.SIGINT, signal.SIGTERM)
     if args is None:
         args = tuple()
 
@@ -27,7 +26,7 @@ def _worker_main(server_ctxmgr, proc_idx, args=None):
         loop.stop()
 
     async def _server():
-        for signum in term_signals:
+        for signum in stop_signals:
             signal.signal(signum, signal.SIG_IGN)
             loop.add_signal_handler(signum, _handle_term_signal)
         async with server_ctxmgr(loop, proc_idx, args):
@@ -68,10 +67,10 @@ def start_server(server_ctxmgr: AbstractAsyncContextManager,
 
         for i in range(num_proc):
             p = mp.Process(target=_worker_main,
-                           args=(server_ctxmgr, i, args))
+                           args=(server_ctxmgr, stop_signals, i, args))
             p.start()
             children.append(p)
         for i in range(num_proc):
             children[i].join()
     else:
-        _worker_main(server_ctxmgr, 0, args)
+        _worker_main(server_ctxmgr, stop_signals, 0, args)
