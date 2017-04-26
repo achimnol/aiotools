@@ -103,7 +103,9 @@ async def test_actxmgr_exception_in_context_body():
 
     @aiotools.actxmgr
     async def simple_ctx(msg):
+        await asyncio.sleep(0)
         yield msg
+        await asyncio.sleep(0)
 
     try:
         async with simple_ctx('hello') as msg:
@@ -140,8 +142,11 @@ async def test_actxmgr_exception_in_initialization():
 
     @aiotools.actxmgr
     async def simple_ctx(msg):
+        await asyncio.sleep(0)
         raise ZeroDivisionError
+        await asyncio.sleep(0)
         yield msg
+        await asyncio.sleep(0)
 
     try:
         async with simple_ctx('hello') as msg:
@@ -154,8 +159,11 @@ async def test_actxmgr_exception_in_initialization():
     exc = RuntimeError('oops')
     @aiotools.actxmgr
     async def simple_ctx(msg):
+        await asyncio.sleep(0)
         raise exc
+        await asyncio.sleep(0)
         yield msg
+        await asyncio.sleep(0)
 
     try:
         async with simple_ctx('hello') as msg:
@@ -172,8 +180,11 @@ async def test_actxmgr_exception_in_finalization():
 
     @aiotools.actxmgr
     async def simple_ctx(msg):
+        await asyncio.sleep(0)
         yield msg
+        await asyncio.sleep(0)
         raise ZeroDivisionError
+        await asyncio.sleep(0)
 
     try:
         async with simple_ctx('hello') as msg:
@@ -205,7 +216,9 @@ async def test_actxmgr_exception_uncaught():
 
     @aiotools.actxmgr
     async def simple_ctx(msg):
+        await asyncio.sleep(0)
         yield msg
+        await asyncio.sleep(0)
 
     try:
         async with simple_ctx('hello') as msg:
@@ -241,8 +254,10 @@ async def test_actxmgr_exception_chained():
     @aiotools.actxmgr
     async def simple_ctx(msg):
         try:
+            await asyncio.sleep(0)
             yield msg
         except Exception as e:
+            await asyncio.sleep(0)
             # exception is chained
             raise ValueError('bomb2') from e
 
@@ -265,8 +280,10 @@ async def test_actxmgr_exception_replaced():
     @aiotools.actxmgr
     async def simple_ctx(msg):
         try:
+            await asyncio.sleep(0)
             yield msg
         except:
+            await asyncio.sleep(0)
             # exception is replaced
             raise ValueError('bomb2')
 
@@ -287,8 +304,11 @@ async def test_actxmgr_stopaiter(event_loop):
 
     @aiotools.actxmgr
     async def simple_ctx():
+        await asyncio.sleep(0)
         yield 1
+        await asyncio.sleep(0)
         yield 2
+        await asyncio.sleep(0)
 
     cm = simple_ctx()
     ret = await cm.__aenter__()
@@ -303,9 +323,11 @@ async def test_actxmgr_stopaiter(event_loop):
         nonlocal step
         step = 1
         try:
+            await asyncio.sleep(0)
             yield
         finally:
             step = 2
+            await asyncio.sleep(0)
             raise StopAsyncIteration('x')
 
     try:
@@ -328,8 +350,10 @@ async def test_actxmgr_transparency(event_loop):
     async def simple_ctx():
         nonlocal step
         step = 1
+        await asyncio.sleep(0)
         yield
         step = 2
+        await asyncio.sleep(0)
 
     try:
         exc = StopAsyncIteration('x')
@@ -348,8 +372,10 @@ async def test_actxmgr_transparency(event_loop):
     async def simple_ctx():
         nonlocal step
         step = 1
+        await asyncio.sleep(0)
         yield
         step = 2
+        await asyncio.sleep(0)
 
     try:
         step = 0
@@ -366,10 +392,12 @@ async def test_actxmgr_transparency(event_loop):
     async def simple_ctx():
         nonlocal step
         step = 1
+        await asyncio.sleep(0)
         try:
             yield
         finally:
             step = 2
+            await asyncio.sleep(0)
 
     try:
         exc = StopAsyncIteration('x')
@@ -389,10 +417,12 @@ async def test_actxmgr_transparency(event_loop):
     async def simple_ctx():
         nonlocal step
         step = 1
+        await asyncio.sleep(0)
         try:
             yield
         finally:
             step = 2
+            await asyncio.sleep(0)
 
     try:
         step = 0
@@ -412,8 +442,11 @@ async def test_actxmgr_no_stop(event_loop):
 
     @aiotools.actxmgr
     async def simple_ctx(msg):
+        await asyncio.sleep(0)
         yield msg
+        await asyncio.sleep(0)
         yield msg
+        await asyncio.sleep(0)
 
     try:
         async with simple_ctx('hello') as msg:
@@ -435,8 +468,10 @@ async def test_actxmgr_no_stop(event_loop):
     @aiotools.actxmgr
     async def simple_ctx(msg):
         try:
+            await asyncio.sleep(0)
             yield msg
         finally:
+            await asyncio.sleep(0)
             yield msg
 
     try:
@@ -540,7 +575,9 @@ async def test_actxgroup(event_loop):
     @aiotools.actxmgr
     async def ctx(a):
         nonlocal exit_count
+        await asyncio.sleep(0)
         yield a + 10
+        await asyncio.sleep(0)
         exit_count += 1
 
     ctxgrp = aiotools.actxgroup()
@@ -576,12 +613,16 @@ async def test_actxgroup_exception_from_cm(event_loop):
 
     @aiotools.actxmgr
     async def ctx1(a):
+        await asyncio.sleep(0)
         raise asyncio.CancelledError
+        await asyncio.sleep(0)
         yield a
 
     @aiotools.actxmgr
     async def ctx2(a):
+        await asyncio.sleep(0)
         raise ZeroDivisionError
+        await asyncio.sleep(0)
         yield a
 
     ctxgrp = aiotools.actxgroup([ctx1(1), ctx2(2)])
@@ -619,7 +660,9 @@ async def test_actxgroup_exception_from_body(event_loop):
     @aiotools.actxmgr
     async def ctx(a):
         nonlocal exit_count
+        await asyncio.sleep(0)
         yield a
+        await asyncio.sleep(0)
         # yield raises the exception from the context body.
         # If not handled, finalization will not be executed.
         exit_count += 1
@@ -645,8 +688,10 @@ async def test_actxgroup_exception_from_body(event_loop):
     async def ctx(a):
         nonlocal exit_count
         try:
+            await asyncio.sleep(0)
             yield a
         finally:
+            await asyncio.sleep(0)
             # Ensure finalization is executed.
             exit_count += 1
 
