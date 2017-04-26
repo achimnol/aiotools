@@ -4,6 +4,7 @@ import asyncio
 import multiprocessing as mp
 import os
 import signal
+import sys
 
 import aiotools
 
@@ -16,13 +17,42 @@ def restore_signal():
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
 
-def test_server(restore_signal):
+def test_server_singleproc(restore_signal):
 
     started = False
     terminated = False
 
     def send_term_signal():
         os.kill(0, signal.SIGINT)
+
+    @aiotools.actxmgr
+    async def myserver(loop, proc_idx, args):
+        nonlocal started, terminated
+        assert proc_idx == 0
+        assert len(args) == 0
+        await asyncio.sleep(0)
+        started = True
+        loop.call_later(0.2, send_term_signal)
+
+        yield
+
+        await asyncio.sleep(0)
+        terminated = True
+
+    aiotools.start_server(myserver)
+
+    assert started
+    assert terminated
+
+
+def test_server_singleproc_sysexit(restore_signal):
+
+    started = False
+    terminated = False
+
+    def send_term_signal():
+        # sys.exit raises SystemExit exception
+        sys.exit(0)
 
     @aiotools.actxmgr
     async def myserver(loop, proc_idx, args):

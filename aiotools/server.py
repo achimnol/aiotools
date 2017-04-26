@@ -4,6 +4,7 @@ import multiprocessing as mp
 import os
 import signal
 import sys
+from typing import Any, Iterable, Optional
 
 from .context import AbstractAsyncContextManager
 
@@ -16,24 +17,19 @@ def _worker_main(server_ctxmgr, proc_idx, args=None):
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    term_ev = asyncio.Event(loop=loop)
     log = logging.getLogger(__name__)
+
     term_signals = (signal.SIGINT, signal.SIGTERM)
     if args is None:
         args = tuple()
 
     def _handle_term_signal():
-        if term_ev.is_set():
-            log.warning('forced shutdown')
-            sys.exit(1)
-        else:
-            print('first shutdown')
-            term_ev.set()
-            loop.stop()
+        loop.stop()
 
     async def _server():
-        for sig in term_signals:
-            loop.add_signal_handler(sig, _handle_term_signal)
+        for signum in term_signals:
+            signal.signal(signum, signal.SIG_IGN)
+            loop.add_signal_handler(signum, _handle_term_signal)
         async with server_ctxmgr(loop, proc_idx, args):
             yield
 
@@ -43,9 +39,7 @@ def _worker_main(server_ctxmgr, proc_idx, args=None):
         try:
             loop.run_forever()
         except (SystemExit, KeyboardInterrupt):
-            # Emulate real signals.
-            print('emulated interrupt')
-            term_ev.set()
+            pass
         try:
             loop.run_until_complete(server.__anext__())
         except StopAsyncIteration:
@@ -57,8 +51,9 @@ def _worker_main(server_ctxmgr, proc_idx, args=None):
 
 
 def start_server(server_ctxmgr: AbstractAsyncContextManager,
+                 stop_signals: Iterable[signal.Signals]=(signal.SIGINT, signal.SIGTERM),
                  num_proc: int=1,
-                 args=None):
+                 args: Optional[Iterable[Any]]=None):
 
     if num_proc > 1:
         children = []
@@ -68,8 +63,8 @@ def start_server(server_ctxmgr: AbstractAsyncContextManager,
             for p in children:
                 p.terminate()
 
-        signal.signal(signal.SIGINT, _main_sig_handler)
-        signal.signal(signal.SIGTERM, _main_sig_handler)
+        for signum in stop_signals:
+            signal.signal(signum, _main_sig_handler)
 
         for i in range(num_proc):
             p = mp.Process(target=_worker_main,
