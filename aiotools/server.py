@@ -1,7 +1,8 @@
 import asyncio
+from contextlib import AbstractContextManager, contextmanager
 import multiprocessing as mp
 import signal
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from .context import AbstractAsyncContextManager
 
@@ -10,33 +11,34 @@ __all__ = (
 )
 
 
-def _worker_main(server_ctxmgr, stop_signals, proc_idx, args=None):
+def _worker_main(worker_ctxmgr, stop_signals, proc_idx, args):
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-
-    if args is None:
-        args = tuple()
+    interrupted = False
 
     def _handle_term_signal():
-        loop.stop()
+        nonlocal interrupted
+        if not interrupted:
+            loop.stop()
+            interrupted = True
 
-    async def _server():
+    async def _work():
         for signum in stop_signals:
             signal.signal(signum, signal.SIG_IGN)
             loop.add_signal_handler(signum, _handle_term_signal)
-        async with server_ctxmgr(loop, proc_idx, args):
+        async with worker_ctxmgr(loop, proc_idx, args):
             yield
 
     try:
-        server = _server()
-        loop.run_until_complete(server.__anext__())
+        task = _work()
+        loop.run_until_complete(task.__anext__())
         try:
             loop.run_forever()
         except (SystemExit, KeyboardInterrupt):
             pass
         try:
-            loop.run_until_complete(server.__anext__())
+            loop.run_until_complete(task.__anext__())
         except StopAsyncIteration:
             loop.run_until_complete(loop.shutdown_asyncgens())
         else:
@@ -45,30 +47,58 @@ def _worker_main(server_ctxmgr, stop_signals, proc_idx, args=None):
         loop.close()
 
 
-def start_server(server_ctxmgr: AbstractAsyncContextManager,
+def _extra_main(main_func, stop_signals, proc_idx, args):
+
+    def _handle_term_signal(signum, frame):
+        raise SystemExit
+
+    for signum in stop_signals:
+        signal.signal(signum, _handle_term_signal)
+
+    try:
+        main_func(proc_idx, args)
+    except SystemExit:
+        pass
+
+
+def start_server(worker_ctxmgr: AbstractAsyncContextManager,
+                 main_ctxmgr: Optional[AbstractContextManager]=None,
+                 extra_procs: Iterable[Callable]=tuple(),
                  stop_signals: Iterable[signal.Signals]=(
                      signal.SIGINT,
                      signal.SIGTERM),
-                 num_proc: int=1,
-                 args: Optional[Iterable[Any]]=None):
+                 num_workers: int=1,
+                 args: Iterable[Any]=tuple()):
 
-    if num_proc > 1:
-        children = []
+    @contextmanager
+    def noop_main_ctxmgr():
+        yield
 
-        def _main_sig_handler(signum, frame):
-            # propagate signal to children
-            for p in children:
-                p.terminate()
+    if main_ctxmgr is None:
+        main_ctxmgr = noop_main_ctxmgr
 
-        for signum in stop_signals:
-            signal.signal(signum, _main_sig_handler)
+    children = []
 
-        for i in range(num_proc):
+    def _main_sig_handler(signum, frame):
+        # propagate signal to children
+        for p in children:
+            p.terminate()
+
+    for signum in stop_signals:
+        signal.signal(signum, _main_sig_handler)
+
+    with main_ctxmgr() as main_args:
+        if main_args is None:
+            main_args = tuple()
+        for i in range(num_workers):
             p = mp.Process(target=_worker_main,
-                           args=(server_ctxmgr, stop_signals, i, args))
+                           args=(worker_ctxmgr, stop_signals, i, main_args + args))
             p.start()
             children.append(p)
-        for i in range(num_proc):
-            children[i].join()
-    else:
-        _worker_main(server_ctxmgr, stop_signals, 0, args)
+        for i, f in enumerate(extra_procs):
+            p = mp.Process(target=_extra_main,
+                           args=(f, stop_signals, num_workers + i, main_args + args))
+            p.start()
+            children.append(p)
+        for child in children:
+            child.join()
