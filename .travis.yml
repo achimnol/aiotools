@@ -2,10 +2,10 @@ language: python
 python:
   - "3.6"
 install:
-  - pip install -U pip setuptools wheel
+  - pip install -U pip setuptools
   - pip install -r requirements-ci.txt
-  - pip install -e .
 script:
+  - python -m flake8 aiotools tests
   - python -m pytest --cov=aiotools tests
 after_success:
   - codecov

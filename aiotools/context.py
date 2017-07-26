@@ -128,25 +128,26 @@ def async_ctx_manager(func):
 class AsyncContextGroup:
     '''
     Merges a group of context managers into a single context manager.
-    It uses `asyncio.gather()` to execute them with overlapping, to reduce the execution time
-    potentially.
+    It uses `asyncio.gather()` to execute them with overlapping, to reduce the
+    execution time potentially.
 
     It always sets `return_exceptions=True` for `asyncio.gather()`, so that
-    exceptions from small subset of context managers would not prevent execution of others.
-    This means that, it is user's responsibility to check if the returned context values
-    are exceptions or the intended ones inside the context body after entering.
+    exceptions from small subset of context managers would not prevent
+    execution of others.  This means that, it is user's responsibility to check
+    if the returned context values are exceptions or the intended ones inside
+    the context body after entering.
     After exits, it stores the same `asyncio.gather` results from `__aexit__()`
     methods of the context managers and you may access them via `exit_states()`
     method.  Any exception inside the context body is thrown into `__aexit__()`
     handlers of the context managers, but their failures are independent to
     each other, and you can catch it outside the with block.
 
-    To prevent memory leak, the context variables captured during `__aenter__()` are cleared
-    when starting `__aexit__()`.
+    To prevent memory leak, the context variables captured during
+    `__aenter__()` are cleared when starting `__aexit__()`.
     '''
 
     def __init__(self,
-                 context_managers: Optional[Iterable[AbstractAsyncContextManager]]=None):
+                 context_managers: Optional[Iterable[AbstractAsyncContextManager]]=None):  # noqa
         self._cm = list(context_managers) if context_managers else []
         self._cm_yields = []
         self._cm_exits = []

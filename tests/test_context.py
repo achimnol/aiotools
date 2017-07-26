@@ -157,6 +157,7 @@ async def test_actxmgr_exception_in_initialization():
         pytest.fail()
 
     exc = RuntimeError('oops')
+
     @aiotools.actxmgr
     async def simple_ctx(msg):
         await asyncio.sleep(0)
@@ -195,6 +196,7 @@ async def test_actxmgr_exception_in_finalization():
         pytest.fail()
 
     exc = RuntimeError('oops')
+
     @aiotools.actxmgr
     async def simple_ctx(msg):
         yield msg
@@ -210,7 +212,6 @@ async def test_actxmgr_exception_in_finalization():
         pytest.fail()
 
 
-
 @pytest.mark.asyncio
 async def test_actxmgr_exception_uncaught():
 
@@ -221,7 +222,7 @@ async def test_actxmgr_exception_uncaught():
         await asyncio.sleep(0)
 
     try:
-        async with simple_ctx('hello') as msg:
+        async with simple_ctx('hello'):
             raise IndexError('bomb')
     except BaseException as e:
         assert isinstance(e, IndexError)
@@ -497,7 +498,7 @@ async def test_actxmgr_no_yield(event_loop):
         pass
 
     try:
-        async with no_yield_ctx1('hello') as msg:
+        async with no_yield_ctx1('hello'):
             pass
     except RuntimeError as exc:
         assert "must be async-gen" in exc.args[0]
@@ -505,7 +506,7 @@ async def test_actxmgr_no_yield(event_loop):
         pytest.fail()
 
     try:
-        async with no_yield_ctx2('hello') as msg:
+        async with no_yield_ctx2('hello'):
             pass
     except RuntimeError as exc:
         assert "must be async-gen" in exc.args[0]

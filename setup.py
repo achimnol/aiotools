@@ -10,6 +10,28 @@ try:
 except (IOError, ImportError):
     long_description = ""
 
+build_requires = [
+    'pypandoc',
+    'wheel',
+    'twine',
+]
+
+test_requires = [
+    'pytest>=3.1',
+    'pytest-asyncio',
+    'pytest-cov',
+    'codecov',
+    'flake8',
+]
+
+dev_requires = [
+    'pytest-sugar',
+]
+
+ci_requires = [
+]
+
+
 setup(
     name="aiotools",
     version=version,
@@ -37,6 +59,9 @@ setup(
     install_requires=[
     ],
     extras_require={
-        'test': ['pytest', 'pytest-asyncio'],
+        'build': build_requires,
+        'test': test_requires,
+        'dev': dev_requires,
+        'ci': ci_requires,
     }
 )

@@ -1,9 +1,6 @@
 import asyncio
-import logging
 import multiprocessing as mp
-import os
 import signal
-import sys
 from typing import Any, Iterable, Optional
 
 from .context import AbstractAsyncContextManager
@@ -17,7 +14,6 @@ def _worker_main(server_ctxmgr, stop_signals, proc_idx, args=None):
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    log = logging.getLogger(__name__)
 
     if args is None:
         args = tuple()
@@ -50,7 +46,9 @@ def _worker_main(server_ctxmgr, stop_signals, proc_idx, args=None):
 
 
 def start_server(server_ctxmgr: AbstractAsyncContextManager,
-                 stop_signals: Iterable[signal.Signals]=(signal.SIGINT, signal.SIGTERM),
+                 stop_signals: Iterable[signal.Signals]=(
+                     signal.SIGINT,
+                     signal.SIGTERM),
                  num_proc: int=1,
                  args: Optional[Iterable[Any]]=None):
 

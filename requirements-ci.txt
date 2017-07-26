@@ -1,4 +1,1 @@
-codecov
-pytest
-pytest-asyncio
-pytest-cov
+-e .[build,test,ci]
