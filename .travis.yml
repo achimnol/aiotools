@@ -21,14 +21,17 @@ jobs:
     - python: "3.6"
     - stage: Deploy (only for tagged commits)
       before_install:
-      - |
-        if [ -z "$TRAVIS_TAG" ]
-        then
-          echo 'Untagged commit: skipping PyPI deployment'
-          exit 0
-        fi
+        - |
+          if [ -z "$TRAVIS_TAG" ]
+          then
+            echo 'Untagged commit: skipping PyPI deployment'
+            exit 0
+          fi
+      install:
+        - pip install -U pip setuptools
+        - pip install -e '.[build]'
       script:
-      - python setup.py sdist bdist_wheel
+        - python setup.py sdist bdist_wheel
       after_success: []
       deploy:
         skip_cleanup: true
