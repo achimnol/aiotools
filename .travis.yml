@@ -1,4 +1,5 @@
 language: python
+dist: trusty
 cache: pip
 python:
   - "3.6"
@@ -15,9 +16,10 @@ after_success:
   - codecov
 
 jobs:
+  fast_finish: true
   include:
     - python: "3.6"
-    - stage: deploy (only for tagged commits)
+    - stage: Deploy (only for tagged commits)
       before_install:
       - |
         if [ -z "$TRAVIS_TAG" ]
@@ -27,7 +29,9 @@ jobs:
         fi
       script:
       - python setup.py sdist bdist_wheel
+      after_success: []
       deploy:
+        skip_cleanup: true
         provider: pypi
         user: joongi
         password:
