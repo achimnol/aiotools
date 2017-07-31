@@ -7,6 +7,8 @@
 
 Idiomatic asyncio utilties
 
+*NOTE:* This project is under early stage of developement. The public APIs may break version by version.
+
 
 ## Async Context Manager
 
@@ -90,7 +92,7 @@ async def echo(reader, writer):
     writer.close()
 
 @aiotools.actxmgr
-async def myserver(loop, pidx, args):
+async def myworker(loop, pidx, args):
     server = await asyncio.start_server(echo, '0.0.0.0', 8888,
         reuse_port=True, loop=loop)
     print(f'[{pidx}] started')
@@ -101,7 +103,7 @@ async def myserver(loop, pidx, args):
 
 if __name__ == '__main__':
     # Run the above server using 4 worker processes.
-    aiotools.start_server(myserver, num_proc=4)
+    aiotools.start_server(myworker, num_workers=4)
 ```
 
 It handles SIGINT/SIGTERM signals automatically to stop the server,
