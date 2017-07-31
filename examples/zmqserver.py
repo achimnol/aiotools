@@ -7,14 +7,20 @@ import aiozmq
 import zmq
 
 
-def router_main(pidx, args):
-    log = logging.getLogger('examples.zmqserver.extra')
+def get_logger(name, pid):
+    log = logging.getLogger(name)
     sh = logging.StreamHandler()
-    sh.setFormatter(logging.Formatter(f'%(relativeCreated).3f %(name)s[{pidx}] %(levelname)s: %(message)s'))
+    fmt = logging.Formatter(
+        f'%(relativeCreated).3f %(name)s[{pid}] %(levelname)s: %(message)s')
+    sh.setFormatter(fmt)
     log.addHandler(sh)
     log.propagate = False
     log.setLevel(logging.INFO)
+    return log
 
+
+def router_main(pidx, args):
+    log = get_logger('examples.zmqserver.extra', pidx)
     ctx = zmq.Context()
     ctx.linger = 0
     in_sock = ctx.socket(zmq.PULL)
@@ -37,13 +43,7 @@ def router_main(pidx, args):
 
 @aiotools.actxmgr
 async def worker_main(loop, pidx, args):
-    log = logging.getLogger('examples.zmqserver.worker')
-    sh = logging.StreamHandler()
-    sh.setFormatter(logging.Formatter(f'%(relativeCreated).3f %(name)s[{pidx}] %(levelname)s: %(message)s'))
-    log.addHandler(sh)
-    log.propagate = False
-    log.setLevel(logging.INFO)
-
+    log = get_logger('examples.zmqserver.worker', pidx)
     router = await aiozmq.create_zmq_stream(
         zmq.PULL,
         connect='ipc://example-events')
