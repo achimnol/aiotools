@@ -1,7 +1,9 @@
 import asyncio
 from contextlib import AbstractContextManager, contextmanager
 import multiprocessing as mp
+import os
 import signal
+import sys
 from typing import Any, Callable, Iterable, Optional
 
 from .context import AbstractAsyncContextManager
@@ -11,7 +13,7 @@ __all__ = (
 )
 
 
-def _worker_main(worker_ctxmgr, stop_signals, proc_idx, args):
+def _worker_main(worker_actxmgr, stop_signals, proc_idx, args):
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -27,7 +29,7 @@ def _worker_main(worker_ctxmgr, stop_signals, proc_idx, args):
         for signum in stop_signals:
             signal.signal(signum, signal.SIG_IGN)
             loop.add_signal_handler(signum, _handle_term_signal)
-        async with worker_ctxmgr(loop, proc_idx, args):
+        async with worker_actxmgr(loop, proc_idx, args):
             yield
 
     try:
@@ -47,26 +49,24 @@ def _worker_main(worker_ctxmgr, stop_signals, proc_idx, args):
         loop.close()
 
 
-def _extra_main(main_func, stop_signals, proc_idx, args):
+def _extra_main(main_ctxmgr, stop_signals, proc_idx, args):
 
     def _handle_term_signal(signum, frame):
-        raise SystemExit
+        sys.exit(0)
 
     for signum in stop_signals:
         signal.signal(signum, _handle_term_signal)
 
     try:
-        main_func(proc_idx, args)
+        main_ctxmgr(proc_idx, args)
     except SystemExit:
         pass
 
 
-def start_server(worker_ctxmgr: AbstractAsyncContextManager,
+def start_server(worker_actxmgr: AbstractAsyncContextManager,
                  main_ctxmgr: Optional[AbstractContextManager]=None,
                  extra_procs: Iterable[Callable]=tuple(),
-                 stop_signals: Iterable[signal.Signals]=(
-                     signal.SIGINT,
-                     signal.SIGTERM),
+                 stop_signals: Iterable[signal.Signals]=(signal.SIGINT, ),
                  num_workers: int=1,
                  args: Iterable[Any]=tuple()):
 
@@ -82,7 +82,7 @@ def start_server(worker_ctxmgr: AbstractAsyncContextManager,
     def _main_sig_handler(signum, frame):
         # propagate signal to children
         for p in children:
-            p.terminate()
+            os.kill(p.pid, signal.SIGINT)
 
     for signum in stop_signals:
         signal.signal(signum, _main_sig_handler)
@@ -90,13 +90,15 @@ def start_server(worker_ctxmgr: AbstractAsyncContextManager,
     with main_ctxmgr() as main_args:
         if main_args is None:
             main_args = tuple()
+        if not isinstance(main_args, tuple):
+            main_args = (main_args, )
         for i in range(num_workers):
-            p = mp.Process(target=_worker_main,
-                           args=(worker_ctxmgr, stop_signals, i, main_args + args))
+            p = mp.Process(target=_worker_main, daemon=True,
+                           args=(worker_actxmgr, stop_signals, i, main_args + args))
             p.start()
             children.append(p)
         for i, f in enumerate(extra_procs):
-            p = mp.Process(target=_extra_main,
+            p = mp.Process(target=_extra_main, daemon=True,
                            args=(f, stop_signals, num_workers + i, main_args + args))
             p.start()
             children.append(p)

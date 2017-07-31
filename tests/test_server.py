@@ -1,10 +1,13 @@
 import pytest
 
 import asyncio
+import contextlib
+import functools
 import multiprocessing as mp
 import os
 import signal
 import sys
+import time
 
 import aiotools
 
@@ -17,12 +20,26 @@ def restore_signal():
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
 
+@pytest.fixture
+def set_timeout():
+    def make_timeout(sec, callback):
+
+        def _callback(signum, frame):
+            signal.alarm(0)
+            callback()
+
+        signal.signal(signal.SIGALRM, _callback)
+        signal.setitimer(signal.ITIMER_REAL, sec)
+
+    yield make_timeout
+
+
 def test_server_singleproc(restore_signal):
 
     started = mp.Value('i', 0)
     terminated = mp.Value('i', 0)
 
-    def send_term_signal():
+    def interrupt():
         os.kill(0, signal.SIGINT)
 
     @aiotools.actxmgr
@@ -33,7 +50,7 @@ def test_server_singleproc(restore_signal):
         await asyncio.sleep(0)
         with started.get_lock():
             started.value += 1
-        loop.call_later(0.2, send_term_signal)
+        loop.call_later(0.2, interrupt)
 
         yield
 
@@ -52,7 +69,7 @@ def test_server_singleproc_sysexit(restore_signal):
     started = mp.Value('i', 0)
     terminated = mp.Value('i', 0)
 
-    def send_term_signal():
+    def interrupt():
         # sys.exit raises SystemExit exception
         sys.exit(0)
 
@@ -64,7 +81,7 @@ def test_server_singleproc_sysexit(restore_signal):
         await asyncio.sleep(0)
         with started.get_lock():
             started.value += 1
-        loop.call_later(0.2, send_term_signal)
+        loop.call_later(0.2, interrupt)
 
         yield
 
@@ -78,7 +95,7 @@ def test_server_singleproc_sysexit(restore_signal):
     assert terminated.value == 1
 
 
-def test_server_multiproc(restore_signal):
+def test_server_multiproc(set_timeout, restore_signal):
 
     started = mp.Value('i', 0)
     terminated = mp.Value('i', 0)
@@ -98,11 +115,10 @@ def test_server_multiproc(restore_signal):
         with terminated.get_lock():
             terminated.value += 1
 
-    def handler(signum, frame):
+    def interrupt():
         os.kill(0, signal.SIGINT)
 
-    signal.signal(signal.SIGALRM, handler)
-    signal.alarm(1)
+    set_timeout(0.2, interrupt)
     aiotools.start_server(myserver, num_workers=3,
                           args=(started, terminated, proc_idxs))
 
@@ -110,3 +126,104 @@ def test_server_multiproc(restore_signal):
     assert terminated.value == 3
     assert list(proc_idxs) == [0, 1, 2]
     assert len(mp.active_children()) == 0
+
+
+def test_server_user_main(set_timeout, restore_signal):
+    main_enter = False
+    main_exit = False
+
+    @contextlib.contextmanager
+    def mymain():
+        nonlocal main_enter, main_exit
+        main_enter = True
+        yield 987
+        main_exit = True
+
+    @aiotools.actxmgr
+    async def myworker(loop, proc_idx, args):
+        assert args[0] == 987  # first arg from user main
+        assert args[1] == 123  # second arg from start_server args
+        yield
+
+    def interrupt():
+        os.kill(0, signal.SIGINT)
+
+    set_timeout(0.2, interrupt)
+    aiotools.start_server(myworker, mymain, num_workers=3,
+                          args=(123, ))
+
+    assert main_enter
+    assert main_exit
+
+
+def test_server_user_main_tuple(set_timeout, restore_signal):
+    main_enter = False
+    main_exit = False
+
+    @contextlib.contextmanager
+    def mymain():
+        nonlocal main_enter, main_exit
+        main_enter = True
+        yield 987, 654
+        main_exit = True
+
+    @aiotools.actxmgr
+    async def myworker(loop, proc_idx, args):
+        assert args[0] == 987  # first arg from user main
+        assert args[1] == 654  # second arg from user main
+        assert args[2] == 123  # third arg from start_server args
+        yield
+
+    def interrupt():
+        os.kill(0, signal.SIGINT)
+
+    set_timeout(0.2, interrupt)
+    aiotools.start_server(myworker, mymain, num_workers=3,
+                          args=(123, ))
+
+    assert main_enter
+    assert main_exit
+
+
+def test_server_extra_proc(set_timeout, restore_signal):
+
+    extras = mp.Array('i', [0, 0])
+
+    def extra_proc(key, pidx, args):
+        nonlocal extras
+
+        extras[key] = 980 + key
+        _interrupted = False
+
+        def _term(signum, frame):
+            nonlocal _interrupted
+            if _interrupted:
+                return
+            _interrupted = True
+            sys.exit(0)
+
+        signal.signal(signal.SIGINT, _term)
+        try:
+            print(f'extra[{key}] run')
+            while not _interrupted:
+                time.sleep(0.1)
+        except Exception as e:
+            print(f'extra[{key}] exception', e)
+        finally:
+            extras[key] = 990 + key
+
+    @aiotools.actxmgr
+    async def myworker(loop, pidx, args):
+        yield
+
+    def interrupt():
+        os.kill(0, signal.SIGINT)
+
+    set_timeout(0.2, interrupt)
+    aiotools.start_server(myworker, extra_procs=[
+                              functools.partial(extra_proc, 0),
+                              functools.partial(extra_proc, 1)],
+                          num_workers=3, args=(123, ))
+
+    assert extras[0] == 990
+    assert extras[1] == 991
