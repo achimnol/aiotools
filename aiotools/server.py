@@ -1,3 +1,9 @@
+'''
+Based on :doc:`aiotools.context`, this module provides an automated lifecycle
+management for multi-process servers with explicit initialization steps and
+graceful shutdown steps.
+'''
+
 import asyncio
 from contextlib import AbstractContextManager, contextmanager
 import multiprocessing as mp
@@ -66,9 +72,69 @@ def _extra_main(main_ctxmgr, stop_signals, proc_idx, args):
 def start_server(worker_actxmgr: AbstractAsyncContextManager,
                  main_ctxmgr: Optional[AbstractContextManager]=None,
                  extra_procs: Iterable[Callable]=tuple(),
-                 stop_signals: Iterable[signal.Signals]=(signal.SIGINT, ),
+                 stop_signals: Iterable[signal.Signals]=(
+                    signal.SIGINT,
+                    signal.SIGTERM),
                  num_workers: int=1,
                  args: Iterable[Any]=tuple()):
+    '''
+    Starts a multi-process server where each process has their own individual
+    asyncio event loop.  Their lifecycles are automantically managed -- if the
+    main program receives one of the signals specified in ``stop_signals`` it
+    will initiate the shutdown routines on each worker that stops the event
+    loop gracefully.
+
+    Args:
+        worker_actxmgr: An asynchronous context manager that dicates the
+                        initialization and shutdown steps of each worker.
+                        It should accept three arguments:
+
+                        * ``loop``: the asyncio event loop created and set
+                          by aiotools
+                        * ``pidx``: the 0-based index of the worker process
+                          (use this for per-worker logging)
+                        * ``args``: a concatenated tuple of values yielded by
+                          **main_ctxmgr** and the user-defined arguments in
+                          **args**.
+
+        main_ctxmgr: An optional context manager that performs global
+                     initialization and shutdown steps of the whole program.
+                     It may yield one or more values to be passed to worker
+                     processes along with **args** passed to this function.
+                     There is no arguments passed to those functions since
+                     you can directly access ``sys.argv`` to parse command
+                     line arguments and/or read user configuratinos.
+
+        extra_procs: An iterable of functions that consist of extra processes
+                     whose lifecycles are synchronized with other workers.
+                     Normally you would put synchronous I/O loops into here
+                     which can be interrupted by SIGINT.
+                     It should accept the same set of arguments as
+                     **worker_actxmgr** does.
+
+        stop_signals: A list of UNIX signals that the main program to
+                      recognize as termination signals.
+                      Note that worker processes *only* receive SIGINT
+                      regardless of this argument.
+
+        num_workers: The number of children workers.
+
+        args: The user-defined arguments passed to workers and extra
+              processes.  If **main_ctxmgr** yields one or more values,
+              they are *prepended* to this user arguments when passed to
+              workers and extra processes.
+
+    Returns:
+        None
+
+    .. versionchanged:: 0.3.2
+
+       The name of argument ``num_proc`` is changed to ``num_workers``.
+
+    .. versionadded:: 0.3.2
+
+       The argument ``extra_procs`` and ``main_ctxmgr``.
+    '''
 
     @contextmanager
     def noop_main_ctxmgr():

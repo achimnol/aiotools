@@ -1,3 +1,7 @@
+'''
+Provides an implementation of asynchronous context manager and its applications.
+'''
+
 import abc
 import asyncio
 import functools
@@ -128,22 +132,31 @@ def async_ctx_manager(func):
 class AsyncContextGroup:
     '''
     Merges a group of context managers into a single context manager.
-    It uses `asyncio.gather()` to execute them with overlapping, to reduce the
-    execution time potentially.
+    Internally it uses ``asyncio.gather()`` to execute them with overlapping,
+    to reduce the execution time via asynchrony.
 
-    It always sets `return_exceptions=True` for `asyncio.gather()`, so that
-    exceptions from small subset of context managers would not prevent
-    execution of others.  This means that, it is user's responsibility to check
-    if the returned context values are exceptions or the intended ones inside
-    the context body after entering.
-    After exits, it stores the same `asyncio.gather` results from `__aexit__()`
-    methods of the context managers and you may access them via `exit_states()`
-    method.  Any exception inside the context body is thrown into `__aexit__()`
-    handlers of the context managers, but their failures are independent to
-    each other, and you can catch it outside the with block.
+    Upon entering, you can get values produced by the entering steps from
+    the passed context managers (those ``yield``-ed) using an ``as`` clause of
+    the ``async with``
+    statement.
 
-    To prevent memory leak, the context variables captured during
-    `__aenter__()` are cleared when starting `__aexit__()`.
+    After exits, you can get values produced by the exiting steps of the
+    passed context managers (those ``return``-ed) using the ``exit_states()``
+    method.  To prevent memory leak, the context variables captured during
+    ``__aenter__()`` are cleared when starting ``__aexit__()``.
+
+    If an exception is raised before the ``yield`` statement of an async
+    context manager, it is stored at the corresponding manager index in the
+    as-clause variable.  Similarly, if an exception is raised after the
+    ``yield`` statement of an async context manager, it is stored at the
+    corresponding manager index in the ``exit_states()`` return value.
+
+    Any exceptions in a specific context manager does not interrupt others;
+    this semantic is same to ``asyncio.gather()``'s when
+    ``return_exceptions=True``.  This means that, it is user's responsibility
+    to check if the returned context values are exceptions or the intended ones
+    inside the context body after entering.
+
     '''
 
     def __init__(self,
@@ -153,6 +166,9 @@ class AsyncContextGroup:
         self._cm_exits = []
 
     def add(self, cm):
+        '''
+        :todo: fill description
+        '''
         self._cm.append(cm)
 
     async def __aenter__(self):
@@ -173,6 +189,9 @@ class AsyncContextGroup:
             return_exceptions=True)
 
     def exit_states(self):
+        '''
+        :todo: fill description
+        '''
         return self._cm_exits
 
 

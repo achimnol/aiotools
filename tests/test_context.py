@@ -594,6 +594,10 @@ async def test_actxgroup(event_loop):
 
     assert exit_count == 3
     assert len(ctxgrp._cm_yields) == 0
+    returns = ctxgrp.exit_states()
+    assert returns[0] is None
+    assert returns[1] is None
+    assert returns[2] is None
 
     # Test generator/iterator initialization
     exit_count = 0
@@ -607,6 +611,10 @@ async def test_actxgroup(event_loop):
 
     assert exit_count == 3
     assert len(ctxgrp._cm_yields) == 0
+    returns = ctxgrp.exit_states()
+    assert returns[0] is None
+    assert returns[1] is None
+    assert returns[2] is None
 
 
 @pytest.mark.asyncio

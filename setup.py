@@ -31,6 +31,11 @@ dev_requires = [
 ci_requires = [
 ]
 
+docs_requires = [
+    'sphinx',
+    'sphinx_rtd_theme',
+]
+
 
 setup(
     name="aiotools",
@@ -63,5 +68,6 @@ setup(
         'test': test_requires,
         'dev': dev_requires,
         'ci': ci_requires,
+        'docs': docs_requires,
     }
 )
