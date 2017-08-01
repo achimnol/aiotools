@@ -2,7 +2,7 @@
 
 from setuptools import setup
 
-version = "0.4.1"
+version = "0.4.2"
 
 try:
     import pypandoc
@@ -18,7 +18,7 @@ build_requires = [
 
 test_requires = [
     'pytest>=3.1',
-    'pytest-asyncio',
+    'pytest-asyncio~=0.5.0',
     'pytest-cov',
     'codecov',
     'flake8',
