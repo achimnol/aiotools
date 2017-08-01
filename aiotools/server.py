@@ -169,11 +169,18 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
 
     .. versionchanged:: 0.3.2
 
-       The name of argument ``num_proc`` is changed to ``num_workers``.
+       The name of argument **num_proc** is changed to **num_workers**.
+       Even if **num_workers** is 1, a child is created instead of
+       doing everything at the main thread.
 
     .. versionadded:: 0.3.2
 
        The argument ``extra_procs`` and ``main_ctxmgr``.
+
+    .. versionadded:: 0.4.0
+
+       Now supports use of threading instead of multiprocessing via
+       **use_threading** option.
     '''
 
     @contextmanager
