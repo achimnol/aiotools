@@ -73,8 +73,8 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
                  main_ctxmgr: Optional[AbstractContextManager]=None,
                  extra_procs: Iterable[Callable]=tuple(),
                  stop_signals: Iterable[signal.Signals]=(
-                    signal.SIGINT,
-                    signal.SIGTERM),
+                     signal.SIGINT,
+                     signal.SIGTERM),
                  num_workers: int=1,
                  args: Iterable[Any]=tuple()):
     '''
