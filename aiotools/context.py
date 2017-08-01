@@ -1,5 +1,9 @@
 '''
 Provides an implementation of asynchronous context manager and its applications.
+
+The async context managers in this module will become mere aliases to
+``contextlib.asynccontextmanager`` of the standard library when Python 3.7 is
+released.
 '''
 
 import abc
@@ -17,6 +21,9 @@ __all__ = (
 
 
 class AbstractAsyncContextManager(abc.ABC):
+    '''
+    The base abstract interface for asynchronous context manager.
+    '''
 
     async def __aenter__(self):
         return self  # pragma: no cover
@@ -140,10 +147,14 @@ class AsyncContextGroup:
     the ``async with``
     statement.
 
-    After exits, you can get values produced by the exiting steps of the
-    passed context managers (those ``return``-ed) using the ``exit_states()``
-    method.  To prevent memory leak, the context variables captured during
-    ``__aenter__()`` are cleared when starting ``__aexit__()``.
+    After exits, you can check if the context managers have finished
+    successfully by ensuring that the return values of ``exit_states()`` method
+    are ``None``.
+
+    .. note::
+
+       You cannot return values in context managers because they are
+       generators.
 
     If an exception is raised before the ``yield`` statement of an async
     context manager, it is stored at the corresponding manager index in the
@@ -157,6 +168,11 @@ class AsyncContextGroup:
     to check if the returned context values are exceptions or the intended ones
     inside the context body after entering.
 
+    :param context_managers: An iterable of async context managers.
+                             If this is ``None``, you may add async context
+                             managers one by one using the :meth:`~.add`
+                             method.
+
     '''
 
     def __init__(self,
@@ -167,7 +183,7 @@ class AsyncContextGroup:
 
     def add(self, cm):
         '''
-        :todo: fill description
+        TODO: fill description
         '''
         self._cm.append(cm)
 
@@ -190,7 +206,7 @@ class AsyncContextGroup:
 
     def exit_states(self):
         '''
-        :todo: fill description
+        TODO: fill description
         '''
         return self._cm_exits
 

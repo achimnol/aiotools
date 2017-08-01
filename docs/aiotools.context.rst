@@ -1,7 +1,9 @@
 Async Context Manager
 =====================
 
-.. module:: aiotools.context
+.. automodule:: aiotools.context
+
+.. currentmodule:: aiotools.context
 
 .. autoclass:: aiotools.context.AbstractAsyncContextManager
    :members:
@@ -9,10 +11,16 @@ Async Context Manager
 .. autoclass:: aiotools.context.AsyncContextManager
    :members:
 
+.. function:: async_ctx_manager(func)
+
+   A helper function to ease use of :class:`~.AsyncContextManager`.
+
+.. function:: actxmgr(func)
+
+   An alias of :func:`~.async_ctx_manager`.
+
 .. autoclass:: aiotools.context.AsyncContextGroup
    :members:
-
-   Alias: ``actxmgr``
 
    Example:
 
@@ -32,6 +40,6 @@ Async Context Manager
       assert rets[0] is None  # successful shutdown
       assert rets[1] is None
 
-.. autofunction:: aiotools.context.async_ctx_manager
+.. class:: actxgroup
 
-   Alias: ``actxmgr``
+   An alias of :class:`~.AsyncContextGroup`.

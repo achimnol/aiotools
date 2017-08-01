@@ -33,7 +33,8 @@ ci_requires = [
 
 docs_requires = [
     'sphinx',
-    'sphinx_rtd_theme',
+    'sphinx-autodoc-typehints',
+    'guzzle-sphinx-theme',
 ]
 
 

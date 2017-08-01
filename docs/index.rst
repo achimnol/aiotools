@@ -6,9 +6,10 @@
 aiotools Documentation
 ======================
 
+**aiotools** is a set of idiomatic utilities to reduce asyncio boiler-plates.
+
 .. toctree::
    :maxdepth: 2
-   :caption: Modules
 
    aiotools.context
    aiotools.server

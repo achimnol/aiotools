@@ -42,6 +42,7 @@ root_dir = Path(__file__).resolve().parents[1]
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
+    'sphinx_autodoc_typehints',
     'sphinx.ext.viewcode',
 ]
 
@@ -96,20 +97,26 @@ todo_include_todos = False
 # a list of builtin themes.
 #
 #html_theme = 'alabaster'
-if not on_rtd:  # only import and set the theme if we're building docs locally
-    try:
-        import sphinx_rtd_theme
-    except ImportError:
-        print('Please do pip install sphinx-rtd-theme first.', file=sys.stderr)
-        sys.exit(1)
-    html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+import guzzle_sphinx_theme
+html_theme_path = guzzle_sphinx_theme.html_theme_path()
+html_theme = 'guzzle_sphinx_theme'
+extensions.append('guzzle_sphinx_theme')
+#if not on_rtd:  # only import and set the theme if we're building docs locally
+#    try:
+#        import sphinx_rtd_theme
+#    except ImportError:
+#        print('Please do pip install sphinx-rtd-theme first.', file=sys.stderr)
+#        sys.exit(1)
+#    html_theme = 'sphinx_rtd_theme'
+#    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    'project_nav_name': 'aiotools',
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -121,15 +128,7 @@ html_static_path = ['_static']
 #
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
-html_sidebars = {
-    '**': [
-        'about.html',
-        'navigation.html',
-        'relations.html',  # needs 'show_related': True theme option to display
-        'searchbox.html',
-        'donate.html',
-    ]
-}
+#html_sidebars = {}
 
 
 # -- Options for HTMLHelp output ------------------------------------------
@@ -189,5 +188,9 @@ texinfo_documents = [
 ]
 
 
+add_module_names = False
+
+
 def setup(app):
-    app.add_stylesheet('custom.css')
+    #app.add_stylesheet('custom.css')
+    pass
