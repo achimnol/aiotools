@@ -7,9 +7,9 @@ graceful shutdown steps.
 import asyncio
 from contextlib import AbstractContextManager, contextmanager
 import multiprocessing as mp
+import threading
 import os
 import signal
-import sys
 from typing import Any, Callable, Iterable, Optional
 
 from .context import AbstractAsyncContextManager
@@ -18,12 +18,19 @@ __all__ = (
     'start_server',
 )
 
+# for threaded mode
+_children_loops = []
+_children_lock = threading.Lock()
 
-def _worker_main(worker_actxmgr, stop_signals, proc_idx, args):
+
+def _worker_main(worker_actxmgr, threaded, proc_idx, args):
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     interrupted = False
+    if threaded:
+        with _children_lock:
+            _children_loops.append(loop)
 
     def _handle_term_signal():
         nonlocal interrupted
@@ -32,9 +39,9 @@ def _worker_main(worker_actxmgr, stop_signals, proc_idx, args):
             interrupted = True
 
     async def _work():
-        for signum in stop_signals:
-            signal.signal(signum, signal.SIG_IGN)
-            loop.add_signal_handler(signum, _handle_term_signal)
+        if not threaded:
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            loop.add_signal_handler(signal.SIGINT, _handle_term_signal)
         async with worker_actxmgr(loop, proc_idx, args):
             yield
 
@@ -55,16 +62,21 @@ def _worker_main(worker_actxmgr, stop_signals, proc_idx, args):
         loop.close()
 
 
-def _extra_main(main_ctxmgr, stop_signals, proc_idx, args):
+def _extra_main(extra_func, threaded, intr_event, proc_idx, args):
+    if not threaded:
 
-    def _handle_term_signal(signum, frame):
-        sys.exit(0)
+        _interrupted = False
 
-    for signum in stop_signals:
-        signal.signal(signum, _handle_term_signal)
+        def raise_kbdintr(signum, frame):
+            nonlocal _interrupted
+            if not _interrupted:
+                _interrupted = True
+                raise KeyboardInterrupt
 
+        signal.signal(signal.SIGINT, raise_kbdintr)
+        intr_event = None
     try:
-        main_ctxmgr(proc_idx, args)
+        extra_func(intr_event, proc_idx, args)
     except SystemExit:
         pass
 
@@ -76,6 +88,7 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
                      signal.SIGINT,
                      signal.SIGTERM),
                  num_workers: int=1,
+                 use_threading: bool=False,
                  args: Iterable[Any]=tuple()):
     '''
     Starts a multi-process server where each process has their own individual
@@ -87,15 +100,20 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
     Args:
         worker_actxmgr: An asynchronous context manager that dicates the
                         initialization and shutdown steps of each worker.
-                        It should accept three arguments:
+                        It should accept the following three arguments:
 
-                        * ``loop``: the asyncio event loop created and set
+                        * **loop**: the asyncio event loop created and set
                           by aiotools
-                        * ``pidx``: the 0-based index of the worker process
+                        * **pidx**: the 0-based index of the worker
                           (use this for per-worker logging)
-                        * ``args``: a concatenated tuple of values yielded by
+                        * **args**: a concatenated tuple of values yielded by
                           **main_ctxmgr** and the user-defined arguments in
                           **args**.
+
+                        aiotools automatically installs an interruption handler
+                        that calls ``loop.stop()`` to the given event loop,
+                        regardless of using either threading or
+                        multiprocessing.
 
         main_ctxmgr: An optional context manager that performs global
                      initialization and shutdown steps of the whole program.
@@ -103,21 +121,43 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
                      processes along with **args** passed to this function.
                      There is no arguments passed to those functions since
                      you can directly access ``sys.argv`` to parse command
-                     line arguments and/or read user configuratinos.
+                     line arguments and/or read user configurations.
 
         extra_procs: An iterable of functions that consist of extra processes
                      whose lifecycles are synchronized with other workers.
-                     Normally you would put synchronous I/O loops into here
-                     which can be interrupted by SIGINT.
-                     It should accept the same set of arguments as
-                     **worker_actxmgr** does.
+
+                     You should write the shutdown steps of them differently
+                     depending on the value of **use_threading** argument.
+
+                     If it is ``False`` (default), they will get
+                     :class:`KeyboardInterrupt` like normal Python codes in the
+                     main thread upon arrival of a stop signal to the main
+                     program.
+
+                     If it is ``True``, they should check their **intr_event**
+                     argument periodically because there is no way to install
+                     signal handlers in Python threads (only the main thread
+                     can install signal handlers).
+
+                     It should accept the following three arguments:
+
+                     * **intr_event**: :class:`threading.Event` object that
+                       signals the interruption of the main thread (only
+                       available when **use_threading** is ``True``; otherwise
+                       it is set to ``None``)
+                     * **pidx**: same to **worker_actxmgr** argument
+                     * **args**: same to **worker_actxmgr** argument
 
         stop_signals: A list of UNIX signals that the main program to
                       recognize as termination signals.
-                      Note that worker processes *only* receive SIGINT
-                      regardless of this argument.
 
         num_workers: The number of children workers.
+
+        use_threading: Use :mod:`threading` instead of :mod:`multiprocessing`.
+                       In this case, the GIL may become the performance
+                       bottleneck.  Set this ``True`` only when you know what
+                       you are going to do.  Note that this changes the way
+                       to write user-defined functions passed as **extra_procs**.
 
         args: The user-defined arguments passed to workers and extra
               processes.  If **main_ctxmgr** yields one or more values,
@@ -140,15 +180,28 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
     def noop_main_ctxmgr():
         yield
 
+    def create_child(*args, **kwargs):
+        if use_threading:
+            return threading.Thread(*args, **kwargs)
+        else:
+            return mp.Process(*args, **kwargs)
+
     if main_ctxmgr is None:
         main_ctxmgr = noop_main_ctxmgr
 
     children = []
+    intr_event = threading.Event()
 
     def _main_sig_handler(signum, frame):
         # propagate signal to children
-        for p in children:
-            os.kill(p.pid, signal.SIGINT)
+        if use_threading:
+            with _children_lock:
+                for l in _children_loops:
+                    l.call_soon_threadsafe(l.stop)
+            intr_event.set()
+        else:
+            for p in children:
+                os.kill(p.pid, signal.SIGINT)
 
     for signum in stop_signals:
         signal.signal(signum, _main_sig_handler)
@@ -159,14 +212,17 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
         if not isinstance(main_args, tuple):
             main_args = (main_args, )
         for i in range(num_workers):
-            p = mp.Process(target=_worker_main, daemon=True,
-                           args=(worker_actxmgr, stop_signals, i, main_args + args))
+            p = create_child(target=_worker_main, daemon=True,
+                             args=(worker_actxmgr, use_threading,
+                                   i, main_args + args))
             p.start()
             children.append(p)
         for i, f in enumerate(extra_procs):
-            p = mp.Process(target=_extra_main, daemon=True,
-                           args=(f, stop_signals, num_workers + i, main_args + args))
+            p = create_child(target=_extra_main, daemon=True,
+                             args=(f, use_threading, intr_event,
+                                   num_workers + i, main_args + args))
             p.start()
             children.append(p)
         for child in children:
             child.join()
+        _children_loops.clear()

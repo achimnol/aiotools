@@ -44,6 +44,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx_autodoc_typehints',
     'sphinx.ext.viewcode',
+    'sphinx.ext.intersphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -190,6 +191,7 @@ texinfo_documents = [
 
 add_module_names = False
 
+intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
 
 def setup(app):
     #app.add_stylesheet('custom.css')

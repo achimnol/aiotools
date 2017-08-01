@@ -26,6 +26,12 @@ def create_timer(cb: Callable[[float], None], interval: float,
     The interval value is also passed to the callable.
     If the callable takes longer than the timer interval, all accumulated
     callable's tasks will be cancelled when the timer is cancelled.
+
+    Args:
+        cb: TODO - fill argument descriptions
+
+    Returns:
+        You can stop the timer by cancelling the returned task.
     '''
     if not loop:
         loop = asyncio.get_event_loop()

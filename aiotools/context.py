@@ -139,7 +139,7 @@ def async_ctx_manager(func):
 class AsyncContextGroup:
     '''
     Merges a group of context managers into a single context manager.
-    Internally it uses ``asyncio.gather()`` to execute them with overlapping,
+    Internally it uses :func:`asyncio.gather()` to execute them with overlapping,
     to reduce the execution time via asynchrony.
 
     Upon entering, you can get values produced by the entering steps from
