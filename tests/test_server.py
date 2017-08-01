@@ -15,10 +15,13 @@ import aiotools
 
 @pytest.fixture
 def restore_signal():
+    old_alrm = signal.getsignal(signal.SIGALRM)
+    old_intr = signal.getsignal(signal.SIGINT)
+    old_term = signal.getsignal(signal.SIGTERM)
     yield
-    signal.signal(signal.SIGALRM, signal.SIG_DFL)
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    signal.signal(signal.SIGALRM, old_alrm)
+    signal.signal(signal.SIGINT, old_intr)
+    signal.signal(signal.SIGTERM, old_term)
 
 
 @pytest.fixture
