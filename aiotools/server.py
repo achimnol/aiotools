@@ -201,13 +201,15 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
     children = []
     _children_loops.clear()
     intr_event = threading.Event()
-    mainloop = asyncio.get_event_loop()
-    if mainloop.is_closed():
-        mainloop = asyncio.new_event_loop()
-        asyncio.set_event_loop(mainloop)
+
+    mainloop = asyncio.new_event_loop()
+    asyncio.set_event_loop(mainloop)
 
     # to make subprocess working in child threads
-    asyncio.get_child_watcher()
+    try:
+        asyncio.get_child_watcher()
+    except NotImplementedError:
+        pass  # for uvloop
 
     _main_stopped = False
 
