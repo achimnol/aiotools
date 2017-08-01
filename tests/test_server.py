@@ -96,37 +96,6 @@ def test_server_singleproc_threading(restore_signal):
     assert terminated == 1
 
 
-def test_server_singleproc_sysexit(restore_signal):
-
-    started = mp.Value('i', 0)
-    terminated = mp.Value('i', 0)
-
-    def interrupt():
-        # sys.exit raises SystemExit exception
-        sys.exit(0)
-
-    @aiotools.actxmgr
-    async def myserver(loop, proc_idx, args):
-        nonlocal started, terminated
-        assert proc_idx == 0
-        assert len(args) == 0
-        await asyncio.sleep(0)
-        with started.get_lock():
-            started.value += 1
-        loop.call_later(0.2, interrupt)
-
-        yield
-
-        await asyncio.sleep(0)
-        with terminated.get_lock():
-            terminated.value += 1
-
-    aiotools.start_server(myserver)
-
-    assert started.value == 1
-    assert terminated.value == 1
-
-
 def test_server_multiproc(set_timeout, restore_signal):
 
     started = mp.Value('i', 0)

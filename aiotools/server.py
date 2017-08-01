@@ -186,13 +186,30 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
         else:
             return mp.Process(*args, **kwargs)
 
+    assert stop_signals
+
     if main_ctxmgr is None:
         main_ctxmgr = noop_main_ctxmgr
 
     children = []
+    _children_loops.clear()
     intr_event = threading.Event()
+    mainloop = asyncio.get_event_loop()
+    if mainloop.is_closed():
+        mainloop = asyncio.new_event_loop()
+        asyncio.set_event_loop(mainloop)
 
-    def _main_sig_handler(signum, frame):
+    # to make subprocess working in child threads
+    asyncio.get_child_watcher()
+
+    _main_stopped = False
+
+    def _main_sig_handler():
+        nonlocal _main_stopped
+        if _main_stopped:
+            return
+        _main_stopped = True
+
         # propagate signal to children
         if use_threading:
             with _children_lock:
@@ -202,9 +219,11 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
         else:
             for p in children:
                 os.kill(p.pid, signal.SIGINT)
+        mainloop.stop()
 
     for signum in stop_signals:
-        signal.signal(signum, _main_sig_handler)
+        signal.signal(signum, signal.SIG_IGN)
+        mainloop.add_signal_handler(signum, _main_sig_handler)
 
     with main_ctxmgr() as main_args:
         if main_args is None:
@@ -223,6 +242,9 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
                                    num_workers + i, main_args + args))
             p.start()
             children.append(p)
-        for child in children:
-            child.join()
-        _children_loops.clear()
+        try:
+            mainloop.run_forever()
+        finally:
+            for child in children:
+                child.join()
+            mainloop.close()
