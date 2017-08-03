@@ -19,6 +19,8 @@ Async Context Manager
 
    An alias of :func:`~.async_ctx_manager`.
 
+.. autoclass:: aiotools.context.aclosing
+
 .. autoclass:: aiotools.context.AsyncContextGroup
    :members:
 

@@ -14,7 +14,7 @@ from typing import Any, Callable, Iterable, Optional
 import sys
 
 __all__ = (
-    'AsyncContextManager', 'async_ctx_manager', 'actxmgr',
+    'AsyncContextManager', 'async_ctx_manager', 'actxmgr', 'aclosing',
     'AsyncContextDecorator', 'actxdecorator',
     'AsyncContextGroup', 'actxgroup',
 )
@@ -134,6 +134,28 @@ def async_ctx_manager(func):
     def helper(*args, **kwargs):
         return AsyncContextManager(func, args, kwargs)
     return helper
+
+
+class aclosing:
+    '''
+    An analogy to :func:`contextlib.closing` for async generators.
+
+    The motivation has been proposed by:
+
+    * https://github.com/njsmith/async_generator
+    * https://vorpus.org/blog/some-thoughts-on-asynchronous-api-design-\
+in-a-post-asyncawait-world/#cleanup-in-generators-and-async-generators
+    * https://www.python.org/dev/peps/pep-0533/
+    '''
+
+    def __init__(self, thing):
+        self.thing = thing
+
+    async def __aenter__(self):
+        return self.thing
+
+    async def __aexit__(self):
+        await self.thing.aclose()
 
 
 class AsyncContextGroup:
