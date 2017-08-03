@@ -19,7 +19,7 @@ def get_logger(name, pid):
     return log
 
 
-def router_main(pidx, args):
+def router_main(_, pidx, args):
     log = get_logger('examples.zmqserver.extra', pidx)
     ctx = zmq.Context()
     ctx.linger = 0
@@ -30,7 +30,7 @@ def router_main(pidx, args):
     try:
         log.info('router proxy started')
         zmq.proxy(in_sock, out_sock)
-    except zmq.ContextTerminated:
+    except KeyboardInterrupt:
         pass
     except:
         log.exception('unexpected error')
