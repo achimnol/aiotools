@@ -202,6 +202,7 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
     _children_loops.clear()
     intr_event = threading.Event()
 
+    old_loop = asyncio.get_event_loop()
     mainloop = asyncio.new_event_loop()
     asyncio.set_event_loop(mainloop)
 
@@ -253,7 +254,8 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
             children.append(p)
         try:
             mainloop.run_forever()
-        finally:
             for child in children:
                 child.join()
+        finally:
             mainloop.close()
+            asyncio.set_event_loop(old_loop)
