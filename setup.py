@@ -2,7 +2,7 @@
 
 from setuptools import setup
 
-version = "0.4.3dev1"
+version = "0.4.3dev2"
 
 build_requires = [
     'wheel',
