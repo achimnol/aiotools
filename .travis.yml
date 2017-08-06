@@ -1,11 +1,13 @@
 language: python
 dist: trusty
 cache: pip
+
 python:
   - "3.6"
 addons:
   apt_packages:
     - pandoc
+
 install:
   - pip install -U pip setuptools
   - pip install -r requirements-ci.txt
@@ -15,30 +17,28 @@ script:
 after_success:
   - codecov
 
+_helpers:
+- &_skip_steps
+  python: 3.6
+  before_install: skip
+  install: skip
+  before_script: skip
+  script: skip
+  after_script: skip
+  after_success: skip
+
 jobs:
   fast_finish: true
   include:
     - python: "3.6"
     - stage: Deploy (only for tagged commits)
-      before_install:
-        - |
-          if [ -z "$TRAVIS_TAG" ]
-          then
-            echo 'Untagged commit: skipping PyPI deployment'
-            exit 0
-          fi
-      install:
-        - pip install -U pip setuptools
-        - pip install -e '.[build]'
-      script:
-        - python setup.py sdist bdist_wheel
-      after_success: []
+      <<: *_skip_steps
       deploy:
-        skip_cleanup: true
         provider: pypi
+        on:
+          tags: true
+        distributions: sdist bdist_wheel
         user: joongi
         password:
           secure: "fL5z1sULBw8wwgrP5lAw/IIw0Rrp0Oo1CZokXWcaxyVqewxDkZabiMNY73zc4EcQv51FK2m9YNBuoKIAq6196ks9t23fgGSnUEWWwXyAPzoAzyB1qJayQ2uEkADfkFnNqd8yU8nZyUB6AnphZ3aTzg0jrbDnfZbrAZNUJkCZ8RDHPvEPsApzRqD+DJyiIVMBfQ2p0JGDP8tgzT4gGWjoh9gTxtA5+mgvrC1q3INC9fjNbYkuO5pU7ZeXPLFj8KVkK+y1RyVmbN5DGwpFDxT5Qyz8p3azH9TW53jriPfNIo16/+1k7RFIfpUVGNJtLPjwXcuLyooQI1EeXALpUeMoCb28mvxrJUELuUMOEW8wd9JWWUH7Qznj2Ti36I9S/ySq+WGA7WLLMl6O9AORkYaiyM5lDMBeASq+v1dSrpXpPAr5NEbCf/SdfCennItZmybFNvgajKtXAvPqOm6240lidQCpNqqgxwrKssgF4FkrbG6Eb2UxzmsoXsfeWDpA7aBpJQFclwKnSbMPmT7VEN4bZJmlPRrCJCB5MPBWyK82+2hKR+IJCeeqazU3UtQuPrumWLdFVMRoH/uTcTDCVllJWFvCaohwd+VnnzsySKE21fCEFr/BJegTGPPqTQ0r/n8W+G82Egi3q/mZ5u91RWDctgxRuIJH+9OcElX0eRHZeO0="
-        on:
-          tags: true
-          all_branches: true
+        skip_upload_docs: true
