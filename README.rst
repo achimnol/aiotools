@@ -25,11 +25,11 @@ Idiomatic asyncio utilties
 Async Context Manager
 ---------------------
 
-This is an asynchronous version of :func:`contextlib.contextmanager` to make it
+This is an asynchronous version of `contextlib.contextmanager`_ to make it
 easier to write asynchronous context managers without creating boilerplate
 classes.
 
-.. code-block:: python3
+.. code-block:: python
 
    import asyncio
    import aiotools
@@ -48,7 +48,7 @@ Note that you need to wrap ``yield`` with a try-finally block to
 ensure resource releases (e.g., locks), even in the case when
 an exception is ocurred inside the async-with block.
 
-.. code-block:: python3
+.. code-block:: python
 
    import asyncio
    import aiotools
@@ -71,9 +71,9 @@ an exception is ocurred inside the async-with block.
            print('caught!')  # you can catch exceptions here.
 
 You can also create a group of async context managers, which
-are entered/exited all at once using :func:`asyncio.gather`.
+are entered/exited all at once using `asyncio.gather()`_.
 
-.. code-block:: python3
+.. code-block:: python
 
    import asyncio
    import aiotools
@@ -94,7 +94,7 @@ Async Server
 
 This implements a common pattern to launch asyncio-based server daemons.
 
-.. code-block:: python3
+.. code-block:: python
 
    import asyncio
    import aiotools
@@ -126,7 +126,7 @@ as well as lifecycle management of event loops running on multiple processes.
 Async Timer
 -----------
 
-.. code-block:: python3
+.. code-block:: python
 
    import aiotools
    
@@ -142,12 +142,12 @@ Async Timer
        t.cancel()
        await t
 
-``t`` is an :class:`asyncio.Task` object.
+``t`` is an `asyncio.Task`_ object.
 To stop the timer, call ``t.cancel(); await t``.
 Please don't forget ``await``-ing ``t`` because it requires extra steps to
 cancel and await all pending tasks.
 To make your timer function to be cancellable, add a try-except clause
-catching :class:`asyncio.CancelledError` since we use it as a termination
+catching `asyncio.CancelledError`_ since we use it as a termination
 signal.
 
 You may add ``TimerDelayPolicy`` argument to control the behavior when the
@@ -156,7 +156,7 @@ timer-fired task takes longer than the timer interval.
 the timer is cancelled.
 **CANCEL** is to cancel any pending previously fired tasks on every interval.
 
-.. code-block:: python3
+.. code-block:: python
 
    import asyncio
    import aiotools
@@ -169,3 +169,9 @@ the timer is cancelled.
        ...
        t.cancel()
        await t
+
+
+.. _contextlib.contextmanager: https://docs.python.org/3/library/contextlib.html#contextlib.contextmanager
+.. _asyncio.gather(): https://docs.python.org/3/library/asyncio-task.html#asyncio.gather
+.. _asyncio.Task: https://docs.python.org/3/library/asyncio-task.html#asyncio.Task
+.. _asyncio.CancelledError: https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.CancelledError
