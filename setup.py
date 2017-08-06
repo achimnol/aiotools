@@ -4,14 +4,7 @@ from setuptools import setup
 
 version = "0.4.3dev1"
 
-try:
-    import pypandoc
-    long_description = pypandoc.convert('README.md', 'rst')
-except (IOError, ImportError):
-    long_description = ""
-
 build_requires = [
-    'pypandoc',
     'wheel',
     'twine',
 ]
