@@ -3,7 +3,7 @@
 from setuptools import setup
 from pathlib import Path
 
-version = "0.4.3.dev3"
+version = "0.4.3"
 root = Path(__file__).resolve().parents[0]
 
 build_requires = [
@@ -38,7 +38,8 @@ setup(
     version=version,
     author="Joongi Kim",
     author_email="me@daybreaker.info",
-    long_description=(root / 'README.rst').read_text(),
+    long_description='\n\n'.join([(root / 'README.rst').read_text(),
+                                  (root / 'CHANGES.rst').read_text()]),
     description="Idiomatic asyncio utilities",
     license="MIT",
     classifiers=[
