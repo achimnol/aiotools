@@ -6,6 +6,7 @@ graceful shutdown steps.
 
 import asyncio
 from contextlib import AbstractContextManager, contextmanager
+from functools import partial
 import multiprocessing as mp
 import threading
 import os
@@ -214,12 +215,7 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
 
     _main_stopped = False
 
-    def _main_sig_handler():
-        nonlocal _main_stopped
-        if _main_stopped:
-            return
-        _main_stopped = True
-
+    def _reap_child():
         # propagate signal to children
         if use_threading:
             with _children_lock:
@@ -229,33 +225,64 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
         else:
             for p in children:
                 os.kill(p.pid, signal.SIGINT)
+
+    def _main_sig_handler():
+        nonlocal _main_stopped
+        if _main_stopped:
+            return
+        _main_stopped = True
+        _reap_child()
         mainloop.stop()
 
     for signum in stop_signals:
         signal.signal(signum, signal.SIG_IGN)
         mainloop.add_signal_handler(signum, _main_sig_handler)
 
-    with main_ctxmgr() as main_args:
-        if main_args is None:
-            main_args = tuple()
-        if not isinstance(main_args, tuple):
-            main_args = (main_args, )
-        for i in range(num_workers):
-            p = create_child(target=_worker_main, daemon=True,
-                             args=(worker_actxmgr, use_threading,
-                                   i, main_args + args))
-            p.start()
-            children.append(p)
-        for i, f in enumerate(extra_procs):
-            p = create_child(target=_extra_main, daemon=True,
-                             args=(f, use_threading, intr_event,
-                                   num_workers + i, main_args + args))
-            p.start()
-            children.append(p)
+    def _spawn_child():
+        with main_ctxmgr() as main_args:
+            if main_args is None:
+                main_args = tuple()
+            if not isinstance(main_args, tuple):
+                main_args = (main_args, )
+            for i in range(num_workers):
+                p = create_child(target=_worker_main, daemon=True,
+                                args=(worker_actxmgr, use_threading,
+                                    i, main_args + args))
+                p.start()
+                children.append(p)
+            for i, f in enumerate(extra_procs):
+                p = create_child(target=_extra_main, daemon=True,
+                                args=(f, use_threading, intr_event,
+                                    num_workers + i, main_args + args))
+                p.start()
+                children.append(p)
+    
+    def _join_child():
+        for child in children:
+            child.join()
+    
+    def _run_mainloop():
         try:
             mainloop.run_forever()
-            for child in children:
-                child.join()
+            _join_child()
         finally:
             mainloop.close()
             asyncio.set_event_loop(old_loop)
+
+    def _reload(restart):
+        _reap_child()
+        if restart:
+            mainloop.close()
+            mainloop = asyncio.new_event_loop()
+            asyncio.set_event_loop(mainloop)
+        _spawn_child()
+        _join_child()
+
+    signal.signal(signal.SIGUSR1, signal.SIG_IGN)
+    mainloop.add_signal_handler(signal.SIGUSR1, partial(_reload, restart=False))
+
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    mainloop.add_signal_handler(signal.SIGHUP, partial(_reload, restart=True))
+
+    _spawn_child()
+    _run_mainloop()
