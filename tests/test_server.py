@@ -323,3 +323,58 @@ def test_server_extra_proc_threading(set_timeout, restore_signal):
 
     assert extras[0] == 990
     assert extras[1] == 991
+
+def test_graceful_reload(set_timeout, restore_signal):
+    extras = ['', '']
+    value_lock = threading.Lock()
+
+    def extra_proc(key, intr_event, pidx, args):
+        with value_lock:
+            if extras[key] == '':
+                extras[key] = 'suckzoo'
+            elif extras[key] == 'terminating':
+                extras[key] = 'respawned'
+        try:
+            while not intr_event.is_set():
+                time.sleep(0.1)
+        except Exception as e:
+            print(f'extra[{key}] exception', e)
+        finally:
+            with value_lock:
+                if extras[key] == 'suckzoo':
+                    extras[key] = 'terminating'
+                elif extras[key] == 'respawned':
+                    extras[key] = 'reloaded'
+
+    @aiotools.actxmgr
+    async def myworker(loop, pidx, args):
+        yield
+
+    def reload():
+        os.kill(0, signal.SIGUSR1)
+
+    def interrupt():
+        os.kill(0, signal.SIGINT)
+    
+    set_timeout(0.2, reload)
+    set_timeout(0.5, interrupt)
+
+    aiotools.start_server(myworker, extra_procs=[
+                              functools.partial(extra_proc, 0),
+                              functools.partial(extra_proc, 1)],
+                              use_threading=True, num_workers=3, args=(123, ))
+
+    assert extras[0] == 'reloaded'
+    assert extras[1] == 'reloaded'
+
+
+def test_graceful_restart(set_timeout, restore_signal):
+    def extra_proc(key, intr_event, pidx, args):
+        pass
+
+    @aiotools.actxmgr
+    async def myworker(loop, pidx, args):
+        yield
+
+    def interrupt():
+        os.kill(0, signal.SIGHUP)
