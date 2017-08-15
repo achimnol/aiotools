@@ -3,11 +3,6 @@ import pytest
 import os
 
 
-def pytest_cmdline_preparse(args):
-    loop_policy = os.environ.get('EVENT_LOOP')
-    if loop_policy:
-        args[:] = ['--loop-policy', loop_policy] + args
-
 def pytest_addoption(parser):
     parser.addoption('--loop-policy', action='store',
                      default=None, help='set event loop policy')
