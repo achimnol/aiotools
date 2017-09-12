@@ -1,11 +1,16 @@
 Changelog
 =========
 
+0.4.4 (2017-09-12)
+------------------
+
+- Add a new module ``aiotools.func`` with ``apartial()`` function which is an
+  async version of ``functools.partial()`` in the standard library
+
 0.4.3 (2017-08-06)
 ------------------
 
-- Add ``aclosing()`` context manager like ``closing()`` in the
-  standard library
+- Add ``aclosing()`` context manager like ``closing()`` in the standard library
 
 - Speed up Travis CI builds for packaging
 
@@ -14,7 +19,7 @@ Changelog
 0.4.2 (2017-08-01)
 ------------------
 
-- ``server``: Fix spawning subprocesses in child workers 
+- ``server``: Fix spawning subprocesses in child workers
 
 - Add support for ``uvloop``
 
