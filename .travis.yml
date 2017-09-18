@@ -5,18 +5,8 @@ cache: pip
 python:
   - "3.6"
 
-install:
-  - pip install -U pip setuptools
-  - pip install -r requirements-ci.txt
-script:
-  - python -m flake8 aiotools tests
-  - python -m pytest --cov=aiotools tests
-after_success:
-  - codecov
-
 _helpers:
 - &_skip_steps
-  python: 3.6
   before_install: skip
   install: skip
   before_script: skip
@@ -27,13 +17,23 @@ _helpers:
 jobs:
   fast_finish: true
   include:
-    - python: "3.6"
-    - stage: Deploy (only for tagged commits)
+
+    - stage: test
+      <<: *_skip_steps
+      install:
+        - pip install -U pip setuptools
+        - pip install -r requirements-ci.txt
+      script:
+        - python -m flake8 aiotools tests
+        - python -m pytest --cov=aiotools tests
+      after_success:
+        - codecov
+
+    - stage: deploy
+      if: tag IS present
       <<: *_skip_steps
       deploy:
         provider: pypi
-        on:
-          tags: true
         distributions: sdist bdist_wheel
         user: joongi
         password:
