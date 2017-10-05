@@ -7,7 +7,7 @@ stages:
   - name: deploy
     if: tag IS present
 
-# build matrix
+# build matrix for test stage
 python:
   - "3.6"
 
@@ -26,6 +26,7 @@ jobs:
   fast_finish: true
   include:
     - stage: deploy
+      python: "3.6"
       deploy:
         on:
           tags: true
