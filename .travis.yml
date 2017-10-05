@@ -1,5 +1,4 @@
 language: python
-dist: trusty
 cache: pip
 
 stages:
@@ -23,7 +22,6 @@ after_success:
 
 # other stages
 jobs:
-  fast_finish: true
   include:
     - stage: deploy
       python: "3.6"
