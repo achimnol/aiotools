@@ -2,37 +2,33 @@ language: python
 dist: trusty
 cache: pip
 
+stages:
+  - name: test
+  - name: deploy
+    if: tag IS present
+
+# build matrix
 python:
   - "3.6"
 
-_helpers:
-- &_skip_steps
-  before_install: skip
-  install: skip
-  before_script: skip
-  script: skip
-  after_script: skip
-  after_success: skip
+# test stage
+install:
+  - pip install -U pip setuptools
+  - pip install -r requirements-ci.txt
+script:
+  - python -m flake8 aiotools tests
+  - python -m pytest --cov=aiotools tests
+after_success:
+  - codecov
 
+# other stages
 jobs:
   fast_finish: true
   include:
-
-    - stage: test
-      <<: *_skip_steps
-      install:
-        - pip install -U pip setuptools
-        - pip install -r requirements-ci.txt
-      script:
-        - python -m flake8 aiotools tests
-        - python -m pytest --cov=aiotools tests
-      after_success:
-        - codecov
-
     - stage: deploy
-      if: tag IS present
-      <<: *_skip_steps
       deploy:
+        on:
+          tags: true
         provider: pypi
         distributions: sdist bdist_wheel
         user: joongi
