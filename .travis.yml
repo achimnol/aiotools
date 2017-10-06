@@ -9,6 +9,8 @@ stages:
 # build matrix for test stage
 python:
   - "3.6"
+os:
+  - linux
 
 # test stage
 install:
@@ -25,6 +27,9 @@ jobs:
   include:
     - stage: deploy
       python: "3.6"
+      install: skip
+      script: skip
+      after_success: skip
       deploy:
         on:
           tags: true
