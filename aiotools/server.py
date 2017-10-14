@@ -39,12 +39,12 @@ def _worker_main(worker_actxmgr, threaded, proc_idx, args):
             interrupted = True
 
     async def _work():
-        if not threaded:
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
-            loop.add_signal_handler(signal.SIGINT, _handle_term_signal)
         async with worker_actxmgr(loop, proc_idx, args):
             yield
 
+    if not threaded:
+        loop.add_signal_handler(signal.SIGINT, _handle_term_signal)
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
     try:
         task = _work()
         loop.run_until_complete(task.__anext__())
@@ -52,6 +52,15 @@ def _worker_main(worker_actxmgr, threaded, proc_idx, args):
             loop.run_forever()
         except (SystemExit, KeyboardInterrupt):
             pass
+        finally:
+            if not threaded:
+                # Prevent multiple delivery of signals and too early
+                # termination of the worker process before multiprocessing
+                # handles the termination.
+                # Without this line, it often generates:
+                #   Exception ignored when trying to write to the signal wakeup fd:
+                #   BrokenPipeError: [Errno 32] Broken pipe
+                signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
         try:
             loop.run_until_complete(task.__anext__())
         except StopAsyncIteration:
@@ -73,12 +82,18 @@ def _extra_main(extra_func, threaded, intr_event, proc_idx, args):
                 _interrupted = True
                 raise KeyboardInterrupt
 
+        # restore signal handler.
         signal.signal(signal.SIGINT, raise_kbdintr)
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
         intr_event = None
     try:
         extra_func(intr_event, proc_idx, args)
     except SystemExit:
         pass
+    finally:
+        if not threaded:
+            # same as in _worker_main()
+            signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
 
 
 def start_server(worker_actxmgr: AbstractAsyncContextManager,
@@ -231,9 +246,12 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
                 os.kill(p.pid, signal.SIGINT)
         mainloop.stop()
 
+    # temporarily block signals and register signal handlers to mainloop
+    block_mask = {signal.SIGINT}
     for signum in stop_signals:
-        signal.signal(signum, signal.SIG_IGN)
+        block_mask.add(signum)
         mainloop.add_signal_handler(signum, _main_sig_handler)
+    signal.pthread_sigmask(signal.SIG_BLOCK, block_mask)
 
     with main_ctxmgr() as main_args:
         if main_args is None:
@@ -253,6 +271,8 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
             p.start()
             children.append(p)
         try:
+            # unblock the signals and run.
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, block_mask)
             mainloop.run_forever()
             for child in children:
                 child.join()
