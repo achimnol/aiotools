@@ -146,11 +146,12 @@ def test_server_worker_init_error(restore_signal, use_threading):
         await asyncio.sleep(0)
         with started.get_lock():
             started.value += 1
-        raise ZeroDivisionError('oops')
+        if proc_idx == 0:
+            raise ZeroDivisionError('oops')
 
         yield
 
-        # should not be reached
+        # should not be reached if errored.
         await asyncio.sleep(0)
         with terminated.get_lock():
             terminated.value += 1
@@ -186,7 +187,8 @@ def test_server_worker_init_error(restore_signal, use_threading):
     logging.shutdown()
 
     assert started.value == 3
-    assert terminated.value == 0
+    # non-errored workers should have been terminated normally.
+    assert terminated.value == 2
     assert len(mp.active_children()) == 0
     assert not log_queue.empty()
     while not log_queue.empty():
