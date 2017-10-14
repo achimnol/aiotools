@@ -1,6 +1,16 @@
 Changelog
 =========
 
+0.4.5 (2017-10-14)
+------------------
+
+- server: Fix a race condition related to signal handling in the
+  multiprocessing module during termination
+
+- server: Improve error handling during initialization of workers
+  (automatic shutdown of other workers and the main loop after
+  logging the exception)
+
 0.4.4 (2017-09-12)
 ------------------
 

@@ -3,7 +3,7 @@
 from setuptools import setup
 from pathlib import Path
 
-version = "0.4.4"
+version = "0.4.5"
 root = Path(__file__).resolve().parents[0]
 
 build_requires = [
