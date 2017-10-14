@@ -6,6 +6,7 @@ graceful shutdown steps.
 
 import asyncio
 from contextlib import AbstractContextManager, contextmanager
+import logging
 import multiprocessing as mp
 import threading
 import os
@@ -17,6 +18,8 @@ from .context import AbstractAsyncContextManager
 __all__ = (
     'start_server',
 )
+
+log = logging.getLogger(__name__)
 
 # for threaded mode
 _children_loops = []
@@ -48,26 +51,32 @@ def _worker_main(worker_actxmgr, threaded, proc_idx, args):
     try:
         task = _work()
         loop.run_until_complete(task.__anext__())
-        try:
-            loop.run_forever()
-        except (SystemExit, KeyboardInterrupt):
-            pass
-        finally:
-            if not threaded:
-                # Prevent multiple delivery of signals and too early
-                # termination of the worker process before multiprocessing
-                # handles the termination.
-                # Without this line, it often generates:
-                #   Exception ignored when trying to write to the signal wakeup fd:
-                #   BrokenPipeError: [Errno 32] Broken pipe
-                signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+    except:
+        log.exception("Unexpected error during worker initialization!")
+        # interrupt the main loop.
+        os.killpg(os.getpgid(0), signal.SIGINT)
+    try:
+        # even when the previous __anext__() call has errored,
+        # we need to run the loop so that we can receive the SIGINT
+        # sent by the main loop first and then terminate.
+        loop.run_forever()
+    except (SystemExit, KeyboardInterrupt):
+        pass
+    finally:
         try:
             loop.run_until_complete(task.__anext__())
         except StopAsyncIteration:
             loop.run_until_complete(loop.shutdown_asyncgens())
         else:
             raise RuntimeError('should not happen')  # pragma: no cover
-    finally:
+        if not threaded:
+            # Prevent multiple delivery of signals and too early
+            # termination of the worker process before multiprocessing
+            # handles the termination.
+            # Without this line, it often generates:
+            #   Exception ignored when trying to write to the signal wakeup fd:
+            #   BrokenPipeError: [Errno 32] Broken pipe
+            signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
         loop.close()
 
 
