@@ -283,7 +283,7 @@ async def test_actxmgr_exception_replaced():
         try:
             await asyncio.sleep(0)
             yield msg
-        except:
+        except Exception:
             await asyncio.sleep(0)
             # exception is replaced
             raise ValueError('bomb2')

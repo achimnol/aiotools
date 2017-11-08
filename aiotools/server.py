@@ -51,7 +51,7 @@ def _worker_main(worker_actxmgr, threaded, proc_idx, args):
     try:
         task = _work()
         loop.run_until_complete(task.__anext__())
-    except:
+    except Exception:
         log.exception("Unexpected error during worker initialization!")
         # interrupt the main loop.
         os.killpg(os.getpgid(0), signal.SIGINT)

@@ -120,7 +120,7 @@ class AsyncContextManager(AsyncContextDecorator, AbstractAsyncContextManager):
                     return False
                 # If this is a purely new exception, raise the new one.
                 raise
-            except:
+            except Exception:
                 # If the finalization part of the generator throws a new
                 # exception, re-raise it.
                 if sys.exc_info()[1] is exc_value:
