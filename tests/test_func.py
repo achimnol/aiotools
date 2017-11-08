@@ -1,6 +1,8 @@
+import asyncio
+
 import pytest
 
-from aiotools.func import apartial
+from aiotools.func import apartial, lru_cache
 
 
 async def do(a, b, *, c=1, d=2):
@@ -43,3 +45,43 @@ async def test_apartial_wraps():
     assert do2.__doc__ == do.__doc__
     assert do.__name__ == 'do'
     assert do2.__name__ == 'do'
+
+
+@pytest.mark.asyncio
+async def test_lru_cache():
+
+    calc_count = 0
+
+    @lru_cache(maxsize=2)
+    async def calc(n):
+        '''testing'''
+        nonlocal calc_count
+        await asyncio.sleep(0)
+        calc_count += 1
+        return n * n
+
+    assert calc.__name__ == 'calc'
+    assert calc.__doc__ == 'testing'
+
+    assert (await calc(1)) == 1
+    assert calc_count == 1
+    assert (await calc(2)) == 4
+    assert calc_count == 2
+    assert (await calc(1)) == 1
+    assert calc_count == 2
+    assert (await calc(3)) == 9
+    assert calc_count == 3
+    assert (await calc(1)) == 1  # evicted and re-executed
+    assert calc_count == 4
+    assert (await calc(1)) == 1  # cached again
+    assert calc_count == 4
+
+    with pytest.raises(NotImplementedError):
+        calc.cache_info()
+
+    calc.cache_clear()
+
+    assert (await calc(1)) == 1
+    assert calc_count == 5
+    assert (await calc(3)) == 9
+    assert calc_count == 6
