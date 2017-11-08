@@ -1,6 +1,12 @@
 Changelog
 =========
 
+0.5.0 (2017-11-08)
+------------------
+
+- func: Add ``lru_cache()`` which is a coroutine version of
+  ``functools.lru_cache()``.
+
 0.4.5 (2017-10-14)
 ------------------
 
