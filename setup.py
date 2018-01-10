@@ -3,7 +3,14 @@
 from setuptools import setup
 from pathlib import Path
 
-version = "0.5.0"
+
+def get_src_version():
+    p = (Path(__file__).parent / 'aiotools' / '__init__.py')
+    src = p.read_text()
+    m = re.search(r"^__version__\s*=\s*'([^']+)'", src, re.M)
+    return m.group(1)
+
+
 root = Path(__file__).resolve().parents[0]
 
 build_requires = [
@@ -35,7 +42,7 @@ docs_requires = [
 
 setup(
     name="aiotools",
-    version=version,
+    version=get_src_version(),
     author="Joongi Kim",
     author_email="me@daybreaker.info",
     long_description='\n\n'.join([(root / 'README.rst').read_text(),

@@ -10,3 +10,5 @@ __all__ = (
     timer.__all__,  # noqa
     server.__all__,  # noqa
 )
+
+__version__ = '0.5.0'
