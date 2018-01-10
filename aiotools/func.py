@@ -20,8 +20,8 @@ def apartial(coro, *args, **kwargs):
 
 def lru_cache(maxsize=128, typed=False):
     '''
-    A simple LRU cache just like functools.lru_cache, but it works for
-    coroutines.  This is not as heavily optimized as functools.lru_cache
+    A simple LRU cache just like :func:`functools.lru_cache`, but it works for
+    coroutines.  This is not as heavily optimized as :func:`functools.lru_cache`
     which uses an internal C implementation, as it targets async operations
     that take a long time.
 
