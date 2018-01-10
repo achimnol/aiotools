@@ -1,6 +1,12 @@
 Changelog
 =========
 
+0.5.1 (2018-01-11)
+------------------
+
+- server: Fix a race condition related to handling of worker
+  initialization errors with multiple workers
+
 0.5.0 (2017-11-08)
 ------------------
 
