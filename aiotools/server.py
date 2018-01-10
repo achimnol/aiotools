@@ -51,10 +51,14 @@ def _worker_main(worker_actxmgr, threaded, proc_idx, args):
     try:
         task = _work()
         loop.run_until_complete(task.__anext__())
-    except Exception:
-        log.exception("Unexpected error during worker initialization!")
-        # interrupt the main loop.
+    except Exception as e:
+        log.exception('Unexpected error during worker initialization '
+                      f'(worker {proc_idx})!')
+        # clean up the task
+        loop.run_until_complete(task.aclose())
         os.killpg(os.getpgid(0), signal.SIGINT)
+        loop.close()
+        return
     try:
         # even when the previous __anext__() call has errored,
         # we need to run the loop so that we can receive the SIGINT
@@ -95,6 +99,7 @@ def _extra_main(extra_func, threaded, intr_event, proc_idx, args):
         signal.signal(signal.SIGINT, raise_kbdintr)
         signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
         intr_event = None
+
     try:
         extra_func(intr_event, proc_idx, args)
     except SystemExit:
