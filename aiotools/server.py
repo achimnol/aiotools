@@ -11,6 +11,7 @@ import multiprocessing as mp
 import threading
 import os
 import signal
+import time
 from typing import Any, Callable, Iterable, Optional
 
 from .context import AbstractAsyncContextManager
@@ -30,16 +31,15 @@ def _worker_main(worker_actxmgr, threaded, proc_idx, args):
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    interrupted = False
+    interrupted = asyncio.Event(loop=loop)
     if threaded:
         with _children_lock:
             _children_loops.append(loop)
 
     def _handle_term_signal():
-        nonlocal interrupted
-        if not interrupted:
+        if not interrupted.is_set():
+            interrupted.set()
             loop.stop()
-            interrupted = True
 
     async def _work():
         async with worker_actxmgr(loop, proc_idx, args):
@@ -57,6 +57,7 @@ def _worker_main(worker_actxmgr, threaded, proc_idx, args):
         # clean up the task
         loop.run_until_complete(task.aclose())
         os.killpg(os.getpgid(0), signal.SIGINT)
+        time.sleep(0.3)  # need some time to process signals
         loop.close()
         return
     try:
