@@ -2,6 +2,7 @@
 
 from setuptools import setup
 from pathlib import Path
+import re
 
 
 def get_src_version():
