@@ -20,8 +20,8 @@ build_requires = [
 ]
 
 test_requires = [
-    'pytest>=3.1',
-    'pytest-asyncio~=0.6.0',
+    'pytest>=3.3',
+    'pytest-asyncio~=0.8.0',
     'pytest-cov',
     'codecov',
     'flake8',
