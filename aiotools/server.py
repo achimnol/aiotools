@@ -11,6 +11,8 @@ import multiprocessing as mp
 import threading
 import os
 import signal
+import struct
+import sys
 import time
 from typing import Any, Callable, Iterable, Optional
 
@@ -27,73 +29,60 @@ _children_loops = []
 _children_lock = threading.Lock()
 
 
-def _worker_main(worker_actxmgr, threaded, proc_idx, args):
+def _worker_main(worker_actxmgr, threaded, intr_pipe, proc_idx, args):
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     interrupted = asyncio.Event(loop=loop)
-    if threaded:
-        with _children_lock:
-            _children_loops.append(loop)
 
-    def _handle_term_signal():
-        if not interrupted.is_set():
+    def handle_intr_signal():
+        if interrupted.is_set():
+            pass
+        else:
             interrupted.set()
             loop.stop()
 
-    async def _work():
-        async with worker_actxmgr(loop, proc_idx, args):
-            yield
-
     if not threaded:
-        loop.add_signal_handler(signal.SIGINT, _handle_term_signal)
+        loop.add_signal_handler(signal.SIGINT, handle_intr_signal)
+        # Allow the worker to be interrupted during initialization
+        # (in case of initialization failures in other workers)
         signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
+    else:
+        with _children_lock:
+            _children_loops.append(loop)
     try:
-        task = _work()
-        loop.run_until_complete(task.__anext__())
-    except Exception as e:
-        log.exception('Unexpected error during worker initialization '
-                      f'(worker {proc_idx})!')
-        # clean up the task
-        loop.run_until_complete(task.aclose())
-        os.killpg(os.getpgid(0), signal.SIGINT)
-        time.sleep(0.3)  # need some time to process signals
-        loop.close()
-        return
-    try:
-        # even when the previous __anext__() call has errored,
-        # we need to run the loop so that we can receive the SIGINT
-        # sent by the main loop first and then terminate.
-        loop.run_forever()
-    except (SystemExit, KeyboardInterrupt):
-        pass
-    finally:
+        ctx = worker_actxmgr(loop, proc_idx, args)
         try:
-            loop.run_until_complete(task.__anext__())
-        except StopAsyncIteration:
-            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.run_until_complete(ctx.__aenter__())
+        except Exception:
+            log.exception(f'Worker {proc_idx}: Error during initialization')
+            if threaded:
+                os.write(intr_pipe, struct.pack('i', proc_idx))
+            else:
+                os.write(intr_pipe.fileno(), struct.pack('i', proc_idx))
+            # this sleep is necessary to prevent hang-up in Linux
+            time.sleep(0.2)
         else:
-            raise RuntimeError('should not happen')  # pragma: no cover
-        if not threaded:
-            # Prevent multiple delivery of signals and too early
-            # termination of the worker process before multiprocessing
-            # handles the termination.
-            # Without this line, it often generates:
-            #   Exception ignored when trying to write to the signal wakeup fd:
-            #   BrokenPipeError: [Errno 32] Broken pipe
-            signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+            try:
+                loop.run_forever()
+            except Exception:
+                loop.run_until_complete(ctx.__aexit__(*sys.exc_info()))
+            finally:
+                loop.run_until_complete(ctx.__aexit__(None, None, None))
+    finally:
+        loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
 
 
 def _extra_main(extra_func, threaded, intr_event, proc_idx, args):
+    interrupted = threading.Event()
     if not threaded:
 
-        _interrupted = False
-
         def raise_kbdintr(signum, frame):
-            nonlocal _interrupted
-            if not _interrupted:
-                _interrupted = True
+            if interrupted.is_set():
+                pass
+            else:
+                interrupted.set()
                 raise KeyboardInterrupt
 
         # restore signal handler.
@@ -102,8 +91,9 @@ def _extra_main(extra_func, threaded, intr_event, proc_idx, args):
         intr_event = None
 
     try:
-        extra_func(intr_event, proc_idx, args)
-    except SystemExit:
+        if not interrupted.is_set():
+            extra_func(intr_event, proc_idx, args)
+    except (SystemExit, KeyboardInterrupt):
         pass
     finally:
         if not threaded:
@@ -228,9 +218,17 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
     if main_ctxmgr is None:
         main_ctxmgr = noop_main_ctxmgr
 
+    os.setpgrp()
+
     children = []
     _children_loops.clear()
     intr_event = threading.Event()
+    sigblock_mask = {signal.SIGINT}
+    for signum in stop_signals:
+        sigblock_mask.add(signum)
+
+    # temporarily block signals and register signal handlers to mainloop
+    signal.pthread_sigmask(signal.SIG_BLOCK, sigblock_mask)
 
     old_loop = asyncio.get_event_loop()
     mainloop = asyncio.new_event_loop()
@@ -242,43 +240,55 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
     except NotImplementedError:
         pass  # for uvloop
 
-    _main_stopped = False
-
-    def _main_sig_handler():
-        nonlocal _main_stopped
-        if _main_stopped:
-            return
-        _main_stopped = True
-
-        # propagate signal to children
+    # build a main-to-worker interrupt channel using signals
+    def handle_stop_signal():
         if use_threading:
             with _children_lock:
                 for l in _children_loops:
                     l.call_soon_threadsafe(l.stop)
             intr_event.set()
         else:
-            for p in children:
-                os.kill(p.pid, signal.SIGINT)
+            os.killpg(0, signal.SIGINT)
         mainloop.stop()
 
-    # temporarily block signals and register signal handlers to mainloop
-    block_mask = {signal.SIGINT}
     for signum in stop_signals:
-        block_mask.add(signum)
-        mainloop.add_signal_handler(signum, _main_sig_handler)
-    signal.pthread_sigmask(signal.SIG_BLOCK, block_mask)
+        mainloop.add_signal_handler(signum, handle_stop_signal)
 
+    # build a reliable worker-to-main interrupt channel using a pipe
+    # (workers have no idea whether interrupt is enabled/disabled in the main program)
+    def handle_child_interrupt(fd):
+        child_idx = struct.unpack('i', os.read(fd, 4))[0]  # noqa
+        log.debug(f'Child {child_idx} has interrupted the main program.')
+        # self-interrupt to initiate the main-to-worker interrupts
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
+        os.kill(0, signal.SIGINT)
+
+    if use_threading:
+        child_intr_pipe = os.pipe()
+        rfd = child_intr_pipe[0]
+    else:
+        child_intr_pipe = mp.Pipe()
+        rfd = child_intr_pipe[0].fileno()
+    mainloop.add_reader(rfd, handle_child_interrupt, rfd)
+
+    # start
     with main_ctxmgr() as main_args:
+
+        # retrieve args generated by the user-defined main
         if main_args is None:
             main_args = tuple()
         if not isinstance(main_args, tuple):
             main_args = (main_args, )
+
+        # spawn managed async workers
         for i in range(num_workers):
             p = create_child(target=_worker_main, daemon=True,
                              args=(worker_actxmgr, use_threading,
-                                   i, main_args + args))
+                                   child_intr_pipe[1], i, main_args + args))
             p.start()
             children.append(p)
+
+        # spawn extra workers
         for i, f in enumerate(extra_procs):
             p = create_child(target=_extra_main, daemon=True,
                              args=(f, use_threading, intr_event,
@@ -286,9 +296,13 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
             p.start()
             children.append(p)
         try:
-            # unblock the signals and run.
-            signal.pthread_sigmask(signal.SIG_UNBLOCK, block_mask)
+            # unblock the stop signals for user/external interrupts.
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, sigblock_mask)
+
+            # run!
             mainloop.run_forever()
+
+            # if interrupted, wait for workers to finish.
             for child in children:
                 child.join()
         finally:

@@ -143,10 +143,10 @@ def test_server_worker_init_error(restore_signal, use_threading):
     @aiotools.actxmgr
     async def myserver(loop, proc_idx, args):
         started, terminated = args
-        await asyncio.sleep(0)
         with started.get_lock():
             started.value += 1
         if proc_idx == 0:
+            await asyncio.sleep(0.3)
             raise ZeroDivisionError('oops')
 
         yield
@@ -191,14 +191,17 @@ def test_server_worker_init_error(restore_signal, use_threading):
     assert terminated.value == 2
     assert len(mp.active_children()) == 0
     assert not log_queue.empty()
+    has_error_log = False
     while not log_queue.empty():
         rec = log_queue.get()
-        assert rec.levelname == 'ERROR'
-        assert 'worker initialization' in rec.message
-        # exception info is logged to the console,
-        # but we cannot access it here because exceptions
-        # are not picklable.
-        assert rec.exc_info is None
+        if rec.levelname == 'ERROR':
+            has_error_log = True
+            assert 'initialization' in rec.message
+            # exception info is logged to the console,
+            # but we cannot access it here because exceptions
+            # are not picklable.
+            assert rec.exc_info is None
+    assert has_error_log
 
 
 @pytest.mark.parametrize('use_threading', [False, True])
@@ -260,14 +263,17 @@ def test_server_worker_init_error_multi(restore_signal, use_threading):
     assert terminated.value == 1
     assert len(mp.active_children()) == 0
     assert not log_queue.empty()
+    has_error_log = False
     while not log_queue.empty():
         rec = log_queue.get()
-        assert rec.levelname == 'ERROR'
-        assert 'worker initialization' in rec.message
-        # exception info is logged to the console,
-        # but we cannot access it here because exceptions
-        # are not picklable.
-        assert rec.exc_info is None
+        if rec.levelname == 'ERROR':
+            has_error_log = True
+            assert 'initialization' in rec.message
+            # exception info is logged to the console,
+            # but we cannot access it here because exceptions
+            # are not picklable.
+            assert rec.exc_info is None
+    assert has_error_log
 
 
 def test_server_multiproc_threading(set_timeout, restore_signal):
