@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.5.3 (2018-01-12)
+------------------
+
+- server: Ooops! (a finally block should have been an else block)
+
 0.5.2 (2018-01-12)
 ------------------
 
