@@ -146,7 +146,8 @@ def test_server_worker_init_error(restore_signal, use_threading):
         with started.get_lock():
             started.value += 1
         if proc_idx == 0:
-            await asyncio.sleep(0.3)
+            # delay until other workers start normally.
+            await asyncio.sleep(0.2)
             raise ZeroDivisionError('oops')
 
         yield
@@ -187,7 +188,9 @@ def test_server_worker_init_error(restore_signal, use_threading):
     logging.shutdown()
 
     assert started.value == 3
-    # non-errored workers should have been terminated normally.
+    # workers who did not raise errors have already started,
+    # and they should have terminated normally
+    # when the errorneous worker interrupted the main loop.
     assert terminated.value == 2
     assert len(mp.active_children()) == 0
     assert not log_queue.empty()
@@ -261,6 +264,8 @@ def test_server_worker_init_error_multi(restore_signal, use_threading):
     assert started.value == 1
     # non-errored workers should have been terminated normally.
     assert terminated.value == 1
+    # there is one worker remaining -- which is "cancelled"!
+    # just ensure that all workers have terminated now.
     assert len(mp.active_children()) == 0
     assert not log_queue.empty()
     has_error_log = False
