@@ -1,6 +1,13 @@
 Changelog
 =========
 
+0.5.2 (2018-01-12)
+------------------
+
+- server: Improve inner beauty (code readability)
+
+- server: Improve reliability and portability of worker-to-main interrupts
+
 0.5.1 (2018-01-11)
 ------------------
 
@@ -11,7 +18,7 @@ Changelog
 ------------------
 
 - func: Add ``lru_cache()`` which is a coroutine version of
-  ``functools.lru_cache()``.
+  ``functools.lru_cache()``
 
 0.4.5 (2017-10-14)
 ------------------
