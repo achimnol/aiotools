@@ -4,6 +4,9 @@ root = true
 end_of_line = lf
 insert_final_newline = true
 
+[*.py]
+max_line_length = 85
+
 [*.{py,rst,md}]
 indent_style = space
 indent_size = 4

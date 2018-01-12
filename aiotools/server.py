@@ -253,7 +253,7 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
         mainloop.add_signal_handler(signum, handle_stop_signal)
 
     # build a reliable worker-to-main interrupt channel using a pipe
-    # (workers have no idea whether interrupt is enabled/disabled in the main program)
+    # (workers have no idea whether the main interrupt is enabled/disabled)
     def handle_child_interrupt(fd):
         child_idx = struct.unpack('i', os.read(fd, 4))[0]  # noqa
         log.debug(f'Child {child_idx} has interrupted the main program.')
