@@ -56,10 +56,8 @@ def _worker_main(worker_actxmgr, threaded, intr_pipe, proc_idx, args):
             loop.run_until_complete(ctx.__aenter__())
         except Exception:
             log.exception(f'Worker {proc_idx}: Error during initialization')
-            if threaded:
-                os.write(intr_pipe, struct.pack('i', proc_idx))
-            else:
-                os.write(intr_pipe.fileno(), struct.pack('i', proc_idx))
+            wfd = intr_pipe if threaded else intr_pipe.fileno()
+            os.write(wfd, struct.pack('i', proc_idx))
             # this sleep is necessary to prevent hang-up in Linux
             time.sleep(0.2)
         else:
