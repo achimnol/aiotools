@@ -65,7 +65,7 @@ def _worker_main(worker_actxmgr, threaded, intr_pipe, proc_idx, args):
                 loop.run_forever()
             except Exception:
                 loop.run_until_complete(ctx.__aexit__(*sys.exc_info()))
-            finally:
+            else:
                 loop.run_until_complete(ctx.__aexit__(None, None, None))
     finally:
         loop.run_until_complete(loop.shutdown_asyncgens())
