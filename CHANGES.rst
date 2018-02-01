@@ -1,6 +1,12 @@
 Changelog
 =========
 
+0.5.4 (2018-02-01)
+------------------
+
+- server: Remove use of unncessary setpgrp syscall, which is also blocked by
+  Docker's default seccomp profile!
+
 0.5.3 (2018-01-12)
 ------------------
 

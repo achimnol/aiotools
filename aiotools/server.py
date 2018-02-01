@@ -216,8 +216,6 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
     if main_ctxmgr is None:
         main_ctxmgr = noop_main_ctxmgr
 
-    os.setpgrp()
-
     children = []
     _children_loops.clear()
     intr_event = threading.Event()
