@@ -13,6 +13,7 @@ aiotools Documentation
 
    aiotools.context
    aiotools.func
+   aiotools.iter
    aiotools.server
    aiotools.timer
 
