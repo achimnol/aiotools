@@ -20,7 +20,7 @@ build_requires = [
 ]
 
 test_requires = [
-    'pytest>=3.3',
+    'pytest>=3.5',
     'pytest-asyncio~=0.8.0',
     'pytest-cov',
     'codecov',

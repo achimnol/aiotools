@@ -1,6 +1,12 @@
 Changelog
 =========
 
+0.6.0 (2018-04-10)
+------------------
+
+- Introduce a new module ``aiotools.iter`` with ``aiter()`` function which
+  corresponds to an async version of the builtin ``iter()``.
+
 0.5.4 (2018-02-01)
 ------------------
 
