@@ -15,8 +15,8 @@ def get_src_version():
 root = Path(__file__).resolve().parents[0]
 
 build_requires = [
-    'wheel',
-    'twine',
+    'wheel>=0.31.0',
+    'twine>=1.11.0',
 ]
 
 test_requires = [
@@ -46,8 +46,9 @@ setup(
     version=get_src_version(),
     author="Joongi Kim",
     author_email="me@daybreaker.info",
-    long_description='\n\n'.join([(root / 'README.rst').read_text(),
-                                  (root / 'CHANGES.rst').read_text()]),
+    long_description='\n\n'.join([(root / 'README.md').read_text(),
+                                  (root / 'CHANGES.md').read_text()]),
+    long_description_content_type='text/markdown',
     description="Idiomatic asyncio utilities",
     license="MIT",
     classifiers=[
@@ -66,6 +67,7 @@ setup(
         'aiotools',
     ],
     python_requires='>=3.6',
+    setup_requires=['setuptools>=38.6.0'],
     install_requires=[
     ],
     extras_require={

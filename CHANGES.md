@@ -4,8 +4,8 @@ Changelog
 0.6.0 (2018-04-10)
 ------------------
 
-- Introduce a new module ``aiotools.iter`` with ``aiter()`` function which
-  corresponds to an async version of the builtin ``iter()``.
+- Introduce a new module `aiotools.iter` with `aiter()` function which
+  corresponds to an async version of the builtin `iter()`.
 
 0.5.4 (2018-02-01)
 ------------------
@@ -34,8 +34,8 @@ Changelog
 0.5.0 (2017-11-08)
 ------------------
 
-- func: Add ``lru_cache()`` which is a coroutine version of
-  ``functools.lru_cache()``
+- func: Add `lru_cache()` which is a coroutine version of
+  `functools.lru_cache()`
 
 0.4.5 (2017-10-14)
 ------------------
@@ -50,13 +50,13 @@ Changelog
 0.4.4 (2017-09-12)
 ------------------
 
-- Add a new module ``aiotools.func`` with ``apartial()`` function which is an
-  async version of ``functools.partial()`` in the standard library
+- Add a new module `aiotools.func` with `apartial()` function which is an
+  async version of `functools.partial()` in the standard library
 
 0.4.3 (2017-08-06)
 ------------------
 
-- Add ``aclosing()`` context manager like ``closing()`` in the standard library
+- Add `aclosing()` context manager like `closing()` in the standard library
 
 - Speed up Travis CI builds for packaging
 
@@ -65,14 +65,14 @@ Changelog
 0.4.2 (2017-08-01)
 ------------------
 
-- ``server``: Fix spawning subprocesses in child workers
+- `server`: Fix spawning subprocesses in child workers
 
-- Add support for ``uvloop``
+- Add support for `uvloop`
 
 0.4.0 (2017-08-01)
 ------------------
 
-- Add ``use_threading`` argument to 
+- Add `use_threading` argument to 
 
 - Add initial documentation (which currently not served
   on readthedocs.io due to Python version problem)
@@ -80,7 +80,7 @@ Changelog
 0.3.2 (2017-07-31)
 ------------------
 
-- Add ``extra_procs`` argument to ``start_server()`` function
+- Add `extra_procs` argument to `start_server()` function
 
 - Add socket and ZeroMQ server examples
 
@@ -96,20 +96,20 @@ Changelog
 0.3.0 (2017-04-26)
 ------------------
 
-- Add ``start_server()`` function using multiprocessing
+- Add `start_server()` function using multiprocessing
   with automatic children lifecycle management
 
-- Clarify the semantics of ``AsyncContextGroup`` using
-  ``asyncio.gather()`` with ``return_exceptions=True``
+- Clarify the semantics of `AsyncContextGroup` using
+  `asyncio.gather()` with `return_exceptions=True`
 
 0.2.0 (2017-04-20)
 ------------------
 
-- Add abstract types for ``AsyncContextManager``
+- Add abstract types for `AsyncContextManager`
 
-- Rename ``AsyncGenContextManager`` to ``AsyncContextManager``
+- Rename `AsyncGenContextManager` to `AsyncContextManager`
 
-- Add ``AsyncContextGroup``
+- Add `AsyncContextGroup`
 
 0.1.1 (2017-04-14)
 ------------------
