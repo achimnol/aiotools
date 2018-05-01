@@ -13,4 +13,4 @@ __all__ = (
     server.__all__,  # noqa
 )
 
-__version__ = '0.6.0'
+__version__ = '0.6.1a1'
