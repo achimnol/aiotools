@@ -62,6 +62,14 @@ setup(
         'Topic :: Software Development',
     ],
     url="https://github.com/achimnol/aiotools",
+    project_urls={
+        'CI: AppVeyor': 'https://ci.appveyor.com/project/achimnol/aiotools',
+        'CI: Travis': 'https://travis-ci.com/achimnol/aiotools',
+        'Coverage: codecov': 'https://codecov.io/github/achimnol/aiotools',
+        'Docs: RTD': 'https://aiotools.readthedocs.io',
+        'GitHub: issues': 'https://github.com/achimnol/aiotools/issues',
+        'GitHub: repo': 'https://github.com/achimnol/aiotools',
+    },
     platforms=['any'],
     packages=[
         'aiotools',
