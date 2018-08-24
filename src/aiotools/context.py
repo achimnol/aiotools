@@ -12,7 +12,6 @@ import asyncio
 import functools
 import inspect
 from typing import Any, Callable, Iterable, Optional
-import sys
 
 __all__ = [
     'AsyncContextManager', 'async_ctx_manager', 'actxmgr', 'aclosing',
