@@ -1,6 +1,17 @@
 Changelog
 =========
 
+0.7.0 (2018-08-24)
+------------------
+
+- Add support for Python 3.7
+
+- context: Updated to work like Python 3.7
+
+- context: Deprecated `AsyncContextDecorator` stuffs in Python 3.7+
+
+- context: Added an alias to `contextlib.AsyncExitStack` in the standard library.
+
 0.6.0 (2018-04-10)
 ------------------
 

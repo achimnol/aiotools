@@ -19,4 +19,4 @@ else:
         server.__all__,  # noqa
     )
 
-__version__ = '0.6.1a1'
+__version__ = '0.7.0'
