@@ -32,7 +32,6 @@ jobs:
       python: "3.7"
       install: skip
       script: skip
-      after_success: skip
       deploy:
         on:
           tags: true
