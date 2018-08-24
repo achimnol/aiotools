@@ -1,4 +1,5 @@
 language: python
+dist: xenial
 cache: pip
 
 stages:
@@ -9,6 +10,7 @@ stages:
 # build matrix for test stage
 python:
   - "3.6"
+  - "3.7"
 os:
   - linux
 
@@ -25,7 +27,7 @@ jobs:
       after_success:
         - codecov
     - stage: deploy
-      python: "3.6"
+      python: "3.7"
       install: skip
       script: skip
       deploy:
