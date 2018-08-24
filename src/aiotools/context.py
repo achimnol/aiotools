@@ -1,9 +1,11 @@
 '''
 Provides an implementation of asynchronous context manager and its applications.
 
-The async context managers in this module will become mere aliases to
-``contextlib.asynccontextmanager`` of the standard library when Python 3.7 is
-released.
+.. note::
+
+   The async context managers in this module are transparent aliases to
+   ``contextlib.asynccontextmanager`` of the standard library in Python 3.7
+   and later.
 '''
 
 import abc
