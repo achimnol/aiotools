@@ -195,6 +195,6 @@ add_module_names = False
 
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
 
+
 def setup(app):
-    #app.add_stylesheet('custom.css')
-    pass
+    app.add_stylesheet('custom.css')
