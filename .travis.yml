@@ -14,22 +14,24 @@ python:
 os:
   - linux
 
+# default test job
+install:
+  - pip install -U pip setuptools
+  - pip install -r requirements-ci.txt
+script:
+  - python -m flake8 src tests
+  - python -m pytest --cov=src tests
+after_success:
+  - codecov
+
 # other stages
 jobs:
   include:
-    - stage: test
-      install:
-        - pip install -U pip setuptools
-        - pip install -r requirements-ci.txt
-      script:
-        - python -m flake8 aiotools tests
-        - python -m pytest --cov=aiotools tests
-      after_success:
-        - codecov
     - stage: deploy
       python: "3.7"
       install: skip
       script: skip
+      after_success: skip
       deploy:
         on:
           tags: true
