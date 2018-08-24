@@ -1,8 +1,9 @@
-import pytest
-
 import asyncio
+import sys
+
 import aiotools
 from aiotools.context import AbstractAsyncContextManager
+import pytest
 
 
 def test_actxmgr_types():
@@ -70,6 +71,8 @@ async def test_actxmgr(event_loop):
     assert 0.75 <= (event_loop.time() - begin) <= 0.85
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 7, 0),
+                    reason='Deprecated in Python 3.7 or higher')
 @pytest.mark.asyncio
 async def test_actxmgr_reuse(event_loop):
 
@@ -480,7 +483,7 @@ async def test_actxmgr_no_stop(event_loop):
             assert msg == 'hello'
             raise ValueError('oops')
     except RuntimeError as exc:
-        assert "didn't stop after athrow" in exc.args[0]
+        assert "didn't stop after" in exc.args[0]
     else:
         pytest.fail()
 
@@ -492,28 +495,34 @@ async def test_actxmgr_no_yield(event_loop):
     async def no_yield_ctx1(msg):
         pass
 
+    try:
+        async with no_yield_ctx1('hello'):
+            pass
+    except RuntimeError as exc:
+        assert "must be an async-gen" in exc.args[0]
+    except AttributeError:  # in Python 3.7
+        pass
+    else:
+        pytest.fail()
+
     @aiotools.actxmgr
     @asyncio.coroutine
     def no_yield_ctx2(msg):
         pass
 
     try:
-        async with no_yield_ctx1('hello'):
-            pass
-    except RuntimeError as exc:
-        assert "must be async-gen" in exc.args[0]
-    else:
-        pytest.fail()
-
-    try:
         async with no_yield_ctx2('hello'):
             pass
     except RuntimeError as exc:
-        assert "must be async-gen" in exc.args[0]
+        assert "must be an async-gen" in exc.args[0]
+    except AttributeError:  # in Python 3.7
+        pass
     else:
         pytest.fail()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 7, 0),
+                    reason='Deprecated in Python 3.7 or higher')
 @pytest.mark.asyncio
 async def test_actxdecorator(event_loop):
 
@@ -687,9 +696,9 @@ async def test_actxgroup_exception_from_body(event_loop):
         assert isinstance(e, ZeroDivisionError)
 
     exits = ctxgrp.exit_states()
-    assert exits[0] is False
-    assert exits[1] is False
-    assert exit_count == 0
+    assert exits[0] is None  # __aexit__ are called successfully
+    assert exits[1] is None
+    assert exit_count == 0   # but they errored internally
 
     exit_count = 0
 
@@ -715,6 +724,6 @@ async def test_actxgroup_exception_from_body(event_loop):
         assert isinstance(e, ZeroDivisionError)
 
     exits = ctxgrp.exit_states()
-    assert exits[0] is False
-    assert exits[1] is False
-    assert exit_count == 2
+    assert exits[0] is None  # __aexit__ are called successfully
+    assert exits[1] is None
+    assert exit_count == 2   # they also suceeeded
