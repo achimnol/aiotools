@@ -1,5 +1,6 @@
 language: python
 dist: xenial
+group: travis_latest
 cache: pip
 
 stages:
