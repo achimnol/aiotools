@@ -133,6 +133,7 @@ html_static_path = ['_static']
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
 #html_sidebars = {}
 
+html_css_files = ['custom.css']
 
 # -- Options for HTMLHelp output ------------------------------------------
 
@@ -194,7 +195,3 @@ texinfo_documents = [
 add_module_names = False
 
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
-
-
-def setup(app):
-    app.add_stylesheet('custom.css')
