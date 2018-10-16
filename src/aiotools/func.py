@@ -1,10 +1,14 @@
 import collections
 import functools
 
+from .compat import get_running_loop
+
 __all__ = [
     'apartial',
     'lru_cache',
 ]
+
+_CacheEntry = collections.namedtuple('_CacheEntry', 'value expire_at')
 
 
 def apartial(coro, *args, **kwargs):
@@ -20,7 +24,7 @@ def apartial(coro, *args, **kwargs):
     return wrapped
 
 
-def lru_cache(maxsize=128, typed=False):
+def lru_cache(maxsize: int=128, typed: bool=False, expire_after: float=None):
     '''
     A simple LRU cache just like :func:`functools.lru_cache`, but it works for
     coroutines.  This is not as heavily optimized as :func:`functools.lru_cache`
@@ -45,6 +49,7 @@ def lru_cache(maxsize=128, typed=False):
         sentinel = object()  # unique object to distinguish None as result
         cache = collections.OrderedDict()
         cache_get = cache.get
+        cache_del = cache.__delitem__
         cache_set = cache.__setitem__
         cache_len = cache.__len__
         cache_move = cache.move_to_end
@@ -57,14 +62,23 @@ def lru_cache(maxsize=128, typed=False):
 
         @functools.wraps(coro)
         async def wrapped(*args, **kwargs):
+            now = get_running_loop().time()
             k = make_key(args, kwargs, typed)
-            result = cache_get(k, sentinel)
-            if result is not sentinel:
-                return result
+            entry = cache_get(k, sentinel)
+            if entry is not sentinel:
+                if entry.expire_at is None:
+                    return entry.value
+                if entry.expire_at >= now:
+                    return entry.value
+                cache_del(k)
             result = await coro(*args, **kwargs)
             if maxsize is not None and cache_len() >= maxsize:
                 cache.popitem(last=False)
-            cache_set(k, result)
+            if expire_after is not None:
+                expire_at = now + expire_after
+            else:
+                expire_at = None
+            cache_set(k, _CacheEntry(result, expire_at))
             cache_move(k, last=True)
             return result
 

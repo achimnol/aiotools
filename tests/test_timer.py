@@ -52,12 +52,12 @@ async def test_timer_leak_default():
         except asyncio.CancelledError:
             cancel_count += 1
 
-    task_count = len(asyncio.Task.all_tasks())
+    task_count = len(aiotools.compat.all_tasks())
     timer = aiotools.create_timer(delayed, 0.01)
     await asyncio.sleep(0.1)
     timer.cancel()
     await timer
-    assert task_count + 1 >= len(asyncio.Task.all_tasks())
+    assert task_count + 1 >= len(aiotools.compat.all_tasks())
     assert spawn_count == done_count + cancel_count
     assert 9 <= spawn_count <= 10
     assert 4 <= cancel_count <= 5
@@ -83,12 +83,12 @@ async def test_timer_leak_cancel():
         else:
             done_count += 1
 
-    task_count = len(asyncio.Task.all_tasks())
+    task_count = len(aiotools.compat.all_tasks())
     timer = aiotools.create_timer(delayed, 0.01, aiotools.TimerDelayPolicy.CANCEL)
     await asyncio.sleep(0.1)
     timer.cancel()
     await timer
-    assert task_count + 1 >= len(asyncio.Task.all_tasks())
+    assert task_count + 1 >= len(aiotools.compat.all_tasks())
     assert spawn_count == cancel_count
     assert done_count == 0
 
@@ -113,11 +113,11 @@ async def test_timer_leak_nocancel():
         else:
             done_count += 1
 
-    task_count = len(asyncio.Task.all_tasks())
+    task_count = len(aiotools.compat.all_tasks())
     timer = aiotools.create_timer(delayed, 0.01, aiotools.TimerDelayPolicy.CANCEL)
     await asyncio.sleep(0.1)
     timer.cancel()
     await timer
-    assert task_count + 1 >= len(asyncio.Task.all_tasks())
+    assert task_count + 1 >= len(aiotools.compat.all_tasks())
     assert spawn_count == done_count
     assert cancel_count == 0

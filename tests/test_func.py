@@ -85,3 +85,39 @@ async def test_lru_cache():
     assert calc_count == 5
     assert (await calc(3)) == 9
     assert calc_count == 6
+
+
+@pytest.mark.asyncio
+async def test_lru_cache_with_expiration():
+
+    calc_count = 0
+
+    @lru_cache(maxsize=2)
+    async def calc_no_exp(n):
+        nonlocal calc_count
+        await asyncio.sleep(0)
+        calc_count += 1
+        return n * n
+
+    assert (await calc_no_exp(3)) == 9
+    assert calc_count == 1
+    assert (await calc_no_exp(3)) == 9
+    assert calc_count == 1
+    await asyncio.sleep(0.1)
+    assert (await calc_no_exp(3)) == 9
+    assert calc_count == 1
+
+    @lru_cache(maxsize=2, expire_after=0.05)
+    async def calc_exp(n):
+        nonlocal calc_count
+        await asyncio.sleep(0)
+        calc_count += 1
+        return n * n
+
+    assert (await calc_exp(3)) == 9
+    assert calc_count == 1
+    assert (await calc_exp(3)) == 9
+    assert calc_count == 1
+    await asyncio.sleep(0.1)
+    assert (await calc_exp(3)) == 9
+    assert calc_count == 2
