@@ -107,6 +107,8 @@ async def test_lru_cache_with_expiration():
     assert (await calc_no_exp(3)) == 9
     assert calc_count == 1
 
+    calc_count = 0
+
     @lru_cache(maxsize=2, expire_after=0.05)
     async def calc_exp(n):
         nonlocal calc_count
