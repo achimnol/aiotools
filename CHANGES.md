@@ -1,6 +1,12 @@
 Changelog
 =========
 
+0.7.3 (2018-10-16)
+------------------
+
+- This ia a technical release to fix a test case preventing the automated CI
+  release procedure.
+
 0.7.2 (2018-10-16)
 ------------------
 
