@@ -1,6 +1,13 @@
 Changelog
 =========
 
+0.7.2 (2018-10-16)
+------------------
+
+- Improve support for Python 3.6/3.7 using a small compatibility module against asyncio.
+
+- func: Add `expire_after` option to `lru_cache()` function.
+
 0.7.1 (2018-08-24)
 ------------------
 
