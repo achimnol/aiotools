@@ -39,6 +39,16 @@ def lru_cache(maxsize: int=128, typed: bool=False, expire_after: float=None):
     before the first call returns may incur duplicate exectuions.
 
     This function is not thread-safe.
+
+    Args:
+       maxsize: The maximum number of cached entries.
+
+       typed: Cache keys in different types separately (e.g., ``3`` and ``3.0`` will
+              be different keys).
+
+       expire_after: Re-calculate the value if the configured time has passed even
+                     when the cache is hit.  When re-calculation happens the
+                     expiration timer is also reset.
     '''
 
     if maxsize is not None and not isinstance(maxsize, int):
