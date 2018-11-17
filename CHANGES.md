@@ -1,6 +1,13 @@
 Changelog
 =========
 
+0.8.0 (2018-11-18)
+------------------
+
+- server: Updated stop signal handling and now user-defined worker/main context
+  managers have a way to distinguish the stop signal received.  See the updated
+  docs for more details.
+
 0.7.3 (2018-10-16)
 ------------------
 
