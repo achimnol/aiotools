@@ -104,7 +104,7 @@ async def echo(reader, writer):
    await writer.drain()
    writer.close()
 
-@aiotools.actxmgr
+@aiotools.server
 async def myworker(loop, pidx, args):
    server = await asyncio.start_server(echo, '0.0.0.0', 8888,
        reuse_port=True, loop=loop)
