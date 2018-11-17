@@ -25,6 +25,8 @@ from .context import AbstractAsyncContextManager
 __all__ = (
     'main',
     'start_server',
+    'AsyncServerContextManager',
+    'ServerMainContextManager',
     'InterruptedBySignal',
 )
 
@@ -36,16 +38,26 @@ _children_lock = threading.Lock()
 
 
 class InterruptedBySignal(BaseException):
+    '''
+    A new :class:`BaseException` that represents interruption by an arbitrary UNIX
+    signal.
+
+    Since this is a :class:`BaseException` instead of :class:`Exception`, it behaves
+    like :class:`KeyboardInterrupt` and :class:`SystemExit` exceptions (i.e.,
+    bypassing except clauses catching the :class:`Exception` type only)
+
+    The first argument of this exception is the signal number received.
+    '''
     pass
 
 
 class AsyncServerContextManager(AbstractAsyncContextManager):
     '''
-    Converts an async-generator function into asynchronous context manager.
+    A modified version of :func:`contextlib.asynccontextmanager`.
 
-    The implementation detail is mostly taken from the standard library,
-    with a minor change to inject ``self.yield_return`` into the wrapped
-    coroutine generator.
+    The implementation detail is mostly taken from the ``contextlib`` standard
+    library, with a minor change to inject ``self.yield_return`` into the wrapped
+    async generator.
     '''
 
     def __init__(self, func: Callable[..., Any], args, kwargs):
@@ -95,6 +107,13 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
 
 class ServerMainContextManager(AbstractContextManager,
                                ContextDecorator):
+    '''
+    A modified version of :func:`contextlib.contextmanager`.
+
+    The implementation detail is mostly taken from the ``contextlib`` standard
+    library, with a minor change to inject ``self.yield_return`` into the wrapped
+    generator.
+    '''
 
     def __init__(self, func, args, kwargs):
         self.gen = func(*args, **kwargs)
@@ -148,15 +167,33 @@ def _server_ctxmgr(func):
     return helper
 
 
-class ServerModule(sys.modules[__name__].__class__):
+class _ServerModule(sys.modules[__name__].__class__):
     def __call__(self, func):
         return _server_ctxmgr(func)
 
 
-sys.modules[__name__].__class__ = ServerModule
+sys.modules[__name__].__class__ = _ServerModule
 
 
 def _main_ctxmgr(func):
+    '''
+    A decorator wrapper for :class:`ServerMainContextManager`
+
+    Usage example:
+
+    .. code:: python
+
+       @aiotools.main
+       def mymain():
+           server_args = do_init()
+           stop_sig = yield server_args
+           if stop_sig == signal.SIGINT:
+               do_graceful_shutdown()
+           else:
+               do_forced_shutdown()
+
+       aiotools.start_server(..., main_ctxmgr=mymain, ...)
+    '''
     @functools.wraps(func)
     def helper(*args, **kwargs):
         return ServerMainContextManager(func, args, kwargs)
@@ -254,7 +291,7 @@ def _extra_main(extra_func, threaded, stop_signals, intr_event, proc_idx, args):
 
 
 def start_server(worker_actxmgr: AsyncServerContextManager,
-                 main_ctxmgr: Optional[AsyncServerContextManager] = None,
+                 main_ctxmgr: Optional[ServerMainContextManager] = None,
                  extra_procs: Iterable[Callable] = tuple(),
                  stop_signals: Iterable[signal.Signals] = (
                      signal.SIGINT,
@@ -353,6 +390,23 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
 
        Now supports use of threading instead of multiprocessing via
        **use_threading** option.
+
+    .. versionchanged:: 0.8.0
+
+       Now **worker_ctxmgr** must be an instance of
+       :class:`AsyncServerContextManager` or async generators decorated by
+       ``@aiotools.server``.
+
+       Now **main_ctxmgr** must be an instance of :class:`ServerMainContextManager`
+       or plain generators decorated by ``@aiotools.main``.
+
+       The usage is same to asynchronous context managers, but optionally you can
+       distinguish the received stop signal by retrieving the return value of the
+       ``yield`` statement.
+
+       In **extra_procs** in non-threaded mode, stop signals are converted into
+       either one of :class:`KeyboardInterrupt`, :class:`SystemExit`, or
+       :class:`InterruptedBySignal` exception.
     '''
 
     @_main_ctxmgr
