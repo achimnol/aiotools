@@ -5,7 +5,11 @@ graceful shutdown steps.
 '''
 
 import asyncio
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import (
+    AbstractContextManager, ContextDecorator,
+)
+import functools
+import inspect
 import logging
 import multiprocessing as mp
 import threading
@@ -19,7 +23,9 @@ from typing import Any, Callable, Iterable, Optional
 from .context import AbstractAsyncContextManager
 
 __all__ = (
+    'main',
     'start_server',
+    'InterruptedBySignal',
 )
 
 log = logging.getLogger(__name__)
@@ -29,31 +35,169 @@ _children_loops = []
 _children_lock = threading.Lock()
 
 
-def _worker_main(worker_actxmgr, threaded, intr_pipe, proc_idx, args):
+class InterruptedBySignal(BaseException):
+    pass
+
+
+class AsyncServerContextManager(AbstractAsyncContextManager):
+    '''
+    Converts an async-generator function into asynchronous context manager.
+
+    The implementation detail is mostly taken from the standard library,
+    with a minor change to inject ``self.yield_return`` into the wrapped
+    coroutine generator.
+    '''
+
+    def __init__(self, func: Callable[..., Any], args, kwargs):
+        if not inspect.isasyncgenfunction(func):
+            raise RuntimeError('Context manager function must be '
+                               'an async-generator')
+        self._agen = func(*args, **kwargs)
+        self.func = func
+        self.args = args
+        self.kwargs = kwargs
+        self.yield_return = None
+
+    async def __aenter__(self):
+        try:
+            return (await self._agen.__anext__())
+        except StopAsyncIteration:
+            raise RuntimeError("async-generator didn't yield") from None
+
+    async def __aexit__(self, exc_type, exc_value, tb):
+        if exc_type is None:
+            try:
+                # Here is the modified part.
+                await self._agen.asend(self.yield_return)
+            except StopAsyncIteration:
+                return
+            else:
+                raise RuntimeError("async-generator didn't stop") from None
+        else:
+            if exc_value is None:
+                exc_value = exc_type()
+            try:
+                await self._agen.athrow(exc_type, exc_value, tb)
+                raise RuntimeError("async-generator didn't stop after athrow()")
+            except StopAsyncIteration as exc_new_value:
+                return exc_new_value is not exc_value
+            except RuntimeError as exc_new_value:
+                if exc_new_value is exc_value:
+                    return False
+                if isinstance(exc_value, (StopIteration, StopAsyncIteration)):
+                    if exc_new_value.__cause__ is exc_value:
+                        return False
+                raise
+            except BaseException as exc:
+                if exc is not exc_value:
+                    raise
+
+
+class ServerMainContextManager(AbstractContextManager,
+                               ContextDecorator):
+
+    def __init__(self, func, args, kwargs):
+        self.gen = func(*args, **kwargs)
+        self.func = func
+        self.args = args
+        self.kwargs = kwargs
+        self.yield_return = None
+
+    def __enter__(self):
+        del self.args, self.kwargs, self.func
+        try:
+            return next(self.gen)
+        except StopIteration:
+            raise RuntimeError("generator didn't yield") from None
+
+    def __exit__(self, type, value, traceback):
+        if type is None:
+            try:
+                self.gen.send(self.yield_return)
+            except StopIteration:
+                return False
+            else:
+                raise RuntimeError("generator didn't stop")
+        else:
+            if value is None:
+                value = type()
+            try:
+                self.gen.throw(type, value, traceback)
+            except StopIteration as exc:
+                return exc is not value
+            except RuntimeError as exc:
+                if exc is value:
+                    return False
+                if type is StopIteration and exc.__cause__ is value:
+                    return False
+                raise
+            except:  # noqa
+                if sys.exc_info()[1] is value:
+                    return False
+                raise
+            raise RuntimeError("generator didn't stop after throw()")
+
+
+# This is a dirty hack to implement "module callable".
+# NOTE: only works in Python 3.5 or higher.
+
+def _server_ctxmgr(func):
+    @functools.wraps(func)
+    def helper(*args, **kwargs):
+        return AsyncServerContextManager(func, args, kwargs)
+    return helper
+
+
+class ServerModule(sys.modules[__name__].__class__):
+    def __call__(self, func):
+        return _server_ctxmgr(func)
+
+
+sys.modules[__name__].__class__ = ServerModule
+
+
+def _main_ctxmgr(func):
+    @functools.wraps(func)
+    def helper(*args, **kwargs):
+        return ServerMainContextManager(func, args, kwargs)
+    return helper
+
+
+main = _main_ctxmgr
+
+
+def _worker_main(worker_actxmgr, threaded, stop_signals,
+                 intr_pipe, proc_idx, args):
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     interrupted = asyncio.Event(loop=loop)
+    ctx = worker_actxmgr(loop, proc_idx, args)
 
-    def handle_intr_signal():
+    def handle_stop_signal(signum):
         if interrupted.is_set():
             pass
         else:
             interrupted.set()
+            ctx.yield_return = signum
             loop.stop()
 
     if not threaded:
-        loop.add_signal_handler(signal.SIGINT, handle_intr_signal)
+        for signum in stop_signals:
+            loop.add_signal_handler(
+                signum,
+                functools.partial(handle_stop_signal, signum))
         # Allow the worker to be interrupted during initialization
         # (in case of initialization failures in other workers)
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
     else:
         with _children_lock:
             _children_loops.append(loop)
     try:
-        ctx = worker_actxmgr(loop, proc_idx, args)
         try:
             loop.run_until_complete(ctx.__aenter__())
+        except asyncio.CancelledError:
+            log.warning(f'Worker {proc_idx}: Cancelled initialization.')
         except Exception:
             log.exception(f'Worker {proc_idx}: Error during initialization')
             wfd = intr_pipe if threaded else intr_pipe.fileno()
@@ -72,42 +216,52 @@ def _worker_main(worker_actxmgr, threaded, intr_pipe, proc_idx, args):
         loop.close()
 
 
-def _extra_main(extra_func, threaded, intr_event, proc_idx, args):
+def _extra_main(extra_func, threaded, stop_signals, intr_event, proc_idx, args):
     interrupted = threading.Event()
     if not threaded:
 
-        def raise_kbdintr(signum, frame):
+        # Since signals only work for the main thread in Python,
+        # extra processes in use_threading=True mode should check
+        # the intr_event by themselves (probably in their loops).
+
+        def raise_stop(signum, frame):
             if interrupted.is_set():
                 pass
             else:
                 interrupted.set()
-                raise KeyboardInterrupt
+                if signum == signal.SIGINT:
+                    raise KeyboardInterrupt
+                elif signum == signal.SIGTERM:
+                    raise SystemExit
+                else:
+                    raise InterruptedBySignal(signum)
 
         # restore signal handler.
-        signal.signal(signal.SIGINT, raise_kbdintr)
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
+        for signum in stop_signals:
+            signal.signal(signum, raise_stop)
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
         intr_event = None
 
     try:
         if not interrupted.is_set():
             extra_func(intr_event, proc_idx, args)
-    except (SystemExit, KeyboardInterrupt):
-        pass
+    except (SystemExit, KeyboardInterrupt, InterruptedBySignal):
+        log.warning(f'extra_proc[{proc_idx}] did not handle stop signals.')
     finally:
         if not threaded:
             # same as in _worker_main()
-            signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+            signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
 
 
-def start_server(worker_actxmgr: AbstractAsyncContextManager,
-                 main_ctxmgr: Optional[AbstractContextManager]=None,
-                 extra_procs: Iterable[Callable]=tuple(),
-                 stop_signals: Iterable[signal.Signals]=(
+def start_server(worker_actxmgr: AsyncServerContextManager,
+                 main_ctxmgr: Optional[AsyncServerContextManager] = None,
+                 extra_procs: Iterable[Callable] = tuple(),
+                 stop_signals: Iterable[signal.Signals] = (
                      signal.SIGINT,
                      signal.SIGTERM),
-                 num_workers: int=1,
-                 use_threading: bool=False,
-                 args: Iterable[Any]=tuple()):
+                 num_workers: int = 1,
+                 use_threading: bool = False,
+                 args: Iterable[Any] = tuple()):
     '''
     Starts a multi-process server where each process has their own individual
     asyncio event loop.  Their lifecycles are automantically managed -- if the
@@ -201,7 +355,7 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
        **use_threading** option.
     '''
 
-    @contextmanager
+    @_main_ctxmgr
     def noop_main_ctxmgr():
         yield
 
@@ -219,9 +373,8 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
     children = []
     _children_loops.clear()
     intr_event = threading.Event()
-    sigblock_mask = {signal.SIGINT}
-    for signum in stop_signals:
-        sigblock_mask.add(signum)
+    sigblock_mask = frozenset(stop_signals)
+    main_ctx = main_ctxmgr()
 
     # temporarily block signals and register signal handlers to mainloop
     signal.pthread_sigmask(signal.SIG_BLOCK, sigblock_mask)
@@ -237,18 +390,21 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
         pass  # for uvloop
 
     # build a main-to-worker interrupt channel using signals
-    def handle_stop_signal():
+    def handle_stop_signal(signum):
         if use_threading:
             with _children_lock:
                 for l in _children_loops:
                     l.call_soon_threadsafe(l.stop)
             intr_event.set()
         else:
-            os.killpg(0, signal.SIGINT)
+            main_ctx.yield_return = signum
+            os.killpg(0, signum)
         mainloop.stop()
 
     for signum in stop_signals:
-        mainloop.add_signal_handler(signum, handle_stop_signal)
+        mainloop.add_signal_handler(
+            signum,
+            functools.partial(handle_stop_signal, signum))
 
     # build a reliable worker-to-main interrupt channel using a pipe
     # (workers have no idea whether the main interrupt is enabled/disabled)
@@ -268,7 +424,7 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
     mainloop.add_reader(rfd, handle_child_interrupt, rfd)
 
     # start
-    with main_ctxmgr() as main_args:
+    with main_ctx as main_args:
 
         # retrieve args generated by the user-defined main
         if main_args is None:
@@ -279,16 +435,18 @@ def start_server(worker_actxmgr: AbstractAsyncContextManager,
         # spawn managed async workers
         for i in range(num_workers):
             p = create_child(target=_worker_main, daemon=True,
-                             args=(worker_actxmgr, use_threading,
-                                   child_intr_pipe[1], i, main_args + args))
+                             args=(worker_actxmgr, use_threading, stop_signals,
+                                   child_intr_pipe[1], i,
+                                   main_args + args))
             p.start()
             children.append(p)
 
         # spawn extra workers
         for i, f in enumerate(extra_procs):
             p = create_child(target=_extra_main, daemon=True,
-                             args=(f, use_threading, intr_event,
-                                   num_workers + i, main_args + args))
+                             args=(f, use_threading, stop_signals,
+                                   intr_event, num_workers + i,
+                                   main_args + args))
             p.start()
             children.append(p)
         try:

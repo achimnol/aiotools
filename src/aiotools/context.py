@@ -208,7 +208,7 @@ class AsyncContextGroup:
     '''
 
     def __init__(self,
-                 context_managers: Optional[Iterable[AbstractAsyncContextManager]]=None):  # noqa
+                 context_managers: Optional[Iterable[AbstractAsyncContextManager]] = None):  # noqa
         self._cm = list(context_managers) if context_managers else []
         self._cm_yields = []
         self._cm_exits = []

@@ -19,8 +19,8 @@ class TimerDelayPolicy(enum.Enum):
 
 
 def create_timer(cb: Callable[[float], None], interval: float,
-                 delay_policy: TimerDelayPolicy=TimerDelayPolicy.DEFAULT,
-                 loop: Optional[asyncio.BaseEventLoop]=None) -> asyncio.Task:
+                 delay_policy: TimerDelayPolicy = TimerDelayPolicy.DEFAULT,
+                 loop: Optional[asyncio.BaseEventLoop] = None) -> asyncio.Task:
     '''
     Schedule a timer with the given callable and the interval in seconds.
     The interval value is also passed to the callable.

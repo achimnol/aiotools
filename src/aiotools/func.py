@@ -24,7 +24,9 @@ def apartial(coro, *args, **kwargs):
     return wrapped
 
 
-def lru_cache(maxsize: int=128, typed: bool=False, expire_after: float=None):
+def lru_cache(maxsize: int = 128,
+              typed: bool = False,
+              expire_after: float = None):
     '''
     A simple LRU cache just like :func:`functools.lru_cache`, but it works for
     coroutines.  This is not as heavily optimized as :func:`functools.lru_cache`
