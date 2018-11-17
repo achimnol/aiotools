@@ -358,9 +358,10 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
                      depending on the value of **use_threading** argument.
 
                      If it is ``False`` (default), they will get
-                     :class:`KeyboardInterrupt` like normal Python codes in the
-                     main thread upon arrival of a stop signal to the main
-                     program.
+                     a :class:`BaseException` depending on the received stop signal
+                     number, either :class:`KeyboardInterrupt` (for SIGINT),
+                     :class:`SystemExit` (for SIGTERM), or
+                     :class:`InterruptedBySignal` (otherwise).
 
                      If it is ``True``, they should check their **intr_event**
                      argument periodically because there is no way to install
@@ -412,7 +413,7 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
 
     .. versionchanged:: 0.8.0
 
-       Now **worker_ctxmgr** must be an instance of
+       Now **worker_actxmgr** must be an instance of
        :class:`AsyncServerContextManager` or async generators decorated by
        ``@aiotools.server``.
 
