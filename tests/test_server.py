@@ -77,7 +77,7 @@ def test_server_singleproc_threading(restore_signal):
     value_lock = threading.Lock()
 
     def interrupt():
-        os.kill(0, signal.SIGINT)
+        os.kill(os.getpid(), signal.SIGINT)
 
     @aiotools.server
     async def myserver(loop, proc_idx, args):
@@ -122,7 +122,7 @@ def test_server_multiproc(set_timeout, restore_signal):
             terminated.value += 1
 
     def interrupt():
-        os.kill(0, signal.SIGINT)
+        os.kill(os.getpid(), signal.SIGINT)
 
     set_timeout(0.2, interrupt)
     aiotools.start_server(myserver, num_workers=3,
@@ -156,7 +156,7 @@ def test_server_multiproc_custom_stop_signals(set_timeout, restore_signal):
             terminated.value += 1
 
     def interrupt():
-        os.kill(0, signal.SIGUSR1)
+        os.kill(os.getpid(), signal.SIGUSR1)
 
     set_timeout(0.2, interrupt)
     aiotools.start_server(myserver, num_workers=2,
@@ -340,7 +340,7 @@ def test_server_multiproc_threading(set_timeout, restore_signal):
             terminated += 1
 
     def interrupt():
-        os.kill(0, signal.SIGINT)
+        os.kill(os.getpid(), signal.SIGINT)
 
     set_timeout(0.2, interrupt)
     aiotools.start_server(myserver, num_workers=3, use_threading=True)
@@ -368,7 +368,7 @@ def test_server_user_main(set_timeout, restore_signal):
         yield
 
     def interrupt():
-        os.kill(0, signal.SIGINT)
+        os.kill(os.getpid(), signal.SIGINT)
 
     set_timeout(0.2, interrupt)
     aiotools.start_server(myworker, mymain, num_workers=3,
@@ -397,7 +397,7 @@ def test_server_user_main_custom_stop_signals(set_timeout, restore_signal):
         worker_signals[proc_idx] = yield
 
     def interrupt():
-        os.kill(0, signal.SIGUSR1)
+        os.kill(os.getpid(), signal.SIGUSR1)
 
     def noop(signum, frame):
         pass
@@ -432,7 +432,7 @@ def test_server_user_main_tuple(set_timeout, restore_signal):
         yield
 
     def interrupt():
-        os.kill(0, signal.SIGINT)
+        os.kill(os.getpid(), signal.SIGINT)
 
     set_timeout(0.2, interrupt)
     aiotools.start_server(myworker, mymain, num_workers=3,
@@ -460,7 +460,7 @@ def test_server_user_main_threading(set_timeout, restore_signal):
         yield
 
     def interrupt():
-        os.kill(0, signal.SIGINT)
+        os.kill(os.getpid(), signal.SIGINT)
 
     set_timeout(0.2, interrupt)
     aiotools.start_server(myworker, mymain, num_workers=3,
@@ -494,7 +494,7 @@ def test_server_extra_proc(set_timeout, restore_signal):
         yield
 
     def interrupt():
-        os.kill(0, signal.SIGINT)
+        os.kill(os.getpid(), signal.SIGINT)
 
     set_timeout(0.2, interrupt)
     aiotools.start_server(myworker, extra_procs=[
@@ -523,7 +523,7 @@ def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
         yield
 
     def interrupt():
-        os.kill(0, signal.SIGUSR1)
+        os.kill(os.getpid(), signal.SIGUSR1)
 
     set_timeout(0.3, interrupt)
     aiotools.start_server(myworker, extra_procs=[
@@ -564,7 +564,7 @@ def test_server_extra_proc_threading(set_timeout, restore_signal):
         yield
 
     def interrupt():
-        os.kill(0, signal.SIGINT)
+        os.kill(os.getpid(), signal.SIGINT)
 
     set_timeout(0.2, interrupt)
     aiotools.start_server(myworker, extra_procs=[
