@@ -52,6 +52,7 @@ __all__ = (
 log = logging.getLogger(__name__)
 
 # for threaded mode
+_children_ctxs = []
 _children_loops = []
 _children_lock = threading.Lock()
 
@@ -248,6 +249,7 @@ def _worker_main(worker_actxmgr, threaded, stop_signals,
         signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
     else:
         with _children_lock:
+            _children_ctxs.append(ctx)
             _children_loops.append(loop)
     try:
         try:
@@ -445,6 +447,7 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
         main_ctxmgr = noop_main_ctxmgr
 
     children = []
+    _children_ctxs.clear()
     _children_loops.clear()
     intr_event = threading.Event()
     sigblock_mask = frozenset(stop_signals)
@@ -465,13 +468,15 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
 
     # build a main-to-worker interrupt channel using signals
     def handle_stop_signal(signum):
+        main_ctx.yield_return = signum
         if use_threading:
             with _children_lock:
+                for c in _children_ctxs:
+                    c.yield_return = signum
                 for l in _children_loops:
                     l.call_soon_threadsafe(l.stop)
             intr_event.set()
         else:
-            main_ctx.yield_return = signum
             os.killpg(0, signum)
         mainloop.stop()
 
