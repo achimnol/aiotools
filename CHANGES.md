@@ -1,6 +1,12 @@
 Changelog
 =========
 
+0.8.1 (2019-02-24)
+------------------
+
+- server: Fix yields of the received stop signal in main/worker context managers
+  when using threaded workers.
+
 0.8.0 (2018-11-18)
 ------------------
 
