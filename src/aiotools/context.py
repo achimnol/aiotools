@@ -135,7 +135,7 @@ else:
                             return False
                     # If this is a purely new exception, raise the new one.
                     raise
-                except BaseException as exc:
+                except (BaseException, asyncio.CancelledError) as exc:
                     if exc is not exc_value:
                         raise
 

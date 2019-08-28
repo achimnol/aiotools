@@ -120,7 +120,7 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
                     if exc_new_value.__cause__ is exc_value:
                         return False
                 raise
-            except BaseException as exc:
+            except (BaseException, asyncio.CancelledError) as exc:
                 if exc is not exc_value:
                     raise
 
