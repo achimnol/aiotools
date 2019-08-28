@@ -24,8 +24,7 @@ I also recommend to try the following asyncio libraries for your happier life.
 
 * [async_timeout](https://github.com/aio-libs/async-timeout): Provides a light-weight timeout wrapper that does not spawn subtasks.
 * [aiojobs](https://github.com/aio-libs/aiojobs): Provides a concurrency-limited scheduler for asyncio tasks with graceful shutdown.
-* [aionursery](https://github.com/malinoff/aionursery): Provides a [trio](https://github.com/python-trio/trio)-like "task group scope"
-  that ensures either cancellation or completion of sub-tasks within a block.
+* [trio](https://github.com/python-trio/trio): An alternative implementation of asynchronous IO stack for Python, with focus on cancellation scopes and task groups called "nursery".
 
 
 Examples
