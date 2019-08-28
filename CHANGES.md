@@ -1,6 +1,12 @@
 Changelog
 =========
 
+0.8.2 (2019-08-28)
+------------------
+
+- context, server: Catch asyncio.CancelledError along with BaseException to
+  make the cancellation behavior consistent in Python 3.6, 3.7, and 3.8.
+
 0.8.1 (2019-02-24)
 ------------------
 
