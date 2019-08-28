@@ -134,6 +134,7 @@ def test_server_multiproc(set_timeout, restore_signal):
     assert len(mp.active_children()) == 0
 
 
+@pytest.mark.skipif(os.environ.get('TRAVIS', '') == 'true', reason='on Travis CI')
 def test_server_multiproc_custom_stop_signals(set_timeout, restore_signal):
 
     started = mp.Value('i', 0)
@@ -378,6 +379,7 @@ def test_server_user_main(set_timeout, restore_signal):
     assert main_exit
 
 
+@pytest.mark.skipif(os.environ.get('TRAVIS', '') == 'true', reason='on Travis CI')
 def test_server_user_main_custom_stop_signals(set_timeout, restore_signal):
     main_enter = False
     main_exit = False
@@ -506,6 +508,7 @@ def test_server_extra_proc(set_timeout, restore_signal):
     assert extras[1] == 991
 
 
+@pytest.mark.skipif(os.environ.get('TRAVIS', '') == 'true', reason='on Travis CI')
 def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
 
     received_signals = mp.Array('i', [0, 0])
