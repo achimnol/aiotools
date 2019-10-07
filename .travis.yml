@@ -18,7 +18,9 @@ os:
 
 matrix:
   allow_failures:
-    python: "3.8-dev"
+    - python: "3.8-dev"
+      os: linux
+  fast_finish: true
 
 # default test job
 install:
