@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.8.3 (2019-10-07)
+------------------
+
+- context: Fix `aclosing()`'s `__aexit__()` exception arguments.
+
 0.8.2 (2019-08-28)
 ------------------
 
