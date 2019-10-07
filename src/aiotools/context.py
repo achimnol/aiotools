@@ -164,7 +164,7 @@ in-a-post-asyncawait-world/#cleanup-in-generators-and-async-generators
     async def __aenter__(self):
         return self.thing
 
-    async def __aexit__(self):
+    async def __aexit__(self, *args):
         await self.thing.aclose()
 
 
