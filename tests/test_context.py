@@ -727,3 +727,43 @@ async def test_actxgroup_exception_from_body(event_loop):
     assert exits[0] is None  # __aexit__ are called successfully
     assert exits[1] is None
     assert exit_count == 2   # they also suceeeded
+
+
+@pytest.mark.asyncio
+async def test_aclosing(event_loop):
+
+    finalized = False
+
+    async def myiter():
+        nonlocal finalized
+        try:
+            yield 1
+            await asyncio.sleep(0.2)
+            yield 10
+            await asyncio.sleep(0.2)
+            yield 100
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.2)
+            finalized = True
+            raise
+
+    mysum = 0
+    detect_cancellation = False
+
+    async def mytask():
+        nonlocal mysum, detect_cancellation
+        try:
+            async with aiotools.aclosing(myiter()) as agen:
+                async for x in agen:
+                    mysum += x
+        except asyncio.CancelledError:
+            detect_cancellation = True
+
+    t = event_loop.create_task(mytask())
+    await asyncio.sleep(0.3)
+    t.cancel()
+    await t
+
+    assert mysum == 11
+    assert finalized
+    assert detect_cancellation
