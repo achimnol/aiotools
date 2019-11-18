@@ -71,10 +71,6 @@ async def worker_main(loop, pidx, args):
 
 
 if __name__ == '__main__':
-
-    reveal_type(router_main)
-    reveal_type(worker_main)
-
     server = aiotools.start_server(
         worker_main,
         num_workers=num_workers,
