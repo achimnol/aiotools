@@ -223,8 +223,11 @@ async def myserver_worker_init_error(loop, proc_idx, args):
         terminated.value += 1
 
 
-@pytest.mark.parametrize('use_threading', [False, True])
-@pytest.mark.parametrize('start_method', ['fork', 'spawn'])
+@pytest.mark.parametrize('use_threading,start_method', [
+    (True, 'fork'),
+    (False, 'fork'),
+    (False, 'spawn'),
+])
 def test_server_worker_init_error(
         mocker, restore_signal, use_threading, start_method):
 
@@ -303,8 +306,11 @@ async def myserver_worker_init_error_multi(loop, proc_idx, args):
         terminated.value += 1
 
 
-@pytest.mark.parametrize('use_threading', [False, True])
-@pytest.mark.parametrize('start_method', ['fork', 'spawn'])
+@pytest.mark.parametrize('use_threading,start_method', [
+    (True, 'fork'),
+    (False, 'fork'),
+    (False, 'spawn'),
+])
 def test_server_worker_init_error_multi(
         mocker, restore_signal, use_threading, start_method):
 

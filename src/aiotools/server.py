@@ -63,6 +63,7 @@ log = logging.getLogger(__name__)
 # for threaded mode
 _children_ctxs = []
 _children_loops = []
+_children_ffs = []
 _children_lock = threading.Lock()
 
 
@@ -239,6 +240,7 @@ def _worker_main(worker_actxmgr, threaded, stop_signals,
     asyncio.set_event_loop(loop)
     interrupted = asyncio.Event()
     ctx = worker_actxmgr(loop, proc_idx, args)
+    forever_future = loop.create_future()
 
     def handle_stop_signal(signum):
         if interrupted.is_set():
@@ -246,7 +248,7 @@ def _worker_main(worker_actxmgr, threaded, stop_signals,
         else:
             interrupted.set()
             ctx.yield_return = signum
-            loop.stop()
+            forever_future.cancel()
 
     if not threaded:
         for signum in stop_signals:
@@ -260,27 +262,37 @@ def _worker_main(worker_actxmgr, threaded, stop_signals,
         with _children_lock:
             _children_ctxs.append(ctx)
             _children_loops.append(loop)
-    try:
+            _children_ffs.append(forever_future)
+
+    async def _wrapped_worker():
+        err_ctx = 'enter'
         try:
-            loop.run_until_complete(ctx.__aenter__())
-        except asyncio.CancelledError:
-            log.warning(f'Worker {proc_idx}: Cancelled initialization.')
+            async with ctx:
+                err_ctx = 'body'
+                try:
+                    await forever_future
+                except asyncio.CancelledError:
+                    pass
+                finally:
+                    err_ctx = 'exit'
         except Exception:
-            log.exception(f'Worker {proc_idx}: Error during initialization')
-            wfd = intr_pipe if threaded else intr_pipe.fileno()
-            os.write(wfd, struct.pack('i', proc_idx))
-            # this sleep is necessary to prevent hang-up in Linux
-            time.sleep(0.2)
-        else:
-            try:
-                loop.run_forever()
-            except Exception:
-                loop.run_until_complete(ctx.__aexit__(*sys.exc_info()))
-            else:
-                loop.run_until_complete(ctx.__aexit__(None, None, None))
+            if err_ctx != 'body':
+                err_ctx_str = 'initialization' if err_ctx == 'enter' else 'shutdown'
+                log.exception(f'Worker {proc_idx}: '
+                              f'Error during context manager {err_ctx_str}')
+                wfd = intr_pipe if threaded else intr_pipe.fileno()
+                os.write(wfd, struct.pack('i', proc_idx))
+                # FIXME: this sleep is required to prevent hang-up in Linux
+                time.sleep(0.2)
+            raise
+
+    try:
+        loop.run_until_complete(_wrapped_worker())
     finally:
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            loop.close()
 
 
 def _extra_main(extra_func, threaded, stop_signals, intr_event, proc_idx, args):
@@ -468,6 +480,7 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
     children = []
     _children_ctxs.clear()
     _children_loops.clear()
+    _children_ffs.clear()
     intr_event: Union[threading.Event, mp.synchronize.Event]
     if use_threading:
         intr_event = threading.Event()
@@ -497,8 +510,8 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
             with _children_lock:
                 for c in _children_ctxs:
                     c.yield_return = signum
-                for l in _children_loops:
-                    l.call_soon_threadsafe(l.stop)
+                for l, ff in zip(_children_loops, _children_ffs):
+                    l.call_soon_threadsafe(ff.cancel)
             intr_event.set()
         else:
             os.killpg(0, signum)
@@ -565,5 +578,8 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
             for child in children:
                 child.join()
         finally:
-            mainloop.close()
-            asyncio.set_event_loop(old_loop)
+            try:
+                mainloop.run_until_complete(mainloop.shutdown_asyncgens())
+            finally:
+                mainloop.close()
+                asyncio.set_event_loop(old_loop)

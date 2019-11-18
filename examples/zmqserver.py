@@ -1,21 +1,27 @@
 import logging
 import os
+from typing import Set
 
 import aiotools
 import zmq, zmq.asyncio
 
 num_workers = 4
 
+log_init_states: Set[str] = set()
 
-def get_logger(name, pid):
+
+def get_logger(name: str, pid: int) -> logging.Logger:
     log = logging.getLogger(name)
-    sh = logging.StreamHandler()
-    fmt = logging.Formatter(
-        f'%(relativeCreated).3f %(name)s[{pid}] %(levelname)s: %(message)s')
-    sh.setFormatter(fmt)
-    log.addHandler(sh)
-    log.propagate = False
-    log.setLevel(logging.INFO)
+    # initialize only once for each logger identified by the name
+    if name not in log_init_states:
+        sh = logging.StreamHandler()
+        fmt = logging.Formatter(
+            f'%(relativeCreated).3f %(name)s[{pid}] %(levelname)s: %(message)s')
+        sh.setFormatter(fmt)
+        log.addHandler(sh)
+        log.propagate = False
+        log.setLevel(logging.INFO)
+        log_init_states.add(name)
     return log
 
 
@@ -71,8 +77,10 @@ async def worker_main(loop, pidx, args):
 
 
 if __name__ == '__main__':
+    # This example must be run with multiprocessing.
     server = aiotools.start_server(
         worker_main,
+        use_threading=False,
         num_workers=num_workers,
         extra_procs=[router_main],
         start_method='spawn',
