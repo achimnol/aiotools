@@ -13,7 +13,7 @@ import contextlib
 import asyncio
 import functools
 import inspect
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional, List
 
 __all__ = [
     'AsyncContextManager', 'async_ctx_manager', 'actxmgr', 'aclosing',
@@ -24,14 +24,16 @@ __all__ = [
 if hasattr(contextlib, 'asynccontextmanager'):
     __all__ += ['AsyncExitStack']
 
-    AbstractAsyncContextManager = contextlib.AbstractAsyncContextManager
-    AsyncContextManager = contextlib._AsyncGeneratorContextManager
+    AbstractAsyncContextManager = \
+        contextlib.AbstractAsyncContextManager
+    AsyncContextManager = \
+        contextlib._AsyncGeneratorContextManager     # type: ignore
     AsyncExitStack = contextlib.AsyncExitStack
     async_ctx_manager = contextlib.asynccontextmanager
 else:
     __all__ += ['AsyncContextDecorator', 'actxdecorator']
 
-    class AbstractAsyncContextManager(abc.ABC):
+    class AbstractAsyncContextManager(abc.ABC):  # type: ignore
         '''
         The base abstract interface for asynchronous context manager.
         '''
@@ -68,7 +70,8 @@ else:
 
     actxdecorator = AsyncContextDecorator
 
-    class AsyncContextManager(AsyncContextDecorator, AbstractAsyncContextManager):
+    class AsyncContextManager(AsyncContextDecorator,         # type: ignore
+                              AbstractAsyncContextManager):
         '''
         Converts an async-generator function into asynchronous context manager.
         '''
@@ -210,8 +213,8 @@ class AsyncContextGroup:
     def __init__(self,
                  context_managers: Optional[Iterable[AbstractAsyncContextManager]] = None):  # noqa
         self._cm = list(context_managers) if context_managers else []
-        self._cm_yields = []
-        self._cm_exits = []
+        self._cm_yields: List[asyncio.Task] = []
+        self._cm_exits: List[asyncio.Task] = []
 
     def add(self, cm):
         '''

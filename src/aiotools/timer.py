@@ -6,6 +6,8 @@ import asyncio
 import enum
 from typing import Callable, Optional
 
+from .compat import get_running_loop
+
 __all__ = ('create_timer', 'TimerDelayPolicy')
 
 
@@ -20,7 +22,7 @@ class TimerDelayPolicy(enum.Enum):
 
 def create_timer(cb: Callable[[float], None], interval: float,
                  delay_policy: TimerDelayPolicy = TimerDelayPolicy.DEFAULT,
-                 loop: Optional[asyncio.BaseEventLoop] = None) -> asyncio.Task:
+                 loop: Optional[asyncio.AbstractEventLoop] = None) -> asyncio.Task:
     '''
     Schedule a timer with the given callable and the interval in seconds.
     The interval value is also passed to the callable.
@@ -33,8 +35,8 @@ def create_timer(cb: Callable[[float], None], interval: float,
     Returns:
         You can stop the timer by cancelling the returned task.
     '''
-    if not loop:
-        loop = asyncio.get_event_loop()
+    if loop is None:
+        loop = get_running_loop()
 
     async def _timer():
         fired_tasks = []
