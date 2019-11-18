@@ -1,170 +1,164 @@
 Changelog
 =========
 
+0.8.4 (2019-11-18)
+------------------
+
+* Python 3.8 is now officially supported.
+* **server:** Fix errors when `multiprocessing.set_start_method("spawn")` is used.
+  - NOTE: This is now the default for macOS since Python 3.8.
+  - KNOWN ISSUE: [#12](https://github.com/achimnol/aiotools/issues/12)
+* Remove some packaging hacks in `__init__.py` and let setuptools read the version
+  from a separate `aiotools.version` module.
+
 0.8.3 (2019-10-07)
 ------------------
 
-- context: Fix `aclosing()`'s `__aexit__()` exception arguments.
+* **context:** Fix `aclosing()`'s `__aexit__()` exception arguments.
 
 0.8.2 (2019-08-28)
 ------------------
 
-- context, server: Catch asyncio.CancelledError along with BaseException to
+* **context**, **server:** Catch asyncio.CancelledError along with BaseException to
   make the cancellation behavior consistent in Python 3.6, 3.7, and 3.8.
 
 0.8.1 (2019-02-24)
 ------------------
 
-- server: Fix yields of the received stop signal in main/worker context managers
+* **server:** Fix yields of the received stop signal in main/worker context managers
   when using threaded workers.
 
 0.8.0 (2018-11-18)
 ------------------
 
-- server: Updated stop signal handling and now user-defined worker/main context
+* **server:** Updated stop signal handling and now user-defined worker/main context
   managers have a way to distinguish the stop signal received.  See the updated
   docs for more details.
 
 0.7.3 (2018-10-16)
 ------------------
 
-- This ia a technical release to fix a test case preventing the automated CI
+* This ia a technical release to fix a test case preventing the automated CI
   release procedure.
 
 0.7.2 (2018-10-16)
 ------------------
 
-- Improve support for Python 3.6/3.7 using a small compatibility module against asyncio.
-
-- func: Add `expire_after` option to `lru_cache()` function.
+* Improve support for Python 3.6/3.7 using a small compatibility module against asyncio.
+* func: Add `expire_after` option to `lru_cache()` function.
 
 0.7.1 (2018-08-24)
 ------------------
 
-- Minor updates to the documentation
+* Minor updates to the documentation
 
 0.7.0 (2018-08-24)
 ------------------
 
-- Add support for Python 3.7
-
-- context: Updated to work like Python 3.7
-
-- context: Deprecated `AsyncContextDecorator` stuffs in Python 3.7+
-
-- context: Added an alias to `contextlib.AsyncExitStack` in the standard library.
+* Add support for Python 3.7
+* **context:** Updated to work like Python 3.7
+* **context:** Deprecated `AsyncContextDecorator` stuffs in Python 3.7+
+* **context:** Added an alias to `contextlib.AsyncExitStack` in the standard library.
 
 0.6.0 (2018-04-10)
 ------------------
 
-- Introduce a new module `aiotools.iter` with `aiter()` function which
+* Introduce a new module `aiotools.iter` with `aiter()` function which
   corresponds to an async version of the builtin `iter()`.
 
 0.5.4 (2018-02-01)
 ------------------
 
-- server: Remove use of unncessary setpgrp syscall, which is also blocked by
+* **server:** Remove use of unncessary setpgrp syscall, which is also blocked by
   Docker's default seccomp profile!
 
 0.5.3 (2018-01-12)
 ------------------
 
-- server: Ooops! (a finally block should have been an else block)
+* **server:** Ooops! (a finally block should have been an else block)
 
 0.5.2 (2018-01-12)
 ------------------
 
-- server: Improve inner beauty (code readability)
-
-- server: Improve reliability and portability of worker-to-main interrupts
+* **server:** Improve inner beauty (code readability)
+* **server:** Improve reliability and portability of worker-to-main interrupts
 
 0.5.1 (2018-01-11)
 ------------------
 
-- server: Fix a race condition related to handling of worker
+* **server:** Fix a race condition related to handling of worker
   initialization errors with multiple workers
 
 0.5.0 (2017-11-08)
 ------------------
 
-- func: Add `lru_cache()` which is a coroutine version of
+* **func:** Add `lru_cache()` which is a coroutine version of
   `functools.lru_cache()`
 
 0.4.5 (2017-10-14)
 ------------------
 
-- server: Fix a race condition related to signal handling in the
+* **server:** Fix a race condition related to signal handling in the
   multiprocessing module during termination
-
-- server: Improve error handling during initialization of workers
+* **server:** Improve error handling during initialization of workers
   (automatic shutdown of other workers and the main loop after
   logging the exception)
 
 0.4.4 (2017-09-12)
 ------------------
 
-- Add a new module `aiotools.func` with `apartial()` function which is an
+* Add a new module `aiotools.func` with `apartial()` function which is an
   async version of `functools.partial()` in the standard library
 
 0.4.3 (2017-08-06)
 ------------------
 
-- Add `aclosing()` context manager like `closing()` in the standard library
-
-- Speed up Travis CI builds for packaging
-
-- Now provide README in rst as well as CHANGES (this file)
+* Add `aclosing()` context manager like `closing()` in the standard library
+* Speed up Travis CI builds for packaging
+* Now provide README in rst as well as CHANGES (this file)
 
 0.4.2 (2017-08-01)
 ------------------
 
-- `server`: Fix spawning subprocesses in child workers
-
-- Add support for `uvloop`
+* `server`: Fix spawning subprocesses in child workers
+* Add support for `uvloop`
 
 0.4.0 (2017-08-01)
 ------------------
 
-- Add `use_threading` argument to 
-
-- Add initial documentation (which currently not served
+* Add `use_threading` argument to 
+* Add initial documentation (which currently not served
   on readthedocs.io due to Python version problem)
 
 0.3.2 (2017-07-31)
 ------------------
 
-- Add `extra_procs` argument to `start_server()` function
-
-- Add socket and ZeroMQ server examples
-
-- Improve CI configs
+* Add `extra_procs` argument to `start_server()` function
+* Add socket and ZeroMQ server examples
+* Improve CI configs
 
 0.3.1 (2017-07-26)
 ------------------
 
-- Improve CI scripts
-
-- Adopt editorconfig
+* Improve CI scripts
+* Adopt editorconfig
 
 0.3.0 (2017-04-26)
 ------------------
 
-- Add `start_server()` function using multiprocessing
+* Add `start_server()` function using multiprocessing
   with automatic children lifecycle management
-
-- Clarify the semantics of `AsyncContextGroup` using
+* Clarify the semantics of `AsyncContextGroup` using
   `asyncio.gather()` with `return_exceptions=True`
 
 0.2.0 (2017-04-20)
 ------------------
 
-- Add abstract types for `AsyncContextManager`
-
-- Rename `AsyncGenContextManager` to `AsyncContextManager`
-
-- Add `AsyncContextGroup`
+* Add abstract types for `AsyncContextManager`
+* Rename `AsyncGenContextManager` to `AsyncContextManager`
+* Add `AsyncContextGroup`
 
 0.1.1 (2017-04-14)
 ------------------
 
-- Initial release
+* Initial release
