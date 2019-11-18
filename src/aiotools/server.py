@@ -237,7 +237,7 @@ def _worker_main(worker_actxmgr, threaded, stop_signals,
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    interrupted = asyncio.Event(loop=loop)
+    interrupted = asyncio.Event()
     ctx = worker_actxmgr(loop, proc_idx, args)
 
     def handle_stop_signal(signum):
