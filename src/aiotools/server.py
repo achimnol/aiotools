@@ -472,6 +472,18 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
 
     assert stop_signals
 
+    if hasattr(asyncio, 'get_running_loop'):
+        # only for Python 3.7+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # there should be none.
+            pass
+        else:
+            raise RuntimeError(
+                'aiotools.start_server() cannot be called inside '
+                'a running event loop.')
+
     if main_ctxmgr is None:
         main_ctxmgr = noop_main_ctxmgr
     if not use_threading and start_method is not None:
@@ -493,7 +505,6 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
     # temporarily block signals and register signal handlers to mainloop
     signal.pthread_sigmask(signal.SIG_BLOCK, sigblock_mask)
 
-    old_loop = asyncio.get_event_loop()
     mainloop = asyncio.new_event_loop()
     asyncio.set_event_loop(mainloop)
 
@@ -582,4 +593,4 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
                 mainloop.run_until_complete(mainloop.shutdown_asyncgens())
             finally:
                 mainloop.close()
-                asyncio.set_event_loop(old_loop)
+                asyncio.set_event_loop(None)
