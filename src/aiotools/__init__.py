@@ -6,7 +6,13 @@ from . import (
     timer,
     server,
 )
-from .version import __version__
+
+import pkgutil
+_version_data = pkgutil.get_data("aiotools", "VERSION")
+if _version_data is None:
+    __version__ = '0.0.dev'
+else:
+    __version__ = _version_data.decode('utf8').strip()
 
 __all__ = (
     *context.__all__,
