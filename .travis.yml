@@ -25,7 +25,8 @@ install:
   - pip install -r requirements-ci.txt
 script:
   - python -m flake8 src tests
-  - python -m mypy src/aiotools
+  # Run type checks only for Python 3.7+
+  - UNDER_PY37=$(python -c 'import sys; print(int(sys.version_info < (3,7,0)), end="")'); if [ "$UNDER_PY37" -eq 0 ]; then python -m mypy src/aiotools; fi
   - python -m pytest --cov=src -v tests
 after_success:
   - codecov
