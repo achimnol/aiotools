@@ -420,10 +420,10 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
                       The default is same to what :mod:`multiprocessing` uses.
                       Only effective when **use_threading** is ``False``.
 
-                      Note that if other libraries rely on :mod:`multiprocessing`
-                      which is called before aiotools, you need to use
-                      :func:`multiprocessing.set_start_method()` earlier than
-                      both aiotools and such libraries *without* settings this
+                      Note that if there are other libraries that rely on
+                      :mod:`multiprocessing` called before aiotools, you need to
+                      invoke :func:`multiprocessing.set_start_method()` earlier than
+                      both aiotools and such libraries *without* setting this
                       argument as it changes the global context of
                       :mod:`multiprocessing`.
 
