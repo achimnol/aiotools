@@ -418,6 +418,14 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
 
         start_method: Change the start method when :mod:`multiprocessing` is used.
                       The default is same to what :mod:`multiprocessing` uses.
+                      Only effective when **use_threading** is ``False``.
+
+                      Note that if other libraries rely on :mod:`multiprocessing`
+                      which is called before aiotools, you need to use
+                      :func:`multiprocessing.set_start_method()` earlier than
+                      both aiotools and such libraries *without* settings this
+                      argument as it changes the global context of
+                      :mod:`multiprocessing`.
 
         args: The user-defined arguments passed to workers and extra
               processes.  If **main_ctxmgr** yields one or more values,
@@ -458,6 +466,11 @@ def start_server(worker_actxmgr: AsyncServerContextManager,
        In **extra_procs** in non-threaded mode, stop signals are converted into
        either one of :class:`KeyboardInterrupt`, :class:`SystemExit`, or
        :class:`InterruptedBySignal` exception.
+
+    .. versionadded:: 0.8.4
+
+       **start_method** argument can be set to change the subprocess spawning
+       implementation.
     '''
 
     @_main_ctxmgr

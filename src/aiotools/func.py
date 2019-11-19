@@ -38,7 +38,7 @@ def lru_cache(maxsize: int = 128,
     leaves ``cache_info()`` for statistics unimplemented.
 
     Note that calling the coroutine multiple times with the same arguments
-    before the first call returns may incur duplicate exectuions.
+    before the first call returns may incur duplicate executions.
 
     This function is not thread-safe.
 
