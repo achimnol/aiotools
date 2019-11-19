@@ -1,6 +1,13 @@
 Changelog
 =========
 
+0.8.5 (2019-11-19)
+------------------
+
+* **server:** Rewrite internals of the worker main functions to use native `async with`
+  instead of manually unrolling `__aenter__()` and `__aexit__()` dunder methods, to keep
+  the code simple and avoid potential bugs.
+
 0.8.4 (2019-11-18)
 ------------------
 
@@ -9,7 +16,7 @@ Changelog
   - NOTE: This is now the default for macOS since Python 3.8.
   - KNOWN ISSUE: [#12](https://github.com/achimnol/aiotools/issues/12)
 * Remove some packaging hacks in `__init__.py` and let setuptools read the version
-  from a separate `aiotools.version` module.
+  from a separate `aiotools/VERSION` text file.
 
 0.8.3 (2019-10-07)
 ------------------
