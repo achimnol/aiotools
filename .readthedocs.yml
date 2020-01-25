@@ -1,4 +1,4 @@
-requirements_file: requirements-docs.txt
+requirements_file: requirements/docs.txt
 build:
   image: latest
 python:

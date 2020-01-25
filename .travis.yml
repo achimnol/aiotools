@@ -22,11 +22,8 @@ matrix:
 # default test job
 install:
   - pip install -U pip setuptools
-  - pip install -r requirements-ci.txt
+  - pip install -r requirements/test.txt
 script:
-  - python -m flake8 src tests
-  # Run type checks only for Python 3.7+
-  - UNDER_PY37=$(python -c 'import sys; print(int(sys.version_info < (3,7,0)), end="")'); if [ "$UNDER_PY37" -eq 0 ]; then python -m mypy src/aiotools; fi
   - python -m pytest --cov=src -v tests
 after_success:
   - codecov
