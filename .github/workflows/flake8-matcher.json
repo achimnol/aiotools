@@ -1,0 +1,17 @@
+{
+    "problemMatcher": [
+        {
+            "owner": "flake8",
+            "pattern": [
+                {
+                    "regexp": "^([^:]*):(\\d+):(\\d+): (([a-z]+): )?(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 5,
+                    "message": 6
+                }
+            ]
+        }
+    ]
+}
