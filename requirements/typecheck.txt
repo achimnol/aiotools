@@ -1,1 +1,1 @@
--e .[typecheck]
+-e .[test,typecheck]
