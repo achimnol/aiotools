@@ -34,6 +34,8 @@ jobs:
       install: skip
       script: skip
       deploy:
+        on:
+          tags: true
         provider: pypi
         distributions: sdist bdist_wheel
         upload_docs: false
