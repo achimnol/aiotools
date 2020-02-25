@@ -12,6 +12,7 @@ aiotools Documentation
    :maxdepth: 2
 
    aiotools.context
+   aiotools.defer
    aiotools.func
    aiotools.iter
    aiotools.server
