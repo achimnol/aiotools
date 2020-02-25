@@ -81,7 +81,6 @@ def defer(func):
                 f = deferreds.pop()
                 f()
 
-    _wrapped.__wrapped__ = func
     return _wrapped
 
 
@@ -93,6 +92,7 @@ def adefer(func):
     assert inspect.iscoroutinefunction(func), \
            'the decorated function must be async'
 
+    @functools.wraps(func)
     async def _wrapped(*args, **kwargs):
         deferreds = deque()
 
@@ -111,5 +111,4 @@ def adefer(func):
                 else:
                     f()
 
-    _wrapped.__wrapped__ = func
     return _wrapped
