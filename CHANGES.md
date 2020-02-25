@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.9.0 (2020-02-25)
+------------------
+
+* **defer:** A new module that emulates Golang's ``defer()`` API with asyncio awareness.
+
 0.8.5 (2019-11-19)
 ------------------
 
