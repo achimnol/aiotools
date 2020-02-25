@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.9.1 (2020-02-25)
+------------------
+
+* A maintenance release to fix up the ``defer`` module exports in the ``aiotools`` namespace.
+
 0.9.0 (2020-02-25)
 ------------------
 
