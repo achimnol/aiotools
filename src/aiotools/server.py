@@ -1,4 +1,4 @@
-'''
+"""
 Based on :doc:`aiotools.context`, this module provides an automated lifecycle
 management for multi-process servers with explicit initialization steps and
 graceful shutdown steps.
@@ -21,7 +21,7 @@ graceful shutdown steps.
                await do_forced_shutdown()
 
        aiotools.start_server(myserver, ...)
-'''
+"""
 
 import asyncio
 from contextlib import (
@@ -69,7 +69,7 @@ _children_lock = threading.Lock()
 
 
 class InterruptedBySignal(BaseException):
-    '''
+    """
     A new :class:`BaseException` that represents interruption by an arbitrary UNIX
     signal.
 
@@ -78,18 +78,18 @@ class InterruptedBySignal(BaseException):
     bypassing except clauses catching the :class:`Exception` type only)
 
     The first argument of this exception is the signal number received.
-    '''
+    """
     pass
 
 
 class AsyncServerContextManager(AbstractAsyncContextManager):
-    '''
+    """
     A modified version of :func:`contextlib.asynccontextmanager`.
 
     The implementation detail is mostly taken from the ``contextlib`` standard
     library, with a minor change to inject ``self.yield_return`` into the wrapped
     async generator.
-    '''
+    """
 
     yield_return: Optional[signal.Signals]
 
@@ -140,13 +140,13 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
 
 class ServerMainContextManager(AbstractContextManager,
                                ContextDecorator):
-    '''
+    """
     A modified version of :func:`contextlib.contextmanager`.
 
     The implementation detail is mostly taken from the ``contextlib`` standard
     library, with a minor change to inject ``self.yield_return`` into the wrapped
     generator.
-    '''
+    """
 
     yield_return: Optional[signal.Signals]
 
@@ -211,7 +211,7 @@ sys.modules[__name__].__class__ = _ServerModule
 
 
 def _main_ctxmgr(func):
-    '''
+    """
     A decorator wrapper for :class:`ServerMainContextManager`
 
     Usage example:
@@ -228,7 +228,7 @@ def _main_ctxmgr(func):
                do_forced_shutdown()
 
        aiotools.start_server(..., main_ctxmgr=mymain, ...)
-    '''
+    """
     @functools.wraps(func)
     def helper(*args, **kwargs):
         return ServerMainContextManager(func, args, kwargs)
@@ -361,7 +361,7 @@ def start_server(
         use_threading: bool = False,
         start_method: Literal['spawn', 'fork', 'forkserver'] = None,
         args: Iterable[Any] = tuple()):
-    '''
+    """
     Starts a multi-process server where each process has their own individual
     asyncio event loop.  Their lifecycles are automantically managed -- if the
     main program receives one of the signals specified in ``stop_signals`` it
@@ -486,7 +486,7 @@ def start_server(
 
        **start_method** argument can be set to change the subprocess spawning
        implementation.
-    '''
+    """
 
     @_main_ctxmgr
     def noop_main_ctxmgr():

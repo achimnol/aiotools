@@ -1,8 +1,9 @@
 # Import submodules only when installed properly
 from . import (
     context,
+    defer as _defer,
     func,
-    iter,
+    iter as _iter,
     timer,
     server,
 )
@@ -16,14 +17,16 @@ else:
 
 __all__ = (
     *context.__all__,
+    *_defer.__all__,
     *func.__all__,
-    *iter.__all__,
+    *_iter.__all__,
     *timer.__all__,
     *server.__all__,
     '__version__',
 )
 
 from .context import *  # noqa
+from .defer import *    # noqa
 from .func import *     # noqa
 from .iter import *     # noqa
 from .timer import *    # noqa

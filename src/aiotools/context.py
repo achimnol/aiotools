@@ -1,4 +1,4 @@
-'''
+"""
 Provides an implementation of asynchronous context manager and its applications.
 
 .. note::
@@ -6,7 +6,7 @@ Provides an implementation of asynchronous context manager and its applications.
    The async context managers in this module are transparent aliases to
    ``contextlib.asynccontextmanager`` of the standard library in Python 3.7
    and later.
-'''
+"""
 
 import abc
 import contextlib
@@ -34,9 +34,9 @@ else:
     __all__ += ['AsyncContextDecorator', 'actxdecorator']
 
     class AbstractAsyncContextManager(abc.ABC):  # type: ignore
-        '''
+        """
         The base abstract interface for asynchronous context manager.
-        '''
+        """
 
         async def __aenter__(self):
             return self  # pragma: no cover
@@ -54,9 +54,9 @@ else:
             return NotImplemented
 
     class AsyncContextDecorator:
-        '''
+        """
         Make an asynchronous context manager be used as a decorator function.
-        '''
+        """
 
         def _recreate_cm(self):
             return self
@@ -72,9 +72,9 @@ else:
 
     class AsyncContextManager(AsyncContextDecorator,         # type: ignore
                               AbstractAsyncContextManager):
-        '''
+        """
         Converts an async-generator function into asynchronous context manager.
-        '''
+        """
 
         def __init__(self, func: Callable[..., Any], args, kwargs):
             if not inspect.isasyncgenfunction(func):
@@ -150,7 +150,7 @@ else:
 
 
 class aclosing:
-    '''
+    """
     An analogy to :func:`contextlib.closing` for async generators.
 
     The motivation has been proposed by:
@@ -159,7 +159,7 @@ class aclosing:
     * https://vorpus.org/blog/some-thoughts-on-asynchronous-api-design-\
 in-a-post-asyncawait-world/#cleanup-in-generators-and-async-generators
     * https://www.python.org/dev/peps/pep-0533/
-    '''
+    """
 
     def __init__(self, thing):
         self.thing = thing
@@ -172,7 +172,7 @@ in-a-post-asyncawait-world/#cleanup-in-generators-and-async-generators
 
 
 class AsyncContextGroup:
-    '''
+    """
     Merges a group of context managers into a single context manager.
     Internally it uses :func:`asyncio.gather()` to execute them with overlapping,
     to reduce the execution time via asynchrony.
@@ -208,7 +208,7 @@ class AsyncContextGroup:
                              managers one by one using the :meth:`~.add`
                              method.
 
-    '''
+    """
 
     def __init__(self,
                  context_managers: Optional[Iterable[AbstractAsyncContextManager]] = None):  # noqa
@@ -217,9 +217,9 @@ class AsyncContextGroup:
         self._cm_exits: List[asyncio.Task] = []
 
     def add(self, cm):
-        '''
+        """
         TODO: fill description
-        '''
+        """
         self._cm.append(cm)
 
     async def __aenter__(self):
@@ -240,9 +240,9 @@ class AsyncContextGroup:
             return_exceptions=True)
 
     def exit_states(self):
-        '''
+        """
         TODO: fill description
-        '''
+        """
         return self._cm_exits
 
 

@@ -3,19 +3,19 @@ import functools
 
 from .compat import get_running_loop
 
-__all__ = [
+__all__ = (
     'apartial',
     'lru_cache',
-]
+)
 
 _CacheEntry = collections.namedtuple('_CacheEntry', 'value expire_at')
 
 
 def apartial(coro, *args, **kwargs):
-    '''
+    """
     Wraps a coroutine function with pre-defined arguments (including keyword
     arguments).  It is an asynchronous version of :func:`functools.partial`.
-    '''
+    """
 
     @functools.wraps(coro)
     async def wrapped(*cargs, **ckwargs):
@@ -27,7 +27,7 @@ def apartial(coro, *args, **kwargs):
 def lru_cache(maxsize: int = 128,
               typed: bool = False,
               expire_after: float = None):
-    '''
+    """
     A simple LRU cache just like :func:`functools.lru_cache`, but it works for
     coroutines.  This is not as heavily optimized as :func:`functools.lru_cache`
     which uses an internal C implementation, as it targets async operations
@@ -51,7 +51,7 @@ def lru_cache(maxsize: int = 128,
        expire_after: Re-calculate the value if the configured time has passed even
                      when the cache is hit.  When re-calculation happens the
                      expiration timer is also reset.
-    '''
+    """
 
     if maxsize is not None and not isinstance(maxsize, int):
         raise TypeError('Expected maxsize to be an integer or None')

@@ -7,9 +7,9 @@ _sentinel = object()
 
 
 async def aiter(obj, sentinel=_sentinel):
-    '''
+    """
     Analogous to the builtin :func:`iter()`.
-    '''
+    """
 
     if sentinel is _sentinel:
         # Since we cannot directly return the return value of obj.__aiter__()

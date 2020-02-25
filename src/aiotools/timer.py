@@ -1,6 +1,6 @@
-'''
+"""
 Provides a simple implementation of timers run inside asyncio event loops.
-'''
+"""
 
 import asyncio
 import enum
@@ -12,10 +12,10 @@ __all__ = ('create_timer', 'TimerDelayPolicy')
 
 
 class TimerDelayPolicy(enum.Enum):
-    '''
+    """
     An enumeration of supported policies for when the timer function takes
     longer on each tick than the given timer interval.
-    '''
+    """
     DEFAULT = 0
     CANCEL = 1
 
@@ -23,7 +23,7 @@ class TimerDelayPolicy(enum.Enum):
 def create_timer(cb: Callable[[float], None], interval: float,
                  delay_policy: TimerDelayPolicy = TimerDelayPolicy.DEFAULT,
                  loop: Optional[asyncio.AbstractEventLoop] = None) -> asyncio.Task:
-    '''
+    """
     Schedule a timer with the given callable and the interval in seconds.
     The interval value is also passed to the callable.
     If the callable takes longer than the timer interval, all accumulated
@@ -34,7 +34,7 @@ def create_timer(cb: Callable[[float], None], interval: float,
 
     Returns:
         You can stop the timer by cancelling the returned task.
-    '''
+    """
     if loop is None:
         loop = get_running_loop()
 

@@ -54,6 +54,10 @@ from typing import (
     Callable,
 )
 
+__all__ = (
+    'defer', 'adefer',
+)
+
 
 def defer(func):
     """
