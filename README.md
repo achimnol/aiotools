@@ -215,6 +215,6 @@ async def test_sleeps():
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
         print(loop.time())  # -> prints 0
-        await asyncio.sleep(99999999999)
-        print(loop.time())  # -> prints 99999999999
+        await asyncio.sleep(3600)
+        print(loop.time())  # -> prints 3600
 ```
