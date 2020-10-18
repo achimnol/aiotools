@@ -5,6 +5,7 @@ from . import (
     func,
     iter as _iter,
     timer,
+    taskgroup,
     server,
 )
 
@@ -20,8 +21,9 @@ __all__ = (
     *_defer.__all__,
     *func.__all__,
     *_iter.__all__,
-    *timer.__all__,
     *server.__all__,
+    *taskgroup.__all__,
+    *timer.__all__,
     '__version__',
 )
 
