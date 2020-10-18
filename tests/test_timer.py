@@ -14,6 +14,7 @@ async def test_timer():
     async def counter(interval):
         assert interval == 0.1
         nonlocal count
+        await asyncio.sleep(0)
         count += 1
 
     count = 0
@@ -50,6 +51,7 @@ async def test_timer_leak_default():
             await asyncio.sleep(0.05)
             done_count += 1
         except asyncio.CancelledError:
+            await asyncio.sleep(0)
             cancel_count += 1
 
     task_count = len(aiotools.compat.all_tasks())
@@ -79,8 +81,10 @@ async def test_timer_leak_cancel():
         try:
             await asyncio.sleep(0.5)
         except asyncio.CancelledError:
+            await asyncio.sleep(0)
             cancel_count += 1
         else:
+            await asyncio.sleep(0)
             done_count += 1
 
     task_count = len(aiotools.compat.all_tasks())
@@ -109,8 +113,10 @@ async def test_timer_leak_nocancel():
         try:
             await asyncio.sleep(0)
         except asyncio.CancelledError:
+            await asyncio.sleep(0)
             cancel_count += 1
         else:
+            await asyncio.sleep(0)
             done_count += 1
 
     task_count = len(aiotools.compat.all_tasks())
