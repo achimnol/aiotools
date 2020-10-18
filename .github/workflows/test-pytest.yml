@@ -30,6 +30,7 @@ jobs:
         python -m pip install -U pip setuptools
         python -m pip install -U -r requirements/test.txt
     - name: Test with pytest
+      timeout-minutes: 1
       run: |
         python -m pytest -v --cov=src tests
     - name: Send code coverage report
