@@ -13,6 +13,9 @@ import time
 import aiotools
 
 
+pytest.skip("skipping server tests on CI", allow_module_level=True)
+
+
 @pytest.fixture
 def restore_signal():
     old_alrm = signal.getsignal(signal.SIGALRM)
