@@ -6,9 +6,9 @@ import aiotools
 
 @pytest.mark.asyncio
 async def test_timer():
-    '''
+    """
     Test the timer functionality.
-    '''
+    """
     count = 0
 
     async def counter(interval):
@@ -35,11 +35,11 @@ async def test_timer():
 
 @pytest.mark.asyncio
 async def test_timer_leak_default():
-    '''
+    """
     Test if the timer-fired tasks are claned up properly
     even when each timer-fired task takes longer than the timer interval.
     (In this case they will accumulate indefinitely!)
-    '''
+    """
     spawn_count = 0
     cancel_count = 0
     done_count = 0
@@ -51,7 +51,6 @@ async def test_timer_leak_default():
             await asyncio.sleep(0.05)
             done_count += 1
         except asyncio.CancelledError:
-            await asyncio.sleep(0)
             cancel_count += 1
 
     task_count = len(aiotools.compat.all_tasks())
@@ -59,6 +58,7 @@ async def test_timer_leak_default():
     await asyncio.sleep(0.1)
     timer.cancel()
     await timer
+    await asyncio.sleep(0)
     assert task_count + 1 >= len(aiotools.compat.all_tasks())
     assert spawn_count == done_count + cancel_count
     assert 9 <= spawn_count <= 10
@@ -67,10 +67,10 @@ async def test_timer_leak_default():
 
 @pytest.mark.asyncio
 async def test_timer_leak_cancel():
-    '''
+    """
     Test the effect of TimerDelayPolicy.CANCEL which always
     cancels any pending previous tasks on each interval.
-    '''
+    """
     spawn_count = 0
     cancel_count = 0
     done_count = 0
@@ -81,10 +81,8 @@ async def test_timer_leak_cancel():
         try:
             await asyncio.sleep(999)
         except asyncio.CancelledError:
-            await asyncio.sleep(0)
             cancel_count += 1
         else:
-            await asyncio.sleep(0)
             done_count += 1
 
     task_count = len(aiotools.compat.all_tasks())
@@ -92,17 +90,18 @@ async def test_timer_leak_cancel():
     await asyncio.sleep(0.1)
     timer.cancel()
     await timer
+    await asyncio.sleep(0)
     assert task_count + 1 >= len(aiotools.compat.all_tasks())
     assert spawn_count == cancel_count + done_count
-    assert cancel_count > 0
+    assert cancel_count > done_count
 
 
 @pytest.mark.asyncio
 async def test_timer_leak_nocancel():
-    '''
+    """
     Test the effect of TimerDelayPolicy.CANCEL which always
     cancels any pending previous tasks on each interval.
-    '''
+    """
     spawn_count = 0
     cancel_count = 0
     done_count = 0
@@ -113,10 +112,8 @@ async def test_timer_leak_nocancel():
         try:
             await asyncio.sleep(0)
         except asyncio.CancelledError:
-            await asyncio.sleep(0)
             cancel_count += 1
         else:
-            await asyncio.sleep(0)
             done_count += 1
 
     task_count = len(aiotools.compat.all_tasks())
@@ -124,6 +121,7 @@ async def test_timer_leak_nocancel():
     await asyncio.sleep(0.096)
     timer.cancel()
     await timer
+    await asyncio.sleep(0)
     assert task_count + 1 >= len(aiotools.compat.all_tasks())
     assert spawn_count == cancel_count + done_count
-    assert cancel_count <= 1
+    assert cancel_count < done_count
