@@ -8,7 +8,7 @@ aiotools
 
 Idiomatic asyncio utilties
 
-*NOTE:* This project is under early stage of developement. The public APIs may break version by version.
+*NOTE:* This project is under early stage of development. The public APIs may break version by version.
 
 
 Modules

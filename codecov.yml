@@ -3,3 +3,11 @@ coverage:
     project:
       default:
         threshold: 2%
+        paths:
+        - src
+        informational: true
+    patch:
+      default:
+        paths:
+        - src
+        informational: true
