@@ -115,7 +115,7 @@ async def test_timer_leak_nocancel():
 
     task_count = len(aiotools.compat.all_tasks())
     timer = aiotools.create_timer(delayed, 0.01, aiotools.TimerDelayPolicy.CANCEL)
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.096)
     timer.cancel()
     await timer
     assert task_count + 1 >= len(aiotools.compat.all_tasks())
