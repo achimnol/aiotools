@@ -38,37 +38,32 @@ async def test_actxmgr(event_loop):
     async def simple_ctx(msg):
         nonlocal step
         step = 1
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0)
         step = 2
         try:
             yield msg
             step = 3
         finally:
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0)
             step = 4
 
-    begin = event_loop.time()
     step = 0
     async with simple_ctx('hello') as msg:
         assert step == 2
         assert msg == 'hello'
-        await asyncio.sleep(0.2)
     assert step == 4
-    assert 0.55 <= (event_loop.time() - begin) <= 0.65
 
-    begin = event_loop.time()
     step = 0
     try:
         async with simple_ctx('world') as msg:
             assert step == 2
             assert msg == 'world'
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0)
             raise ValueError('something wrong')
     except Exception as e:
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0)
         assert e.args[0] == 'something wrong'
         assert step == 4
-    assert 0.75 <= (event_loop.time() - begin) <= 0.85
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 7, 0),
