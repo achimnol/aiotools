@@ -30,6 +30,13 @@ import textwrap
 import traceback
 
 
+__all__ = (
+    'MultiError',
+    'TaskGroup',
+    'TaskGroupError',
+)
+
+
 class TaskGroup:
 
     def __init__(self, *, name=None):
