@@ -19,14 +19,14 @@ async def test_timer():
 
     count = 0
     timer = aiotools.create_timer(counter, 0.1)
-    await asyncio.sleep(0.29)
+    await asyncio.sleep(0.22)
     timer.cancel()
     await timer
     assert count == 3
 
     count = 0
     timer = aiotools.create_timer(counter, 0.1, aiotools.TimerDelayPolicy.CANCEL)
-    await asyncio.sleep(0.29)
+    await asyncio.sleep(0.22)
     timer.cancel()
     await timer
     # should have same results
