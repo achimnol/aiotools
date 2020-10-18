@@ -7,6 +7,7 @@ import enum
 from typing import Callable, Optional
 
 from .compat import get_running_loop
+from .taskgroup import TaskGroup
 
 __all__ = ('create_timer', 'TimerDelayPolicy')
 
@@ -41,21 +42,20 @@ def create_timer(cb: Callable[[float], None], interval: float,
     async def _timer():
         fired_tasks = []
         try:
-            while True:
-                if delay_policy == TimerDelayPolicy.CANCEL:
-                    for t in fired_tasks:
-                        if not t.done():
-                            t.cancel()
-                            await t
-                    fired_tasks.clear()
-                else:
-                    fired_tasks[:] = [t for t in fired_tasks if not t.done()]
-                t = loop.create_task(cb(interval=interval))
-                fired_tasks.append(t)
-                await asyncio.sleep(interval)
+            async with TaskGroup() as task_group:
+                while True:
+                    if delay_policy == TimerDelayPolicy.CANCEL:
+                        for t in fired_tasks:
+                            if not t.done():
+                                t.cancel()
+                                await t
+                        fired_tasks.clear()
+                    else:
+                        fired_tasks[:] = [t for t in fired_tasks if not t.done()]
+                    t = task_group.create_task(cb(interval=interval))
+                    fired_tasks.append(t)
+                    await asyncio.sleep(interval)
         except asyncio.CancelledError:
-            for t in fired_tasks:
-                t.cancel()
-            await asyncio.gather(*fired_tasks)
+            await asyncio.sleep(0)
 
     return loop.create_task(_timer())

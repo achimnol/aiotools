@@ -79,7 +79,7 @@ async def test_timer_leak_cancel():
         nonlocal spawn_count, cancel_count, done_count
         spawn_count += 1
         try:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(999)
         except asyncio.CancelledError:
             await asyncio.sleep(0)
             cancel_count += 1
@@ -93,8 +93,8 @@ async def test_timer_leak_cancel():
     timer.cancel()
     await timer
     assert task_count + 1 >= len(aiotools.compat.all_tasks())
-    assert spawn_count == cancel_count
-    assert done_count == 0
+    assert spawn_count == cancel_count + done_count
+    assert cancel_count > 0
 
 
 @pytest.mark.asyncio
@@ -125,5 +125,5 @@ async def test_timer_leak_nocancel():
     timer.cancel()
     await timer
     assert task_count + 1 >= len(aiotools.compat.all_tasks())
-    assert spawn_count == done_count
-    assert cancel_count == 0
+    assert spawn_count == cancel_count + done_count
+    assert cancel_count <= 1
