@@ -549,8 +549,8 @@ def start_server(
             with _children_lock:
                 for c in _children_ctxs:
                     c.yield_return = signum
-                for l, ff in zip(_children_loops, _children_ffs):
-                    l.call_soon_threadsafe(ff.cancel)
+                for child_loop, ff in zip(_children_loops, _children_ffs):
+                    child_loop.call_soon_threadsafe(ff.cancel)
             intr_event.set()
         else:
             os.killpg(0, signum)
