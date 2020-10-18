@@ -22,6 +22,7 @@ async def test_timer():
     await asyncio.sleep(0.22)
     timer.cancel()
     await timer
+    await asyncio.sleep(0)
     assert count == 3
 
     count = 0
@@ -29,6 +30,7 @@ async def test_timer():
     await asyncio.sleep(0.22)
     timer.cancel()
     await timer
+    await asyncio.sleep(0)
     # should have same results
     assert count == 3
 
