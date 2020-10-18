@@ -48,7 +48,7 @@ def create_timer(cb: Callable[[float], None], interval: float,
                         for t in fired_tasks:
                             if not t.done():
                                 t.cancel()
-                                await t
+                        await asyncio.gather(*fired_tasks, return_exceptions=True)
                         fired_tasks.clear()
                     else:
                         fired_tasks[:] = [t for t in fired_tasks if not t.done()]
