@@ -13,10 +13,11 @@ import time
 import aiotools
 
 
-pytest.mark.skip(
-    reason='skipped to prevent kill CI agents due to signals on CI environments',
-    allow_module_level=True,
-)
+if os.environ.get('CI', ''):
+    pytest.skip(
+        'skipped to prevent kill CI agents due to signals on CI environments',
+        allow_module_level=True,
+    )
 
 
 @pytest.fixture
