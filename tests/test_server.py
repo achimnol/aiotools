@@ -546,7 +546,8 @@ def test_server_extra_proc(set_timeout, restore_signal):
     assert extras[1] == 991
 
 
-@pytest.mark.skipif(os.environ.get('TRAVIS', '') == 'true', reason='on Travis CI')
+# @pytest.mark.skipif(os.environ.get('TRAVIS', '') == 'true', reason='on Travis CI')
+@pytest.mark.skipif(reason='skipped to prevent kill CI agents on CI environments')
 def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
 
     received_signals = mp.Array('i', [0, 0])
