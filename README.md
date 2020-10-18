@@ -3,7 +3,7 @@ aiotools
 
 [![PyPI release version](https://badge.fury.io/py/aiotools.svg)](https://pypi.org/project/aiotools/)
 ![Supported Python versions](https://img.shields.io/pypi/pyversions/aiotools.svg)
-[![Build Status](https://travis-ci.org/achimnol/aiotools.svg?branch=master)](https://travis-ci.org/achimnol/aiotools)
+![Test Status](https://github.com/achimnol/aiotools/workflows/Test%20with%20pytest/badge.svg)
 [![Code Coverage](https://codecov.io/gh/achimnol/aiotools/branch/master/graph/badge.svg)](https://codecov.io/gh/achimnol/aiotools)
 
 Idiomatic asyncio utilties
@@ -18,6 +18,7 @@ Modules
 * [Async Functools](http://aiotools.readthedocs.io/en/latest/aiotools.func.html)
 * [Async Itertools](http://aiotools.readthedocs.io/en/latest/aiotools.iter.html)
 * [Async Server](http://aiotools.readthedocs.io/en/latest/aiotools.server.html)
+* [Async TaskGroup](http://aiotools.readthedocs.io/en/latest/aiotools.taskgroup.html)
 * [Async Timer](http://aiotools.readthedocs.io/en/latest/aiotools.timer.html)
 
 I also recommend to try the following asyncio libraries for your happier life.
@@ -129,6 +130,27 @@ It handles SIGINT/SIGTERM signals automatically to stop the server,
 as well as lifecycle management of event loops running on multiple processes.
 
 
+### Async TaskGroup
+
+A `TaskGroup` object manages the lifecycle of sub-tasks spawned via its `create_task()`
+method by guarding them with an async context manager which exits only when all sub-tasks
+are either completed or cancelled.
+
+This is motivated from [trio's nursery API](https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning)
+and a draft implementation is adopted from [EdgeDB's Python client library](https://github.com/edgedb/edgedb-python).
+
+```python
+import aiotools
+
+async def do():
+    async with aiotools.TaskGroup() as tg:
+        tg.create_task(...)
+        tg.create_task(...)
+        ...
+    # at this point, all subtasks are either cancelled or done.
+```
+
+
 ### Async Timer
 
 ```python
@@ -173,4 +195,26 @@ async def somewhere():
    ...
    t.cancel()
    await t
+```
+
+#### Virtual Clock
+
+It provides a virtual clock that advances the event loop time instantly upon
+any combination of `asyncio.sleep()` calls in multiple coroutine tasks,
+by temporarily patching the event loop selector.
+
+This is also used in [our timer test suite](https://github.com/achimnol/aiotools/blob/master/tests/test_timer.py).
+
+```python
+import aiotools
+import pytest
+
+@pytest.mark.asyncio
+async def test_sleeps():
+    loop = aiotools.compat.get_running_loop()
+    vclock = aiotools.VirtualClock()
+    with vclock.patch_loop():
+        print(loop.time())  # -> prints 0
+        await asyncio.sleep(99999999999)
+        print(loop.time())  # -> prints 99999999999
 ```

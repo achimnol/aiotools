@@ -38,6 +38,13 @@ __all__ = (
 
 
 class TaskGroup:
+    """
+    Provides a guard against a group of tasks spawend via its :meth:`create_task`
+    method instead of the vanilla fire-and-forgetting :meth:`asyncio.create_task`.
+
+    See the motivation and rationale in `the trio's documentation
+    <https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning>`_.
+    """
 
     def __init__(self, *, name=None):
         if name is None:
@@ -280,6 +287,10 @@ class TaskGroup:
 
 
 class MultiError(Exception):
+    """
+    Represents a collection of errors raised inside a task group.
+    Callers may iterate over the errors using the ``__erros__`` attribute.
+    """
 
     def __init__(self, msg, *args, errors=()):
         if errors:
@@ -302,6 +313,9 @@ class MultiError(Exception):
 
 
 class TaskGroupError(MultiError):
+    """
+    An alias to :exc:`MultiError`.
+    """
     pass
 
 

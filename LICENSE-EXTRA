@@ -1,0 +1,5 @@
+<Additional Notice about License>
+
+This project includes parts of other open source software as listed below:
+
+- EdgeDB (under Apache 2.0), as src/aiotools/taskgroup.py
