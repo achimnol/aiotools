@@ -23,7 +23,7 @@ async def test_timer():
     timer.cancel()
     await timer
     await asyncio.sleep(0)
-    assert count == 3
+    assert count in (2, 3)
 
     count = 0
     timer = aiotools.create_timer(counter, 0.1, aiotools.TimerDelayPolicy.CANCEL)
@@ -32,7 +32,7 @@ async def test_timer():
     await timer
     await asyncio.sleep(0)
     # should have same results
-    assert count == 3
+    assert count in (2, 3)
 
 
 @pytest.mark.asyncio
