@@ -13,6 +13,13 @@ import time
 import aiotools
 
 
+if os.environ.get('CI', ''):
+    pytest.skip(
+        'skipped to prevent kill CI agents due to signals on CI environments',
+        allow_module_level=True,
+    )
+
+
 @pytest.fixture
 def restore_signal():
     old_alrm = signal.getsignal(signal.SIGALRM)
@@ -157,7 +164,6 @@ async def myserver_multiproc_custom_stop_signals(loop, proc_idx, args):
         terminated.value += 1
 
 
-@pytest.mark.skipif(os.environ.get('TRAVIS', '') == 'true', reason='on Travis CI')
 @pytest.mark.parametrize('start_method', ['fork', 'spawn'])
 def test_server_multiproc_custom_stop_signals(
         mocker, set_timeout, restore_signal, start_method):
@@ -417,7 +423,6 @@ def test_server_user_main(mocker, set_timeout, restore_signal, start_method):
     assert main_exit
 
 
-@pytest.mark.skipif(os.environ.get('TRAVIS', '') == 'true', reason='on Travis CI')
 def test_server_user_main_custom_stop_signals(set_timeout, restore_signal):
     main_enter = False
     main_exit = False
@@ -546,7 +551,6 @@ def test_server_extra_proc(set_timeout, restore_signal):
     assert extras[1] == 991
 
 
-@pytest.mark.skipif(os.environ.get('TRAVIS', '') == 'true', reason='on Travis CI')
 def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
 
     received_signals = mp.Array('i', [0, 0])
