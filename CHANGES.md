@@ -16,6 +16,17 @@ Changelog
 
 .. towncrier release notes start
 
+1.0.0 (2020-10-18)
+------------------
+
+### Features
+* Adopt an implementation of the taskgroup API as `aiotools.taskgroup` from [EdgeDB](https://github.com/edgedb/edgedb-python/) ([#18](https://github.com/achimnol/aiotools/issues/18))
+* Add `timer.VirtualClock` which provides a virtual clock that makes a block of asyncio codes using `asyncio.sleep()` to complete instantly and deterministically ([#19](https://github.com/achimnol/aiotools/issues/19))
+
+### Miscellaneous
+* Adopt towncrier for changelog management ([#15](https://github.com/achimnol/aiotools/issues/15))
+* Migrate to GitHub Actions for CI ([#19](https://github.com/achimnol/aiotools/issues/19))
+
 0.9.1 (2020-02-25)
 ------------------
 
