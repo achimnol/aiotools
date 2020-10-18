@@ -6,4 +6,5 @@ python:
   install:
     - requirements: requirements/docs.txt
 formats:
-  - none
+  - htmlzip
+  - pdf
