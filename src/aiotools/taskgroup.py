@@ -38,16 +38,16 @@ import traceback
 from .compat import current_task, get_running_loop
 
 
-__all__ = (
+__all__ = [
     'MultiError',
     'TaskGroup',
     'TaskGroupError',
-    'current_taskgroup',
-)
+]
 
 
 if has_contextvars:
     current_taskgroup: ContextVar[TaskGroup] = ContextVar('current_taskgroup')
+    __all__.append('current_taskgroup')
 
 
 class TaskGroup:

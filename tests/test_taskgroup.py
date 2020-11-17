@@ -4,7 +4,6 @@ import sys
 import pytest
 
 from aiotools import (
-    current_taskgroup,
     TaskGroup,
     TaskGroupError,
     VirtualClock,
@@ -32,6 +31,8 @@ async def test_delayed_subtasks():
     reason='contextvars is available only in Python 3.7 or later',
 )
 async def test_contextual_taskgroup():
+
+    from aiotools import current_taskgroup
 
     refs = []
 
@@ -62,6 +63,8 @@ async def test_contextual_taskgroup():
 @pytest.mark.filterwarnings('ignore::RuntimeWarning')
 @pytest.mark.asyncio
 async def test_contextual_taskgroup_spawning():
+
+    from aiotools import current_taskgroup
 
     total_jobs = 0
 
