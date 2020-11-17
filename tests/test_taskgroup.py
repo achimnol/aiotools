@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import pytest
 
@@ -26,6 +27,10 @@ async def test_delayed_subtasks():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    sys.version_info < (3, 7),
+    reason='contextvars is available only in Python 3.7 or later',
+)
 async def test_contextual_taskgroup():
 
     refs = []
@@ -50,6 +55,10 @@ async def test_contextual_taskgroup():
             current_taskgroup.get()
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 7),
+    reason='contextvars is available only in Python 3.7 or later',
+)
 @pytest.mark.filterwarnings('ignore::RuntimeWarning')
 @pytest.mark.asyncio
 async def test_contextual_taskgroup_spawning():

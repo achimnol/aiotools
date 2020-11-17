@@ -25,11 +25,17 @@
 from __future__ import annotations
 
 import asyncio
-from contextvars import ContextVar
+try:
+    from contextvars import ContextVar
+    has_contextvars = True
+except ImportError:
+    has_contextvars = False
 import functools
 import itertools
 import textwrap
 import traceback
+
+from .compat import current_task, get_running_loop
 
 
 __all__ = (
@@ -40,7 +46,8 @@ __all__ = (
 )
 
 
-current_taskgroup: ContextVar[TaskGroup] = ContextVar('current_taskgroup')
+if has_contextvars:
+    current_taskgroup: ContextVar[TaskGroup] = ContextVar('current_taskgroup')
 
 
 class TaskGroup:
@@ -61,7 +68,7 @@ class TaskGroup:
         self._entered = False
         self._exiting = False
         self._aborting = False
-        self._loop = None
+        self._loop = get_running_loop()
         self._parent_task = None
         self._parent_cancel_requested = False
         self._tasks = set()
@@ -94,19 +101,14 @@ class TaskGroup:
                 f"TaskGroup {self!r} has been already entered")
         self._entered = True
 
-        if self._loop is None:
-            self._loop = asyncio.get_event_loop()
-
-        if hasattr(asyncio, 'current_task'):
-            self._parent_task = asyncio.current_task(self._loop)
-        else:
-            self._parent_task = asyncio.Task.current_task(self._loop)
+        self._parent_task = current_task()
 
         if self._parent_task is None:
             raise RuntimeError(
                 f'TaskGroup {self!r} cannot determine the parent task')
         self._patch_task(self._parent_task)
-        self._current_taskgroup_token = current_taskgroup.set(self)
+        if has_contextvars:
+            self._current_taskgroup_token = current_taskgroup.set(self)
         return self
 
     async def __aexit__(self, et, exc, tb):
@@ -171,7 +173,8 @@ class TaskGroup:
 
         assert self._unfinished_tasks == 0
         self._on_completed_fut = None  # no longer needed
-        current_taskgroup.reset(self._current_taskgroup_token)
+        if has_contextvars:
+            current_taskgroup.reset(self._current_taskgroup_token)
 
         if self._base_error is not None:
             raise self._base_error

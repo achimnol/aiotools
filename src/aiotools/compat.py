@@ -11,3 +11,9 @@ if hasattr(asyncio, 'all_tasks'):
     all_tasks = asyncio.all_tasks
 else:
     all_tasks = asyncio.Task.all_tasks
+
+
+if hasattr(asyncio, 'current_task'):
+    current_task = asyncio.current_task
+else:
+    current_task = asyncio.Task.current_task
