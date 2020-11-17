@@ -22,8 +22,10 @@
 # The original source code is taken from:
 # https://github.com/edgedb/edgedb-python/blob/bcbe005/edgedb/_taskgroup.py
 
+from __future__ import annotations
 
 import asyncio
+from contextvars import ContextVar
 import functools
 import itertools
 import textwrap
@@ -34,7 +36,11 @@ __all__ = (
     'MultiError',
     'TaskGroup',
     'TaskGroupError',
+    'current_taskgroup',
 )
+
+
+current_taskgroup: ContextVar[TaskGroup] = ContextVar('current_taskgroup')
 
 
 class TaskGroup:
@@ -100,7 +106,7 @@ class TaskGroup:
             raise RuntimeError(
                 f'TaskGroup {self!r} cannot determine the parent task')
         self._patch_task(self._parent_task)
-
+        self._current_taskgroup_token = current_taskgroup.set(self)
         return self
 
     async def __aexit__(self, et, exc, tb):
@@ -165,6 +171,7 @@ class TaskGroup:
 
         assert self._unfinished_tasks == 0
         self._on_completed_fut = None  # no longer needed
+        current_taskgroup.reset(self._current_taskgroup_token)
 
         if self._base_error is not None:
             raise self._base_error
