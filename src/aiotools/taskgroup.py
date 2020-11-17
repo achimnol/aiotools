@@ -22,8 +22,6 @@
 # The original source code is taken from:
 # https://github.com/edgedb/edgedb-python/blob/bcbe005/edgedb/_taskgroup.py
 
-from __future__ import annotations
-
 import asyncio
 try:
     from contextvars import ContextVar
@@ -46,7 +44,7 @@ __all__ = [
 
 
 if has_contextvars:
-    current_taskgroup: ContextVar[TaskGroup] = ContextVar('current_taskgroup')
+    current_taskgroup: ContextVar['TaskGroup'] = ContextVar('current_taskgroup')
     __all__.append('current_taskgroup')
 
 
