@@ -16,6 +16,15 @@ Changelog
 
 .. towncrier release notes start
 
+1.1.0 (2020-10-18)
+------------------
+
+### Features
+* Add a `current_taskgroup` context-variable to the taskgroup module (only available for Python 3.7 or later)
+
+### Fixes
+* Fix missing auto-import of `taskgroup` module exports in the `aiotools` root package.
+
 1.0.0 (2020-10-18)
 ------------------
 
