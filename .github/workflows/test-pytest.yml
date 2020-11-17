@@ -11,6 +11,10 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: [3.6, 3.7, 3.8, 3.9]
 
+    env:
+      GHA_OS: ${{ matrix.os }}
+      GHA_PYTHON: ${{ matrix.python-version }}
+
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
@@ -35,8 +39,5 @@ jobs:
         python -m pytest -v --cov=src tests
     - name: Send code coverage report
       uses: codecov/codecov-action@v1
-      env:
-        GHA_OS: ${{ matrix.os }}
-        GHA_PYTHON: {{ matrix.python-version }}
       with:
         env_vars: GHA_OS,GHA_PYTHON
