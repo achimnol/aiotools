@@ -151,3 +151,38 @@ async def test_subtask_cancellation():
         assert t2.cancelled()
         assert t3.done()
         assert results == ['a', 'a']
+
+
+@pytest.mark.asyncio
+async def test_taskgroup_error():
+    with VirtualClock().patch_loop():
+
+        async def do_job(delay, result):
+            await asyncio.sleep(delay)
+            if result == 'x':
+                raise ZeroDivisionError('oops')
+            else:
+                return 99
+
+        with pytest.raises(TaskGroupError) as e:
+            async with TaskGroup() as tg:
+                t1 = tg.create_task(do_job(0.3, 'a'))
+                t2 = tg.create_task(do_job(0.5, 'x'))
+                t3 = tg.create_task(do_job(0.7, 'a'))
+
+        assert len(e.value.__errors__) == 1
+        assert type(e.value.__errors__[0]).__name__ == 'ZeroDivisionError'
+
+        assert t1.done()
+        assert await t1 == 99
+        assert t1.result() == 99
+        assert t1.exception() is None
+
+        assert t2.done()
+        with pytest.raises(ZeroDivisionError):
+            await t2
+        with pytest.raises(ZeroDivisionError):
+            t2.result()
+        assert type(t2.exception()).__name__ == 'ZeroDivisionError'
+
+        assert t3.cancelled()
