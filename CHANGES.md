@@ -16,6 +16,13 @@ Changelog
 
 .. towncrier release notes start
 
+1.1.1 (2020-12-16)
+------------------
+
+### Fixes
+* Fix a potential memory leak with `TaskGroup` when it's used for long-lived asyncio tasks. ([#21](https://github.com/achimnol/aiotools/issues/21))
+
+
 1.1.0 (2020-10-18)
 ------------------
 
