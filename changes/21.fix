@@ -1,0 +1,1 @@
+Fix a potential memory leak with `TaskGroup` when it's used for long-lived asyncio tasks.
