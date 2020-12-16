@@ -186,3 +186,52 @@ async def test_taskgroup_error():
         assert type(t2.exception()).__name__ == 'ZeroDivisionError'
 
         assert t3.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_taskgroup_error_weakref():
+    with VirtualClock().patch_loop():
+
+        results = []
+
+        async def do_job(delay, result):
+            await asyncio.sleep(delay)
+            if result == 'x':
+                results.append('x')
+                raise ZeroDivisionError('oops')
+            else:
+                results.append('o')
+                return 99
+
+        with pytest.raises(TaskGroupError) as e:
+            async with TaskGroup() as tg:
+                # We don't keep the reference to the tasks,
+                # but they should behave the same way
+                # regardless of usage of WeakSet in the implementation.
+                tg.create_task(do_job(0.3, 'a'))
+                tg.create_task(do_job(0.5, 'x'))
+                tg.create_task(do_job(0.7, 'a'))
+
+        assert len(e.value.__errors__) == 1
+        assert type(e.value.__errors__[0]).__name__ == 'ZeroDivisionError'
+        assert results == ['o', 'x']
+
+
+@pytest.mark.asyncio
+async def test_taskgroup_memoryleak_with_persistent_tg():
+
+    with VirtualClock().patch_loop():
+
+        async def do_job(delay):
+            await asyncio.sleep(delay)
+            return 1
+
+        async with TaskGroup() as tg:
+            for count in range(1000):
+                await asyncio.sleep(1)
+                tg.create_task(do_job(10))
+                if count == 100:
+                    # 10 ongoing tasks + 1 just spawned task
+                    assert len(tg._tasks) == 11
+            await asyncio.sleep(10.1)
+            assert len(tg._tasks) == 0

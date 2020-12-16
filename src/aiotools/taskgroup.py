@@ -32,6 +32,7 @@ import functools
 import itertools
 import textwrap
 import traceback
+import weakref
 
 from .compat import current_task, get_running_loop
 
@@ -69,7 +70,7 @@ class TaskGroup:
         self._loop = get_running_loop()
         self._parent_task = None
         self._parent_cancel_requested = False
-        self._tasks = set()
+        self._tasks = weakref.WeakSet()
         self._unfinished_tasks = 0
         self._errors = []
         self._base_error = None
