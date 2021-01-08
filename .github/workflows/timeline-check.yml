@@ -1,0 +1,33 @@
+name: timeline-check
+
+on: [pull_request]
+
+jobs:
+  towncrier:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+    - name: Cache pip packages
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: lint-towncrier-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.cfg') }}
+        restore-keys: |
+          lint-towncrier-${{ runner.os }}-pip-${{ matrix.python-version }}
+          lint-towncrier-${{ runner.os }}-pip-
+    - name: Install dependencies
+      run: |
+        python -m pip install -U pip setuptools
+        python -m pip install -U towncrier
+    - name: Check existence of news fragment
+      run: |
+        git fetch --no-tags origin +refs/heads/${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}
+        python -m towncrier.check --compare-with=origin/${BASE_BRANCH}
+      env:
+        BASE_BRANCH: ${{ github.base_ref }}
