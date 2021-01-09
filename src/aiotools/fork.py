@@ -5,7 +5,6 @@ import logging
 import os
 import resource
 import signal
-import sys
 from abc import ABCMeta, abstractmethod
 from ctypes import (
     CFUNCTYPE,
@@ -16,6 +15,8 @@ from ctypes import (
     cast,
 )
 from typing import Callable, Optional, Tuple
+
+from .compat import get_running_loop
 
 logger = logging.getLogger(__package__)
 
@@ -45,7 +46,7 @@ class PosixChildProcess(AbstractChildProcess):
         os.kill(self._pid, signum)
 
     async def wait(self) -> int:
-        loop = asyncio.get_running_loop()
+        loop = get_running_loop()
         try:
             _, status = await loop.run_in_executor(None, os.waitpid, self._pid, 0)
         except ChildProcessError:
@@ -74,7 +75,7 @@ class PidfdChildProcess(AbstractChildProcess):
         signal.pidfd_send_signal(self._pidfd, signum)  # type: ignore
 
     def _do_wait(self):
-        loop = asyncio.get_running_loop()
+        loop = get_running_loop()
         try:
             # The flag is WEXITED | __WALL from linux/wait.h
             # (__WCLONE value is out of range of int...)
@@ -88,18 +89,26 @@ class PidfdChildProcess(AbstractChildProcess):
             # (may happen if waitpid() is called elsewhere).
             self._returncode = 255
             logger.warning(
-                "child process pid %d exit status already read: "
+                "child process %d exit status already read: "
                 " will report returncode 255",
                 self._pid)
         else:
-            self._returncode = status_info.si_status
+            if status_info.si_code == os.CLD_KILLED:
+                self._returncode = -status_info.si_status
+            elif status_info.si_code == os.CLD_EXITED:
+                self._returncode = status_info.si_status
+            else:
+                logger.warning(
+                    "unexpected si_code %d and si_status %d for child process %d",
+                    status_info.si_code, status_info.si_status, self._pid)
+                self._returncode = 255
         finally:
             loop.remove_reader(self._pidfd)
             os.close(self._pidfd)
             self._wait_event.set()
 
     async def wait(self) -> int:
-        loop = asyncio.get_running_loop()
+        loop = get_running_loop()
         loop.add_reader(self._pidfd, self._do_wait)
         await self._wait_event.wait()
         assert self._returncode is not None
@@ -120,7 +129,7 @@ def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
 
 
 async def _fork_posix(child_func: Callable[[], int]) -> int:
-    loop = asyncio.get_running_loop()
+    loop = get_running_loop()
     init_pipe = os.pipe()
     init_event = asyncio.Event()
     loop.add_reader(init_pipe[0], init_event.set)
@@ -147,7 +156,7 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
 async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     # reference: os_fork_impl() in the CPython source code
     fd = c_int()
-    loop = asyncio.get_running_loop()
+    loop = get_running_loop()
 
     # prepare the stack memory
     stack_size = resource.getrlimit(resource.RLIMIT_STACK)[0]
