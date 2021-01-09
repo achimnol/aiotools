@@ -58,8 +58,12 @@ class PosixChildProcess(AbstractChildProcess):
                 " will report returncode 255",
                 self._pid)
         else:
-            self._returncode = \
-                asyncio.unix_events._compute_returncode(status)  # type: ignore
+            if os.WIFSIGNALED(status):
+                self._returncode = -os.WTERMSIG(status)
+            elif os.WIFEXITED(status):
+                self._returncode = os.WEXITSTATUS(status)
+            else:
+                self._returncode = status
         return self._returncode
 
 
