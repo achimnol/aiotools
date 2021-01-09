@@ -1,5 +1,6 @@
 import asyncio
 import ctypes
+import errno
 import functools
 import logging
 import os
@@ -23,7 +24,16 @@ logger = logging.getLogger(__package__)
 _libc = ctypes.CDLL(None)
 _syscall = _libc.syscall
 _default_stack_size = (8 * (2**20))  # 8 MiB
-_has_pidfd = hasattr(signal, 'pidfd_send_signal')
+
+_has_pidfd = False
+if hasattr(signal, 'pidfd_send_signal'):
+    try:
+        signal.pidfd_send_signal(0, 0)  # type: ignore
+    except OSError as e:
+        if e.errno == errno.EBADF:
+            _has_pidfd = True
+        # if the kernel does not support this,
+        # it will say errno.ENOSYS
 
 
 class AbstractChildProcess(metaclass=ABCMeta):
