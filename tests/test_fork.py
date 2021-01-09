@@ -27,10 +27,10 @@ async def test_fork_signal():
 
     def child():
         try:
-            time.sleep(1)
+            time.sleep(10)
         except KeyboardInterrupt:
-            return 1
-        return 0
+            return 101
+        return 100
 
     proc = await fork(child)
     assert proc._pid > 0
@@ -38,4 +38,4 @@ async def test_fork_signal():
         assert proc._pidfd > 0
     proc.send_signal(signal.SIGINT)
     ret = await proc.wait()
-    assert ret == 1
+    assert ret == 101
