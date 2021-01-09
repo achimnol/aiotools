@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 
 from aiotools import fork as fork_mod
-from aiotools.fork import fork, PidfdChildProcess
+from aiotools.fork import fork, _has_pidfd, PidfdChildProcess
 
 
 async def _do_test_fork():
@@ -85,7 +85,7 @@ async def _do_test_fork_many():
 
 
 @pytest.mark.skipif(
-    not hasattr(signal, 'pidfd_send_signal'),
+    not _has_pidfd,
     reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
 @pytest.mark.asyncio
@@ -94,7 +94,7 @@ async def test_fork():
 
 
 @pytest.mark.skipif(
-    not hasattr(signal, 'pidfd_send_signal'),
+    not _has_pidfd,
     reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
 @pytest.mark.asyncio
@@ -103,7 +103,7 @@ async def test_fork_already_terminated():
 
 
 @pytest.mark.skipif(
-    not hasattr(signal, 'pidfd_send_signal'),
+    not _has_pidfd,
     reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
 @pytest.mark.asyncio
@@ -112,7 +112,7 @@ async def test_fork_signal():
 
 
 @pytest.mark.skipif(
-    not hasattr(signal, 'pidfd_send_signal'),
+    not _has_pidfd,
     reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
 @pytest.mark.asyncio

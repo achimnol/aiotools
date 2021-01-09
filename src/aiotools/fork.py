@@ -39,7 +39,7 @@ if hasattr(signal, 'pidfd_send_signal'):
         if e.errno == errno.EBADF:
             _has_pidfd = True
         # if the kernel does not support this,
-        # it will say errno.ENOSYS
+        # it will say errno.ENOSYS or errno.EPERM
 
 
 class AbstractChildProcess(metaclass=ABCMeta):
