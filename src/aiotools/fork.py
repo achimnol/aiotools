@@ -45,9 +45,9 @@ class PosixChildProcess(AbstractChildProcess):
         os.kill(self._pid, signum)
 
     async def wait(self) -> int:
-        # TODO: implement async version
+        loop = asyncio.get_running_loop()
         try:
-            _, status = os.waitpid(self._pid, 0)
+            _, status = await loop.run_in_executor(None, os.waitpid, self._pid, 0)
         except ChildProcessError:
             # The child process is already reaped
             # (may happen if waitpid() is called elsewhere).
