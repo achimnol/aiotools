@@ -98,7 +98,7 @@ def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
     init_func()
     signal.pthread_sigmask(
         signal.SIG_UNBLOCK,
-        (signal.SIGINT, signal.SIGTERM),
+        (signal.SIGCHLD,)
     )
     # notify the parent that the child is ready to execute the requested function.
     os.write(init_pipe, b"\0")
@@ -132,16 +132,12 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     stack_top = c_void_p(cast(stack, c_void_p).value + stack_size)  # type: ignore
     signal.pthread_sigmask(
         signal.SIG_BLOCK,
-        (signal.SIGINT, signal.SIGTERM, signal.SIGCHLD),
+        (signal.SIGCHLD,),
     )
     ctypes.pythonapi.PyOS_BeforeFork()
     # The flag value is CLONE_PIDFD from linux/sched.h
     pid = _libc.clone(func, stack_top, 0x1000, 0, byref(fd))
     ctypes.pythonapi.PyOS_AfterFork_Parent()
-    signal.pthread_sigmask(
-        signal.SIG_UNBLOCK,
-        (signal.SIGINT, signal.SIGTERM),
-    )
 
     # Wait for the child's readiness notification
     await init_event.wait()
