@@ -1,3 +1,9 @@
+"""
+This module implements a simple :func:`os.fork()`-like interface,
+but in an asynchronous way with full support for PID file descriptors
+on Python 3.9 or higher and the Linux kernel 5.4 or higher.
+"""
+
 import asyncio
 import ctypes
 import errno
