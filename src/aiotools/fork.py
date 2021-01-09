@@ -46,8 +46,20 @@ class PosixChildProcess(AbstractChildProcess):
 
     async def wait(self) -> int:
         # TODO: implement async version
-        _, status = os.waitpid(self._pid, 0)
-        return status
+        try:
+            _, status = os.waitpid(self._pid, 0)
+        except ChildProcessError:
+            # The child process is already reaped
+            # (may happen if waitpid() is called elsewhere).
+            self._returncode = 255
+            logger.warning(
+                "child process pid %d exit status already read: "
+                " will report returncode 255",
+                self._pid)
+        else:
+            self._returncode = \
+                asyncio.unix_events._compute_returncode(status)  # type: ignore
+        return self._returncode
 
 
 class PidfdChildProcess(AbstractChildProcess):
@@ -95,7 +107,8 @@ class PidfdChildProcess(AbstractChildProcess):
 
 
 def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
-    init_func()
+    if init_func is not None:
+        init_func()
     signal.pthread_sigmask(
         signal.SIG_UNBLOCK,
         (signal.SIGCHLD,)
@@ -104,6 +117,31 @@ def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
     os.write(init_pipe, b"\0")
     os.close(init_pipe)
     return child_func()
+
+
+async def _fork_posix(child_func: Callable[[], int]) -> int:
+    loop = asyncio.get_running_loop()
+    init_pipe = os.pipe()
+    init_event = asyncio.Event()
+    loop.add_reader(init_pipe[0], init_event.set)
+
+    signal.pthread_sigmask(
+        signal.SIG_BLOCK,
+        (signal.SIGCHLD,),
+    )
+    pid = os.fork()
+    if pid == 0:
+        try:
+            ret = _child_main(None, init_pipe[1], child_func)
+        finally:
+            os._exit(ret)
+
+    # Wait for the child's readiness notification
+    await init_event.wait()
+    loop.remove_reader(init_pipe[0])
+    os.read(init_pipe[0], 1)
+    os.close(init_pipe[0])
+    return pid
 
 
 async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
@@ -155,13 +193,5 @@ async def fork(child_func: Callable[[], int]) -> Optional[AbstractChildProcess]:
         pid, pidfd = await _clone_pidfd(child_func)
         return PidfdChildProcess(pid, pidfd)
     else:
-        pid = os.fork()
-        if pid == 0:
-            # I am the child.
-            ret = -1
-            try:
-                ret = child_func()
-            finally:
-                sys.exit(ret)
-        else:
-            return PosixChildProcess(pid)
+        pid = await _fork_posix(child_func)
+        return PosixChildProcess(pid)
