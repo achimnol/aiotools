@@ -6,6 +6,7 @@ import logging.config
 import multiprocessing as mp
 import os
 import signal
+import struct
 import sys
 import threading
 import time
@@ -57,97 +58,74 @@ def interrupt_usr1():
 
 
 @aiotools.server   # type: ignore
-async def myserver_singleproc(loop, proc_idx, args):
-    started, terminated = args
+async def myserver_simple(loop, proc_idx, args):
+    started_wfd, terminated_wfd = args
     assert proc_idx == 0
     await asyncio.sleep(0)
-    with started.get_lock():
-        started.value += 1
+    print('myserver.started')
+    os.write(started_wfd, struct.pack('B', proc_idx))
+    print('myserver.yield')
 
     yield
 
     await asyncio.sleep(0)
-    with terminated.get_lock():
-        terminated.value += 1
+    print('myserver.terminated')
+    os.write(terminated_wfd, struct.pack('B', proc_idx))
 
 
-@pytest.mark.parametrize('start_method', ['fork', 'spawn'])
-def test_server_singleproc(mocker, set_timeout, restore_signal, start_method):
-
-    mpctx = mp.get_context(start_method)
-    mocker.patch('aiotools.server.mp', mpctx)
-
-    started = mpctx.Value('i', 0)
-    terminated = mpctx.Value('i', 0)
-
-    set_timeout(0.2, interrupt)
-    aiotools.start_server(myserver_singleproc, args=(started, terminated))
-
-    assert started.value == 1
-    assert terminated.value == 1
+def read_all(fd: int, n: int) -> bytes:
+    chars = []
+    for _ in range(n):
+        print('try read')
+        char = os.read(fd, 1)
+        print('read', fd, n, char)
+        chars.append(char)
+    return b''.join(chars)
 
 
-def test_server_singleproc_threading(restore_signal):
-
-    started = 0
-    terminated = 0
-    value_lock = threading.Lock()
-
-    @aiotools.server
-    async def myserver(loop, proc_idx, args):
-        nonlocal started, terminated
-        assert proc_idx == 0
-        assert len(args) == 0
-        await asyncio.sleep(0)
-        with value_lock:
-            started += 1
-        loop.call_later(0.2, interrupt)
-
-        yield
-
-        await asyncio.sleep(0)
-        with value_lock:
-            terminated += 1
-
-    aiotools.start_server(myserver, use_threading=True)
-
-    assert started == 1
-    assert terminated == 1
-
-
-@aiotools.server   # type: ignore
-async def myserver_multiproc(loop, proc_idx, args):
-    started, terminated, proc_idxs = args
-    await asyncio.sleep(0)
-    with started.get_lock():
-        started.value += 1
-    proc_idxs[proc_idx] = proc_idx
-
-    yield
-
-    await asyncio.sleep(0)
-    with terminated.get_lock():
-        terminated.value += 1
-
-
-@pytest.mark.parametrize('start_method', ['fork', 'spawn'])
-def test_server_multiproc(mocker, set_timeout, restore_signal, start_method):
-
-    mpctx = mp.get_context(start_method)
-    mocker.patch('aiotools.server.mp', mpctx)
-
-    started = mpctx.Value('i', 0)
-    terminated = mpctx.Value('i', 0)
-    proc_idxs = mpctx.Array('i', 3)
+# @pytest.mark.parametrize('start_method', ['fork', 'spawn'])
+# def test_server_singleproc(mocker, set_timeout, restore_signal, start_method):
+def test_server_singleproc(mocker, set_timeout, restore_signal):
+    started_rfd, started_wfd = os.pipe()
+    terminated_rfd, terminated_wfd = os.pipe()
 
     set_timeout(0.2, interrupt)
-    aiotools.start_server(myserver_multiproc, num_workers=3,
-                          args=(started, terminated, proc_idxs))
+    aiotools.start_server(
+        myserver_simple,
+        args=(started_wfd, terminated_wfd),
+    )
 
-    assert started.value == 3
-    assert terminated.value == 3
-    assert list(proc_idxs) == [0, 1, 2]
-    assert len(mp.active_children()) == 0
+    started_pidx = struct.unpack('B', os.read(started_rfd, 1))[0]
+    terminated_pidx = struct.unpack('B', os.read(terminated_rfd, 1))[0]
+
+    assert started_pidx == 0
+    assert terminated_pidx == 0
+
+    os.close(started_rfd, started_wfd)
+    os.close(terminated_rfd, terminated_wfd)
+
+
+def test_server_multiproc(mocker, set_timeout, restore_signal):
+    started_rfd, started_wfd = os.pipe()
+    terminated_rfd, terminated_wfd = os.pipe()
+
+    set_timeout(0.2, interrupt)
+    aiotools.start_server(
+        myserver_simple,
+        num_workers=3,
+        args=(started_wfd, terminated_wfd),
+    )
+
+    # TODO: reading too late after child termination blocks...
+    #       let's just use plain files to record things.
+    started_pidx_list = struct.unpack('BBB', read_all(started_rfd, 3))
+    terminated_pidx_list = struct.unpack('BBB', read_all(terminated_rfd, 3))
+
+    assert set(started_pidx_list) == {0, 1, 2}
+    assert set(terminated_pidx_list) == {0, 1, 2}
+
+    os.close(started_rfd, started_wfd)
+    os.close(terminated_rfd, terminated_wfd)
 
 
 @aiotools.server  # type: ignore

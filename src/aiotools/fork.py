@@ -138,10 +138,6 @@ class PidfdChildProcess(AbstractChildProcess):
 def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
     if init_func is not None:
         init_func()
-    signal.pthread_sigmask(
-        signal.SIG_UNBLOCK,
-        (signal.SIGCHLD,)
-    )
     # notify the parent that the child is ready to execute the requested function.
     os.write(init_pipe, b"\0")
     os.close(init_pipe)
@@ -154,10 +150,6 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
     init_event = asyncio.Event()
     loop.add_reader(init_pipe[0], init_event.set)
 
-    signal.pthread_sigmask(
-        signal.SIG_BLOCK,
-        (signal.SIGCHLD,),
-    )
     pid = os.fork()
     if pid == 0:
         try:
@@ -197,10 +189,6 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
         )
     )
     stack_top = c_void_p(cast(stack, c_void_p).value + stack_size)  # type: ignore
-    signal.pthread_sigmask(
-        signal.SIG_BLOCK,
-        (signal.SIGCHLD,),
-    )
     ctypes.pythonapi.PyOS_BeforeFork()
     # The flag value is CLONE_PIDFD from linux/sched.h
     pid = _libc.clone(func, stack_top, 0x1000, 0, byref(fd))
@@ -217,7 +205,7 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     return pid, fd.value
 
 
-async def fork(child_func: Callable[[], int]) -> Optional[AbstractChildProcess]:
+async def fork(child_func: Callable[[], int]) -> AbstractChildProcess:
     if _has_pidfd:
         pid, pidfd = await _clone_pidfd(child_func)
         return PidfdChildProcess(pid, pidfd)
