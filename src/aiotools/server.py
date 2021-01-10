@@ -238,6 +238,15 @@ def _main_ctxmgr(func):
 main = _main_ctxmgr
 
 
+def setup_child_watcher():
+    try:
+        asyncio.get_child_watcher()
+        if hasattr(asyncio, 'PidfdChildWatcher'):
+            asyncio.set_child_watcher(asyncio.PidfdChildWatcher())
+    except NotImplementedError:
+        pass  # for uvloop
+
+
 def _worker_main(
         worker_actxmgr: Callable[
             [asyncio.AbstractEventLoop, int, Sequence[Any]],
@@ -250,6 +259,7 @@ def _worker_main(
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    setup_child_watcher()
     interrupted = asyncio.Event()
     ctx = worker_actxmgr(loop, proc_idx, args)
     forever_future = loop.create_future()
@@ -537,10 +547,7 @@ def start_server(
     asyncio.set_event_loop(mainloop)
 
     # to make subprocess working in child threads
-    try:
-        asyncio.get_child_watcher()
-    except NotImplementedError:
-        pass  # for uvloop
+    setup_child_watcher()
 
     # build a main-to-worker interrupt channel using signals
     def handle_stop_signal(signum: signal.Signals) -> None:
