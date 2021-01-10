@@ -45,6 +45,7 @@ from typing import (
 )
 
 from .context import AbstractAsyncContextManager
+from .fork import fork
 
 if sys.version_info < (3, 8, 0):
     from typing_extensions import Literal

@@ -22,6 +22,7 @@ if os.environ.get('CI', '') and sys.version_info < (3, 9, 0):
 
 @pytest.fixture
 def restore_signal():
+    os.setpgrp()
     old_alrm = signal.getsignal(signal.SIGALRM)
     old_intr = signal.getsignal(signal.SIGINT)
     old_term = signal.getsignal(signal.SIGTERM)
