@@ -1,4 +1,5 @@
 import asyncio
+import os
 import signal
 import time
 from unittest import mock
@@ -48,6 +49,7 @@ async def _do_test_fork_signal():
             return 101
         return 100
 
+    os.setpgrp()
     proc = await fork(child)
     assert proc._pid > 0
     if isinstance(proc, PidfdChildProcess):
@@ -66,6 +68,7 @@ async def _do_test_fork_many():
             return 101
         return 100
 
+    os.setpgrp()
     proc_list = []
     for _ in range(32):
         proc = await fork(child)
