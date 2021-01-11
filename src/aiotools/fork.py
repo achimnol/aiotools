@@ -21,11 +21,11 @@ from ctypes import (
     c_void_p,
     cast,
 )
-from typing import Callable, Optional, Tuple
+from typing import Callable, Tuple
 
 from .compat import get_running_loop
 
-logger = logging.getLogger(__package__)
+logger = logging.getLogger(__name__)
 
 _libc = ctypes.CDLL(None)
 _syscall = _libc.syscall
@@ -57,8 +57,17 @@ class PosixChildProcess(AbstractChildProcess):
 
     def __init__(self, pid: int) -> None:
         self._pid = pid
+        self._terminated = False
 
     def send_signal(self, signum: int) -> None:
+        if self._terminated:
+            logger.warning(
+                "PosixChildProcess(%d).send_signal(%d): "
+                "The process has already terminated.",
+                self._pid,
+                signum,
+            )
+            return
         os.kill(self._pid, signum)
 
     async def wait(self) -> int:
@@ -80,6 +89,8 @@ class PosixChildProcess(AbstractChildProcess):
                 self._returncode = os.WEXITSTATUS(status)
             else:
                 self._returncode = status
+        finally:
+            self._terminated = True
         return self._returncode
 
 
@@ -90,8 +101,18 @@ class PidfdChildProcess(AbstractChildProcess):
         self._pidfd = pidfd
         self._returncode = None
         self._wait_event = asyncio.Event()
+        self._terminated = False
 
     def send_signal(self, signum: int) -> None:
+        if self._terminated:
+            logger.warning(
+                "PidfdChildProcess(%d, %d).send_signal(%d): "
+                "The process has already terminated.",
+                self._pid,
+                self._pidfd,
+                signum,
+            )
+            return
         signal.pidfd_send_signal(self._pidfd, signum)  # type: ignore
 
     def _do_wait(self):
@@ -125,6 +146,7 @@ class PidfdChildProcess(AbstractChildProcess):
         finally:
             loop.remove_reader(self._pidfd)
             os.close(self._pidfd)
+            self._terminated = True
             self._wait_event.set()
 
     async def wait(self) -> int:
