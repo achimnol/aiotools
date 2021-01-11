@@ -25,6 +25,13 @@ from typing import Callable, Tuple
 
 from .compat import get_running_loop
 
+__all__ = (
+    'AbstractChildProcess',
+    'PosixChildProcess',
+    'PidfdChildProcess',
+    'fork',
+)
+
 logger = logging.getLogger(__name__)
 
 _libc = ctypes.CDLL(None)

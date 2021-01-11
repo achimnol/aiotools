@@ -2,11 +2,12 @@
 from . import (
     context,
     defer as _defer,
+    fork as _fork,
     func,
     iter as _iter,
-    timer,
-    taskgroup,
     server,
+    taskgroup,
+    timer,
 )
 
 import pkgutil
@@ -19,6 +20,7 @@ else:
 __all__ = (
     *context.__all__,
     *_defer.__all__,
+    *_fork.__all__,
     *func.__all__,
     *_iter.__all__,
     *server.__all__,
@@ -29,6 +31,7 @@ __all__ = (
 
 from .context import *     # noqa
 from .defer import *       # noqa
+from .fork import *        # noqa
 from .func import *        # noqa
 from .iter import *        # noqa
 from .taskgroup import *   # noqa
