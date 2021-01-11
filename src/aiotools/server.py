@@ -30,26 +30,30 @@ from contextlib import (
 import functools
 import inspect
 import logging
-import multiprocessing as mp, multiprocessing.synchronize
-import threading
 import os
 import signal
 import struct
 import sys
-import time
+import threading
 from typing import (
-    Any, Optional, Union,
-    Callable, Iterable,
-    Tuple, Sequence,
+    Any,
+    Callable,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
     Set,
+    Tuple,
 )
 
+from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
+from .fork import AbstractChildProcess, afork
 
 if sys.version_info < (3, 8, 0):
     from typing_extensions import Literal
 else:
-    from typing import Literal  # type: ignore
+    from typing import Literal  # type: ignore  # noqa
 
 __all__ = (
     'main',
@@ -60,12 +64,6 @@ __all__ = (
 )
 
 log = logging.getLogger(__name__)
-
-# for threaded mode
-_children_ctxs = []
-_children_loops = []
-_children_ffs = []
-_children_lock = threading.Lock()
 
 
 class InterruptedBySignal(BaseException):
@@ -247,16 +245,35 @@ def setup_child_watcher():
         pass  # for uvloop
 
 
-def _worker_main(
-        worker_actxmgr: Callable[
-            [asyncio.AbstractEventLoop, int, Sequence[Any]],
-            AsyncServerContextManager],
-        threaded: bool,
-        stop_signals: Set[signal.Signals],
-        intr_pipe: Union[threading.Event, mp.synchronize.Event],
-        proc_idx: int,
-        args: Sequence[Any]):
+async def cancel_all_tasks():
+    loop = get_running_loop()
+    cancelled_tasks = []
+    for task in all_tasks():
+        if not task.done() and task is not current_task():
+            task.cancel()
+            cancelled_tasks.append(task)
+    await asyncio.gather(*cancelled_tasks, return_exceptions=True)
+    for task in cancelled_tasks:
+        if task.cancelled():
+            continue
+        if task.exception() is not None:
+            loop.call_exception_handler({
+                'message': 'unhandled exception during loop shutdown',
+                'exception': task.exception(),
+                'task': task,
+            })
 
+
+def _worker_main(
+    worker_actxmgr: Callable[
+        [asyncio.AbstractEventLoop, int, Sequence[Any]],
+        AsyncServerContextManager,
+    ],
+    stop_signals: Set[signal.Signals],
+    intr_pipe_wfd: int,
+    proc_idx: int,
+    args: Sequence[Any],
+) -> int:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     setup_child_watcher()
@@ -272,19 +289,14 @@ def _worker_main(
             ctx.yield_return = signum
             forever_future.cancel()
 
-    if not threaded:
-        for signum in stop_signals:
-            loop.add_signal_handler(
-                signum,
-                functools.partial(handle_stop_signal, signum))
-        # Allow the worker to be interrupted during initialization
-        # (in case of initialization failures in other workers)
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
-    else:
-        with _children_lock:
-            _children_ctxs.append(ctx)
-            _children_loops.append(loop)
-            _children_ffs.append(forever_future)
+    for signum in stop_signals:
+        loop.add_signal_handler(
+            signum,
+            functools.partial(handle_stop_signal, signum),
+        )
+    # Allow the worker to be interrupted during initialization
+    # (in case of initialization failures in other workers)
+    signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
 
     async def _wrapped_worker():
         err_ctx = 'enter'
@@ -302,50 +314,48 @@ def _worker_main(
                 err_ctx_str = 'initialization' if err_ctx == 'enter' else 'shutdown'
                 log.exception(f'Worker {proc_idx}: '
                               f'Error during context manager {err_ctx_str}')
-                wfd = intr_pipe if threaded else intr_pipe.fileno()
-                os.write(wfd, struct.pack('i', proc_idx))
-                # FIXME: this sleep is required to prevent hang-up in Linux
-                time.sleep(0.2)
+                os.write(intr_pipe_wfd, struct.pack('i', proc_idx))
             raise
 
     try:
         loop.run_until_complete(_wrapped_worker())
     finally:
         try:
+            loop.run_until_complete(cancel_all_tasks())
             loop.run_until_complete(loop.shutdown_asyncgens())
+            try:
+                loop.run_until_complete(loop.shutdown_default_executor())
+            except (AttributeError, NotImplementedError):  # for uvloop
+                pass
         finally:
             loop.close()
+        return 0
 
 
-def _extra_main(extra_func, threaded, stop_signals, intr_event, proc_idx, args):
-    interrupted: Union[threading.Event, mp.synchronize.Event]
-    if threaded:
-        interrupted = threading.Event()
-    else:
-        interrupted = mp.Event()
-    if not threaded:
+def _extra_main(extra_func, stop_signals, proc_idx, args) -> int:
+    interrupted = threading.Event()
 
-        # Since signals only work for the main thread in Python,
-        # extra processes in use_threading=True mode should check
-        # the intr_event by themselves (probably in their loops).
+    # Since signals only work for the main thread in Python,
+    # extra processes in use_threading=True mode should check
+    # the intr_event by themselves (probably in their loops).
 
-        def raise_stop(signum, frame):
-            if interrupted.is_set():
-                pass
+    def raise_stop(signum, frame):
+        if interrupted.is_set():
+            pass
+        else:
+            interrupted.set()
+            if signum == signal.SIGINT:
+                raise KeyboardInterrupt
+            elif signum == signal.SIGTERM:
+                raise SystemExit
             else:
-                interrupted.set()
-                if signum == signal.SIGINT:
-                    raise KeyboardInterrupt
-                elif signum == signal.SIGTERM:
-                    raise SystemExit
-                else:
-                    raise InterruptedBySignal(signum)
+                raise InterruptedBySignal(signum)
 
-        # restore signal handler.
-        for signum in stop_signals:
-            signal.signal(signum, raise_stop)
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
-        intr_event = None
+    # restore signal handler.
+    for signum in stop_signals:
+        signal.signal(signum, raise_stop)
+    signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
+    intr_event = None
 
     try:
         if not interrupted.is_set():
@@ -353,24 +363,24 @@ def _extra_main(extra_func, threaded, stop_signals, intr_event, proc_idx, args):
     except (SystemExit, KeyboardInterrupt, InterruptedBySignal):
         log.warning(f'extra_proc[{proc_idx}] did not handle stop signals.')
     finally:
-        if not threaded:
-            # same as in _worker_main()
-            signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
+        # same as in _worker_main()
+        signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
+        return 0
 
 
 def start_server(
-        worker_actxmgr: Callable[
-            [asyncio.AbstractEventLoop, int, Sequence[Any]],
-            AsyncServerContextManager],
-        main_ctxmgr: Optional[Callable[[], ServerMainContextManager]] = None,
-        extra_procs: Iterable[Callable] = tuple(),
-        stop_signals: Iterable[signal.Signals] = (
-            signal.SIGINT,
-            signal.SIGTERM),
-        num_workers: int = 1,
-        use_threading: bool = False,
-        start_method: Literal['spawn', 'fork', 'forkserver'] = None,
-        args: Iterable[Any] = tuple()):
+    worker_actxmgr: Callable[
+        [asyncio.AbstractEventLoop, int, Sequence[Any]],
+        AsyncServerContextManager],
+    main_ctxmgr: Optional[Callable[[], ServerMainContextManager]] = None,
+    extra_procs: Iterable[Callable] = tuple(),
+    stop_signals: Iterable[signal.Signals] = (
+        signal.SIGINT,
+        signal.SIGTERM
+    ),
+    num_workers: int = 1,
+    args: Iterable[Any] = tuple()
+) -> None:
     """
     Starts a multi-process server where each process has their own individual
     asyncio event loop.  Their lifecycles are automantically managed -- if the
@@ -435,23 +445,6 @@ def start_server(
 
         num_workers: The number of children workers.
 
-        use_threading: Use :mod:`threading` instead of :mod:`multiprocessing`.
-                       In this case, the GIL may become the performance
-                       bottleneck.  Set this ``True`` only when you know what
-                       you are going to do.  Note that this changes the way
-                       to write user-defined functions passed as **extra_procs**.
-
-        start_method: Change the start method when :mod:`multiprocessing` is used.
-                      The default is same to what :mod:`multiprocessing` uses.
-                      Only effective when **use_threading** is ``False``.
-
-                      Note that if there are other libraries that rely on
-                      :mod:`multiprocessing` called before aiotools, you need to
-                      invoke :func:`multiprocessing.set_start_method()` earlier than
-                      both aiotools and such libraries *without* setting this
-                      argument as it changes the global context of
-                      :mod:`multiprocessing`.
-
         args: The user-defined arguments passed to workers and extra
               processes.  If **main_ctxmgr** yields one or more values,
               they are *prepended* to this user arguments when passed to
@@ -496,17 +489,17 @@ def start_server(
 
        **start_method** argument can be set to change the subprocess spawning
        implementation.
+
+    .. versionchanged:: 1.2.0
+
+       Deprecated **start_method** and **use_threading**, in favor of our new
+       :func:`afork()` function which provides better synchronization and pid-fd
+       support.
     """
 
     @_main_ctxmgr
     def noop_main_ctxmgr():
         yield
-
-    def create_child(*args, **kwargs):
-        if use_threading:
-            return threading.Thread(*args, **kwargs)
-        else:
-            return mp.Process(*args, **kwargs)
 
     assert stop_signals
 
@@ -524,27 +517,18 @@ def start_server(
 
     if main_ctxmgr is None:
         main_ctxmgr = noop_main_ctxmgr
-    if not use_threading and start_method is not None:
-        mp.set_start_method(start_method)
 
-    children = []
-    _children_ctxs.clear()
-    _children_loops.clear()
-    _children_ffs.clear()
-    intr_event: Union[threading.Event, mp.synchronize.Event]
-    if use_threading:
-        intr_event = threading.Event()
-    else:
-        intr_event = mp.Event()
+    children: List[AbstractChildProcess] = []
     sigblock_mask = frozenset(stop_signals)
 
     main_ctx = main_ctxmgr()
 
-    # temporarily block signals and register signal handlers to mainloop
+    # temporarily block signals and register signal handlers to main_loop
     signal.pthread_sigmask(signal.SIG_BLOCK, sigblock_mask)
 
-    mainloop = asyncio.new_event_loop()
-    asyncio.set_event_loop(mainloop)
+    main_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(main_loop)
+    main_future = main_loop.create_future()
 
     # to make subprocess working in child threads
     setup_child_watcher()
@@ -552,21 +536,18 @@ def start_server(
     # build a main-to-worker interrupt channel using signals
     def handle_stop_signal(signum: signal.Signals) -> None:
         main_ctx.yield_return = signum  # type: ignore
-        if use_threading:
-            with _children_lock:
-                for c in _children_ctxs:
-                    c.yield_return = signum
-                for child_loop, ff in zip(_children_loops, _children_ffs):
-                    child_loop.call_soon_threadsafe(ff.cancel)
-            intr_event.set()
-        else:
-            os.killpg(0, signum)
-        mainloop.stop()
+        for child in children:
+            child.send_signal(signum)
+        # instead of main_loop.stop(), we use a future here
+        # NOT to interrupt the cleanup routines in
+        # an arbitrary timing upon async child failures.
+        main_future.cancel()
 
     for signum in stop_signals:
-        mainloop.add_signal_handler(
+        main_loop.add_signal_handler(
             signum,
-            functools.partial(handle_stop_signal, signum))
+            functools.partial(handle_stop_signal, signum),
+        )
 
     # build a reliable worker-to-main interrupt channel using a pipe
     # (workers have no idea whether the main interrupt is enabled/disabled)
@@ -577,15 +558,9 @@ def start_server(
         signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
         os.kill(0, signal.SIGINT)
 
-    child_intr_pipe: Union[Tuple[int, int],
-                           Tuple[mp.connection.Connection, mp.connection.Connection]]
-    if use_threading:
-        child_intr_pipe = os.pipe()
-        rfd = child_intr_pipe[0]
-    else:
-        child_intr_pipe = mp.Pipe()
-        rfd = child_intr_pipe[0].fileno()
-    mainloop.add_reader(rfd, handle_child_interrupt, rfd)
+    child_intr_pipe: Tuple[int, int] = os.pipe()
+    rfd = child_intr_pipe[0]
+    main_loop.add_reader(rfd, handle_child_interrupt, rfd)
 
     # start
     with main_ctx as main_args:
@@ -598,34 +573,70 @@ def start_server(
 
         # spawn managed async workers
         for i in range(num_workers):
-            p = create_child(target=_worker_main, daemon=True,
-                             args=(worker_actxmgr, use_threading, stop_signals,
-                                   child_intr_pipe[1], i,
-                                   main_args + args))
-            p.start()
+            try:
+                p = main_loop.run_until_complete(afork(functools.partial(
+                    _worker_main,
+                    worker_actxmgr,
+                    stop_signals,
+                    child_intr_pipe[1],
+                    i,
+                    main_args + args,
+                )))
+            except RuntimeError as e:
+                if 'loop stopped' in e.args[0]:
+                    log.warning(
+                        "skipping spawning of child[worker]:%d due to "
+                        "async failure(s) of other child process",
+                        i,
+                    )
+                    continue
+                raise
             children.append(p)
 
         # spawn extra workers
         for i, f in enumerate(extra_procs):
-            p = create_child(target=_extra_main, daemon=True,
-                             args=(f, use_threading, stop_signals,
-                                   intr_event, num_workers + i,
-                                   main_args + args))
-            p.start()
+            try:
+                p = main_loop.run_until_complete(afork(functools.partial(
+                    _extra_main,
+                    f,
+                    stop_signals,
+                    num_workers + i,
+                    main_args + args,
+                )))
+            except RuntimeError as e:
+                if 'loop stopped' in e.args[0]:
+                    log.warning(
+                        "skipping spawning of child[extra]:%d due to "
+                        "async failure(s) of other child process",
+                        num_workers + i,
+                    )
+                    continue
+                raise
             children.append(p)
         try:
             # unblock the stop signals for user/external interrupts.
             signal.pthread_sigmask(signal.SIG_UNBLOCK, sigblock_mask)
 
             # run!
-            mainloop.run_forever()
+            try:
+                main_loop.run_until_complete(main_future)
+            except asyncio.CancelledError:
+                pass
 
             # if interrupted, wait for workers to finish.
-            for child in children:
-                child.join()
+            main_loop.run_until_complete(
+                asyncio.gather(*[child.wait() for child in children])
+            )
         finally:
             try:
-                mainloop.run_until_complete(mainloop.shutdown_asyncgens())
+                main_loop.run_until_complete(cancel_all_tasks())
+                main_loop.run_until_complete(main_loop.shutdown_asyncgens())
+                try:
+                    main_loop.run_until_complete(
+                        main_loop.shutdown_default_executor()
+                    )
+                except (AttributeError, NotImplementedError):  # for uvloop
+                    pass
             finally:
-                mainloop.close()
+                main_loop.close()
                 asyncio.set_event_loop(None)

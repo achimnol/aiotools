@@ -2,13 +2,15 @@ import pytest
 
 import asyncio
 import functools
+import glob
 import logging.config
 import multiprocessing as mp
 import os
 import signal
 import sys
-import threading
+import tempfile
 import time
+from typing import List, Sequence
 
 import aiotools
 
@@ -22,6 +24,7 @@ if os.environ.get('CI', '') and sys.version_info < (3, 9, 0):
 
 @pytest.fixture
 def restore_signal():
+    os.setpgrp()
     old_alrm = signal.getsignal(signal.SIGALRM)
     old_intr = signal.getsignal(signal.SIGINT)
     old_term = signal.getsignal(signal.SIGTERM)
@@ -47,6 +50,32 @@ def set_timeout():
     yield make_timeout
 
 
+@pytest.fixture
+def exec_recorder():
+    f = tempfile.NamedTemporaryFile(
+        mode='w', encoding='utf8',
+        prefix='aiotools.tests.server.',
+    )
+    f.close()
+
+    def write(msg: str) -> None:
+        path = f"{f.name}.{os.getpid()}"
+        with open(path, 'a', encoding='utf8') as writer:
+            writer.write(msg + '\n')
+
+    def read() -> Sequence[str]:
+        lines: List[str] = []
+        for path in glob.glob(f"{f.name}.*"):
+            with open(path, 'r', encoding='utf8') as reader:
+                lines.extend(line.strip() for line in reader.readlines())
+        return lines
+
+    yield write, read
+
+    for path in glob.glob(f"{f.name}.*"):
+        os.unlink(path)
+
+
 def interrupt():
     os.kill(0, signal.SIGINT)
 
@@ -56,349 +85,142 @@ def interrupt_usr1():
 
 
 @aiotools.server   # type: ignore
-async def myserver_singleproc(loop, proc_idx, args):
-    started, terminated = args
-    assert proc_idx == 0
+async def myserver_simple(loop, proc_idx, args):
+    write = args[0]
     await asyncio.sleep(0)
-    with started.get_lock():
-        started.value += 1
+    write(f'started:{proc_idx}')
 
     yield
 
     await asyncio.sleep(0)
-    with terminated.get_lock():
-        terminated.value += 1
+    write(f'terminated:{proc_idx}')
 
 
-@pytest.mark.parametrize('start_method', ['fork', 'spawn'])
-def test_server_singleproc(mocker, set_timeout, restore_signal, start_method):
-
-    mpctx = mp.get_context(start_method)
-    mocker.patch('aiotools.server.mp', mpctx)
-
-    started = mpctx.Value('i', 0)
-    terminated = mpctx.Value('i', 0)
-
+def test_server_singleproc(set_timeout, restore_signal, exec_recorder):
+    write, read = exec_recorder
     set_timeout(0.2, interrupt)
-    aiotools.start_server(myserver_singleproc, args=(started, terminated))
-
-    assert started.value == 1
-    assert terminated.value == 1
-
-
-def test_server_singleproc_threading(restore_signal):
-
-    started = 0
-    terminated = 0
-    value_lock = threading.Lock()
-
-    @aiotools.server
-    async def myserver(loop, proc_idx, args):
-        nonlocal started, terminated
-        assert proc_idx == 0
-        assert len(args) == 0
-        await asyncio.sleep(0)
-        with value_lock:
-            started += 1
-        loop.call_later(0.2, interrupt)
-
-        yield
-
-        await asyncio.sleep(0)
-        with value_lock:
-            terminated += 1
-
-    aiotools.start_server(myserver, use_threading=True)
-
-    assert started == 1
-    assert terminated == 1
+    aiotools.start_server(
+        myserver_simple,
+        args=(write,),
+    )
+    lines = set(read())
+    assert 'started:0' in lines
+    assert 'terminated:0' in lines
 
 
-@aiotools.server   # type: ignore
-async def myserver_multiproc(loop, proc_idx, args):
-    started, terminated, proc_idxs = args
-    await asyncio.sleep(0)
-    with started.get_lock():
-        started.value += 1
-    proc_idxs[proc_idx] = proc_idx
-
-    yield
-
-    await asyncio.sleep(0)
-    with terminated.get_lock():
-        terminated.value += 1
-
-
-@pytest.mark.parametrize('start_method', ['fork', 'spawn'])
-def test_server_multiproc(mocker, set_timeout, restore_signal, start_method):
-
-    mpctx = mp.get_context(start_method)
-    mocker.patch('aiotools.server.mp', mpctx)
-
-    started = mpctx.Value('i', 0)
-    terminated = mpctx.Value('i', 0)
-    proc_idxs = mpctx.Array('i', 3)
-
+def test_server_multiproc(set_timeout, restore_signal, exec_recorder):
+    write, read = exec_recorder
     set_timeout(0.2, interrupt)
-    aiotools.start_server(myserver_multiproc, num_workers=3,
-                          args=(started, terminated, proc_idxs))
-
-    assert started.value == 3
-    assert terminated.value == 3
-    assert list(proc_idxs) == [0, 1, 2]
-    assert len(mp.active_children()) == 0
+    aiotools.start_server(
+        myserver_simple,
+        num_workers=3,
+        args=(write,),
+    )
+    lines = set(read())
+    assert lines == {
+        'started:0', 'started:1', 'started:2',
+        'terminated:0', 'terminated:1', 'terminated:2',
+    }
 
 
 @aiotools.server  # type: ignore
-async def myserver_multiproc_custom_stop_signals(loop, proc_idx, args):
-    started, terminated, received_signals, proc_idxs = args
+async def myserver_signal(loop, proc_idx, args):
+    write = args[0]
     await asyncio.sleep(0)
-    with started.get_lock():
-        started.value += 1
-    proc_idxs[proc_idx] = proc_idx
+    write(f'started:{proc_idx}')
 
-    received_signals[proc_idx] = yield
+    received_signum = yield
 
     await asyncio.sleep(0)
-    with terminated.get_lock():
-        terminated.value += 1
+    write(f'terminated:{proc_idx}:{received_signum}')
 
 
-@pytest.mark.parametrize('start_method', ['fork', 'spawn'])
 def test_server_multiproc_custom_stop_signals(
-        mocker, set_timeout, restore_signal, start_method):
-
-    mpctx = mp.get_context(start_method)
-    mocker.patch('aiotools.server.mp', mpctx)
-
-    started = mpctx.Value('i', 0)
-    terminated = mpctx.Value('i', 0)
-    received_signals = mpctx.Array('i', 2)
-    proc_idxs = mpctx.Array('i', 2)
-
+    set_timeout,
+    restore_signal,
+    exec_recorder,
+):
+    write, read = exec_recorder
     set_timeout(0.2, interrupt_usr1)
-    aiotools.start_server(myserver_multiproc_custom_stop_signals,
-                          num_workers=2,
-                          stop_signals={signal.SIGUSR1},
-                          args=(started, terminated, received_signals, proc_idxs))
-
-    assert started.value == 2
-    assert terminated.value == 2
-    assert list(received_signals) == [signal.SIGUSR1, signal.SIGUSR1]
-    assert list(proc_idxs) == [0, 1]
-    assert len(mpctx.active_children()) == 0
+    aiotools.start_server(
+        myserver_signal,
+        num_workers=2,
+        stop_signals={signal.SIGUSR1},
+        args=(write,),
+    )
+    lines = set(read())
+    assert {'started:0', 'started:1'} < lines
+    assert {
+        f'terminated:0:{int(signal.SIGUSR1)}',
+        f'terminated:1:{int(signal.SIGUSR1)}',
+    } < lines
 
 
 @aiotools.server  # type: ignore
 async def myserver_worker_init_error(loop, proc_idx, args):
-    started, terminated, log_queue = args
+    write = args[0]
+
+    class _LogAdaptor:
+        def __init__(self, writer):
+            self.writer = writer
+
+        def write(self, msg):
+            msg = msg.strip().replace('\n', ' ')
+            self.writer(f'log:{proc_idx}:{msg}')
+
+    log_stream = _LogAdaptor(write)
     logging.config.dictConfig({
         'version': 1,
         'handlers': {
-            'q': {
-                'class': 'logging.handlers.QueueHandler',
-                'queue': log_queue,
-                'level': 'DEBUG',
-            },
             'console': {
                 'class': 'logging.StreamHandler',
-                'stream': 'ext://sys.stderr',
+                'stream': log_stream,
                 'level': 'DEBUG',
             },
         },
         'loggers': {
             'aiotools': {
-                'handlers': ['q', 'console'],
+                'handlers': ['console'],
                 'level': 'DEBUG',
             },
         },
     })
-
-    with started.get_lock():
-        started.value += 1
-    if proc_idx == 0:
+    log = logging.getLogger('aiotools')
+    write(f'started:{proc_idx}')
+    log.debug('hello')
+    if proc_idx in (0, 2):
         # delay until other workers start normally.
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.1 * proc_idx)
         raise ZeroDivisionError('oops')
 
     yield
 
     # should not be reached if errored.
     await asyncio.sleep(0)
-    with terminated.get_lock():
-        terminated.value += 1
+    write(f'terminated:{proc_idx}')
 
 
-@pytest.mark.parametrize('use_threading,start_method', [
-    (True, 'fork'),
-    (False, 'fork'),
-    (False, 'spawn'),
-])
-def test_server_worker_init_error(
-        mocker, restore_signal, use_threading, start_method):
-
-    mpctx = mp.get_context(start_method)
-    mocker.patch('aiotools.server.mp', mpctx)
-
-    started = mpctx.Value('i', 0)
-    terminated = mpctx.Value('i', 0)
-    log_queue = mpctx.Queue()
-
-    aiotools.start_server(myserver_worker_init_error,
-                          num_workers=3,
-                          use_threading=use_threading,
-                          args=(started, terminated, log_queue))
-    # it should automatically shut down!
-
-    # reset logging
-    logging.shutdown()
-
-    assert started.value == 3
+def test_server_worker_init_error(restore_signal, exec_recorder):
+    write, read = exec_recorder
+    aiotools.start_server(
+        myserver_worker_init_error,
+        num_workers=4,
+        args=(write,),
+    )
+    lines = set(read())
+    assert sum(1 if line.startswith('started:') else 0 for line in lines) == 4
     # workers who did not raise errors have already started,
     # and they should have terminated normally
     # when the errorneous worker interrupted the main loop.
-    assert terminated.value == 2
-    assert len(mp.active_children()) == 0
-    assert not log_queue.empty()
-    has_error_log = False
-    while not log_queue.empty():
-        rec = log_queue.get()
-        if rec.levelname == 'ERROR':
-            has_error_log = True
-            assert 'initialization' in rec.message
-            # exception info is logged to the console,
-            # but we cannot access it here because exceptions
-            # are not picklable.
-            assert rec.exc_info is None
-    assert has_error_log
+    assert sum(1 if line.startswith('terminated:') else 0 for line in lines) == 2
+    assert sum(1 if 'hello' in line else 0 for line in lines) == 4
+    assert sum(1 if 'ZeroDivisionError: oops' in line else 0 for line in lines) == 2
 
 
-@aiotools.server  # type: ignore
-async def myserver_worker_init_error_multi(loop, proc_idx, args):
-    started, terminated, log_queue = args
-    logging.config.dictConfig({
-        'version': 1,
-        'handlers': {
-            'q': {
-                'class': 'logging.handlers.QueueHandler',
-                'queue': log_queue,
-                'level': 'DEBUG',
-            },
-            'console': {
-                'class': 'logging.StreamHandler',
-                'stream': 'ext://sys.stderr',
-                'level': 'DEBUG',
-            },
-        },
-        'loggers': {
-            'aiotools': {
-                'handlers': ['q', 'console'],
-                'level': 'DEBUG',
-            },
-        },
-    })
-    # make the error timing to spread over some time
-    await asyncio.sleep(0.2 * proc_idx)
-    if proc_idx == 1:
-        raise ZeroDivisionError('oops')
-    with started.get_lock():
-        started.value += 1
-
-    yield
-
-    # should not be reached if errored.
-    await asyncio.sleep(0)
-    with terminated.get_lock():
-        terminated.value += 1
-
-
-@pytest.mark.parametrize('use_threading,start_method', [
-    (True, 'fork'),
-    (False, 'fork'),
-    (False, 'spawn'),
-])
-def test_server_worker_init_error_multi(
-        mocker, restore_signal, use_threading, start_method):
-
-    mpctx = mp.get_context(start_method)
-    mocker.patch('aiotools.server.mp', mpctx)
-
-    started = mpctx.Value('i', 0)
-    terminated = mpctx.Value('i', 0)
-    log_queue = mpctx.Queue()
-
-    aiotools.start_server(myserver_worker_init_error_multi,
-                          num_workers=3,
-                          use_threading=use_threading,
-                          args=(started, terminated, log_queue))
-    # it should automatically shut down!
-
-    # reset logging
-    logging.shutdown()
-
-    assert started.value >= 1
-    # non-errored workers should have been terminated normally.
-    assert terminated.value >= 1
-    # there is one worker remaining -- which is "cancelled"!
-    # just ensure that all workers have terminated now.
-    assert len(mpctx.active_children()) == 0
-    assert not log_queue.empty()
-    has_error_log = False
-    while not log_queue.empty():
-        rec = log_queue.get()
-        if rec.levelname == 'ERROR':
-            has_error_log = True
-            assert 'initialization' in rec.message
-            # exception info is logged to the console,
-            # but we cannot access it here because exceptions
-            # are not picklable.
-            assert rec.exc_info is None
-    assert has_error_log
-
-
-def test_server_multiproc_threading(set_timeout, restore_signal):
-
-    started = 0
-    terminated = 0
-    proc_idxs = [0, 0, 0]
-    value_lock = threading.Lock()
-
-    @aiotools.server
-    async def myserver(loop, proc_idx, args):
-        nonlocal started, terminated, proc_idxs
-        await asyncio.sleep(0)
-        with value_lock:
-            started += 1
-            proc_idxs[proc_idx] = proc_idx
-
-        yield
-
-        await asyncio.sleep(0)
-        with value_lock:
-            terminated += 1
-
-    def interrupt():
-        os.kill(os.getpid(), signal.SIGINT)
-
-    set_timeout(0.2, interrupt)
-    aiotools.start_server(myserver, num_workers=3, use_threading=True)
-
-    assert started == 3
-    assert terminated == 3
-    assert list(proc_idxs) == [0, 1, 2]
-
-
-@pytest.mark.parametrize('start_method', ['fork'])
-def test_server_user_main(mocker, set_timeout, restore_signal, start_method):
-
-    mpctx = mp.get_context(start_method)
-    mocker.patch('aiotools.server.mp', mpctx)
+def test_server_user_main(set_timeout, restore_signal):
 
     main_enter = False
     main_exit = False
-
-    # FIXME: This should work with start_method = "spawn", but to test with it
-    #        we need to allow passing arguments to user-provided main functions.
 
     @aiotools.main
     def mymain_user_main():
@@ -414,10 +236,12 @@ def test_server_user_main(mocker, set_timeout, restore_signal, start_method):
         yield
 
     set_timeout(0.2, interrupt)
-    aiotools.start_server(myworker_user_main,
-                          mymain_user_main,
-                          num_workers=3,
-                          args=(123, ))
+    aiotools.start_server(
+        myworker_user_main,
+        mymain_user_main,
+        num_workers=3,
+        args=(123,),
+    )
 
     assert main_enter
     assert main_exit
@@ -441,16 +265,17 @@ def test_server_user_main_custom_stop_signals(set_timeout, restore_signal):
         worker_signals = args[0]
         worker_signals[proc_idx] = yield
 
-    def interrupt():
-        os.kill(os.getpid(), signal.SIGUSR1)
-
     def noop(signum, frame):
         pass
 
-    set_timeout(0.2, interrupt)
-    aiotools.start_server(myworker, mymain, num_workers=3,
-                          stop_signals={signal.SIGUSR1},
-                          args=(worker_signals, ))
+    set_timeout(0.2, interrupt_usr1)
+    aiotools.start_server(
+        myworker,
+        mymain,
+        num_workers=3,
+        stop_signals={signal.SIGUSR1},
+        args=(worker_signals,),
+    )
 
     assert main_enter
     assert main_exit
@@ -476,41 +301,13 @@ def test_server_user_main_tuple(set_timeout, restore_signal):
         assert args[2] == 123  # third arg from start_server args
         yield
 
-    def interrupt():
-        os.kill(os.getpid(), signal.SIGINT)
-
     set_timeout(0.2, interrupt)
-    aiotools.start_server(myworker, mymain, num_workers=3,
-                          args=(123, ))
-
-    assert main_enter
-    assert main_exit
-
-
-def test_server_user_main_threading(set_timeout, restore_signal):
-    main_enter = False
-    main_exit = False
-
-    @aiotools.main
-    def mymain():
-        nonlocal main_enter, main_exit
-        main_enter = True
-        yield 987
-        main_exit = True
-
-    @aiotools.server
-    async def myworker(loop, proc_idx, args):
-        assert args[0] == 987  # first arg from user main
-        assert args[1] == 123  # second arg from start_server args
-        yield
-
-    def interrupt():
-        os.kill(os.getpid(), signal.SIGINT)
-
-    set_timeout(0.2, interrupt)
-    aiotools.start_server(myworker, mymain, num_workers=3,
-                          use_threading=True,
-                          args=(123, ))
+    aiotools.start_server(
+        myworker,
+        mymain,
+        num_workers=3,
+        args=(123,),
+    )
 
     assert main_enter
     assert main_exit
@@ -538,9 +335,6 @@ def test_server_extra_proc(set_timeout, restore_signal):
     async def myworker(loop, pidx, args):
         yield
 
-    def interrupt():
-        os.kill(os.getpid(), signal.SIGINT)
-
     set_timeout(0.2, interrupt)
     aiotools.start_server(myworker, extra_procs=[
                               functools.partial(extra_proc, 0),
@@ -567,10 +361,7 @@ def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
     async def myworker(loop, pidx, args):
         yield
 
-    def interrupt():
-        os.kill(os.getpid(), signal.SIGUSR1)
-
-    set_timeout(0.3, interrupt)
+    set_timeout(0.3, interrupt_usr1)
     aiotools.start_server(myworker, extra_procs=[
                               functools.partial(extra_proc, 0),
                               functools.partial(extra_proc, 1)],
@@ -580,43 +371,3 @@ def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
 
     assert received_signals[0] == signal.SIGUSR1
     assert received_signals[1] == signal.SIGUSR1
-
-
-def test_server_extra_proc_threading(set_timeout, restore_signal):
-
-    # When using extra_procs with threading, you need to provide a way to
-    # explicitly interrupt your synchronous loop.
-    # Here, we use a threading.Event object to signal interruption.
-
-    extras = [0, 0]
-    value_lock = threading.Lock()
-
-    def extra_proc(key, intr_event, pidx, args):
-        assert isinstance(intr_event, threading.Event)
-        with value_lock:
-            extras[key] = 980 + key
-        try:
-            while not intr_event.is_set():
-                time.sleep(0.1)
-        except Exception as e:
-            print(f'extra[{key}] exception', e)
-        finally:
-            with value_lock:
-                extras[key] = 990 + key
-
-    @aiotools.server
-    async def myworker(loop, pidx, args):
-        yield
-
-    def interrupt():
-        os.kill(os.getpid(), signal.SIGINT)
-
-    set_timeout(0.2, interrupt)
-    aiotools.start_server(myworker, extra_procs=[
-                              functools.partial(extra_proc, 0),
-                              functools.partial(extra_proc, 1)],
-                          use_threading=True,
-                          num_workers=3, args=(123, ))
-
-    assert extras[0] == 990
-    assert extras[1] == 991

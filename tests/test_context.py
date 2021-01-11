@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import warnings
 
 import aiotools
 from aiotools.context import AbstractAsyncContextManager
@@ -490,30 +491,18 @@ async def test_actxmgr_no_yield(event_loop):
     async def no_yield_ctx1(msg):
         pass
 
-    try:
-        async with no_yield_ctx1('hello'):
-            pass
-    except RuntimeError as exc:
-        assert "must be an async-gen" in exc.args[0]
-    except AttributeError:  # in Python 3.7
-        pass
-    else:
-        pytest.fail()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
 
-    @aiotools.actxmgr
-    @asyncio.coroutine
-    def no_yield_ctx2(msg):
-        pass
-
-    try:
-        async with no_yield_ctx2('hello'):
+        try:
+            async with no_yield_ctx1('hello'):
+                pass
+        except RuntimeError as exc:
+            assert "must be an async-gen" in exc.args[0]
+        except AttributeError:  # in Python 3.7
             pass
-    except RuntimeError as exc:
-        assert "must be an async-gen" in exc.args[0]
-    except AttributeError:  # in Python 3.7
-        pass
-    else:
-        pytest.fail()
+        else:
+            pytest.fail()
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 7, 0),

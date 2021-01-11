@@ -7,7 +7,7 @@ from unittest import mock
 import pytest
 
 from aiotools import fork as fork_mod
-from aiotools.fork import fork, _has_pidfd, PidfdChildProcess
+from aiotools.fork import afork, _has_pidfd, PidfdChildProcess
 
 
 async def _do_test_fork():
@@ -17,7 +17,7 @@ async def _do_test_fork():
         time.sleep(0.1)
         return 99
 
-    proc = await fork(child)
+    proc = await afork(child)
     assert proc._pid > 0
     if isinstance(proc, PidfdChildProcess):
         assert proc._pidfd > 0
@@ -31,7 +31,7 @@ async def _do_test_fork_already_terminated():
         time.sleep(0.1)
         return 99
 
-    proc = await fork(child)
+    proc = await afork(child)
     assert proc._pid > 0
     if isinstance(proc, PidfdChildProcess):
         assert proc._pidfd > 0
@@ -50,7 +50,7 @@ async def _do_test_fork_signal():
         return 100
 
     os.setpgrp()
-    proc = await fork(child)
+    proc = await afork(child)
     assert proc._pid > 0
     if isinstance(proc, PidfdChildProcess):
         assert proc._pidfd > 0
@@ -71,7 +71,7 @@ async def _do_test_fork_many():
     os.setpgrp()
     proc_list = []
     for _ in range(32):
-        proc = await fork(child)
+        proc = await afork(child)
         proc_list.append(proc)
         assert proc._pid > 0
         if isinstance(proc, PidfdChildProcess):

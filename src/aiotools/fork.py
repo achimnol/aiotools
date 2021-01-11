@@ -21,11 +21,18 @@ from ctypes import (
     c_void_p,
     cast,
 )
-from typing import Callable, Optional, Tuple
+from typing import Callable, Tuple
 
 from .compat import get_running_loop
 
-logger = logging.getLogger(__package__)
+__all__ = (
+    'AbstractChildProcess',
+    'PosixChildProcess',
+    'PidfdChildProcess',
+    'afork',
+)
+
+logger = logging.getLogger(__name__)
 
 _libc = ctypes.CDLL(None)
 _syscall = _libc.syscall
@@ -57,8 +64,17 @@ class PosixChildProcess(AbstractChildProcess):
 
     def __init__(self, pid: int) -> None:
         self._pid = pid
+        self._terminated = False
 
     def send_signal(self, signum: int) -> None:
+        if self._terminated:
+            logger.warning(
+                "PosixChildProcess(%d).send_signal(%d): "
+                "The process has already terminated.",
+                self._pid,
+                signum,
+            )
+            return
         os.kill(self._pid, signum)
 
     async def wait(self) -> int:
@@ -80,6 +96,8 @@ class PosixChildProcess(AbstractChildProcess):
                 self._returncode = os.WEXITSTATUS(status)
             else:
                 self._returncode = status
+        finally:
+            self._terminated = True
         return self._returncode
 
 
@@ -90,8 +108,18 @@ class PidfdChildProcess(AbstractChildProcess):
         self._pidfd = pidfd
         self._returncode = None
         self._wait_event = asyncio.Event()
+        self._terminated = False
 
     def send_signal(self, signum: int) -> None:
+        if self._terminated:
+            logger.warning(
+                "PidfdChildProcess(%d, %d).send_signal(%d): "
+                "The process has already terminated.",
+                self._pid,
+                self._pidfd,
+                signum,
+            )
+            return
         signal.pidfd_send_signal(self._pidfd, signum)  # type: ignore
 
     def _do_wait(self):
@@ -125,6 +153,7 @@ class PidfdChildProcess(AbstractChildProcess):
         finally:
             loop.remove_reader(self._pidfd)
             os.close(self._pidfd)
+            self._terminated = True
             self._wait_event.set()
 
     async def wait(self) -> int:
@@ -138,10 +167,6 @@ class PidfdChildProcess(AbstractChildProcess):
 def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
     if init_func is not None:
         init_func()
-    signal.pthread_sigmask(
-        signal.SIG_UNBLOCK,
-        (signal.SIGCHLD,)
-    )
     # notify the parent that the child is ready to execute the requested function.
     os.write(init_pipe, b"\0")
     os.close(init_pipe)
@@ -154,14 +179,13 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
     init_event = asyncio.Event()
     loop.add_reader(init_pipe[0], init_event.set)
 
-    signal.pthread_sigmask(
-        signal.SIG_BLOCK,
-        (signal.SIGCHLD,),
-    )
     pid = os.fork()
     if pid == 0:
+        ret = 0
         try:
             ret = _child_main(None, init_pipe[1], child_func)
+        except KeyboardInterrupt:
+            ret = -signal.SIGINT
         finally:
             os._exit(ret)
 
@@ -197,10 +221,6 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
         )
     )
     stack_top = c_void_p(cast(stack, c_void_p).value + stack_size)  # type: ignore
-    signal.pthread_sigmask(
-        signal.SIG_BLOCK,
-        (signal.SIGCHLD,),
-    )
     ctypes.pythonapi.PyOS_BeforeFork()
     # The flag value is CLONE_PIDFD from linux/sched.h
     pid = _libc.clone(func, stack_top, 0x1000, 0, byref(fd))
@@ -217,7 +237,7 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     return pid, fd.value
 
 
-async def fork(child_func: Callable[[], int]) -> Optional[AbstractChildProcess]:
+async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
     if _has_pidfd:
         pid, pidfd = await _clone_pidfd(child_func)
         return PidfdChildProcess(pid, pidfd)
