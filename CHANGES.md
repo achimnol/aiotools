@@ -16,6 +16,18 @@ Changelog
 
 .. towncrier release notes start
 
+1.2.0 (2021-01-12)
+------------------
+
+### Breaking Changes
+* **server:** The `use_threading` argument for `start_server()` is completely deprecated. ([#23](https://github.com/achimnol/aiotools/issues/23))
+
+### Features
+* Now the primary target is Python 3.9, though we still support from Python 3.6 ([#22](https://github.com/achimnol/aiotools/issues/22))
+* **fork:** Add a new module `fork` to support PID file descriptors in Linux 5.4+ and a POSIX-compatible fallback to asynchornously fork the Python process without signal/PID races. ([#22](https://github.com/achimnol/aiotools/issues/22))
+* **server:** Completely rewrote the module using the new `fork` module with handling of various edge cases such as async failures of sibiling child processes ([#23](https://github.com/achimnol/aiotools/issues/23))
+
+
 1.1.1 (2020-12-16)
 ------------------
 
