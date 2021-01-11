@@ -15,6 +15,7 @@ Modules
 -------
 
 * [Async Context Manager](http://aiotools.readthedocs.io/en/latest/aiotools.context.html)
+* [Async Fork](http://aiotools.readthedocs.io/en/latest/aiotools.fork.html)
 * [Async Functools](http://aiotools.readthedocs.io/en/latest/aiotools.func.html)
 * [Async Itertools](http://aiotools.readthedocs.io/en/latest/aiotools.iter.html)
 * [Async Server](http://aiotools.readthedocs.io/en/latest/aiotools.server.html)
@@ -128,6 +129,9 @@ if __name__ == '__main__':
 
 It handles SIGINT/SIGTERM signals automatically to stop the server,
 as well as lifecycle management of event loops running on multiple processes.
+Internally it uses `aiotools.fork` module to get kernel support to resolve
+potential signal/PID related races via PID file descriptors on supported versions
+(Python 3.9+ and Linux kernel 5.4+).
 
 
 ### Async TaskGroup
