@@ -416,27 +416,11 @@ def start_server(
 
         extra_procs: An iterable of functions that consist of extra processes
                      whose lifecycles are synchronized with other workers.
-
-                     You should write the shutdown steps of them differently
-                     depending on the value of **use_threading** argument.
-
-                     If it is ``False`` (default), they will get
-                     a :class:`BaseException` depending on the received stop signal
-                     number, either :class:`KeyboardInterrupt` (for SIGINT),
-                     :class:`SystemExit` (for SIGTERM), or
-                     :class:`InterruptedBySignal` (otherwise).
-
-                     If it is ``True``, they should check their **intr_event**
-                     argument periodically because there is no way to install
-                     signal handlers in Python threads (only the main thread
-                     can install signal handlers).
+                     They should set up their own signal handlers.
 
                      It should accept the following three arguments:
 
-                     * **intr_event**: :class:`threading.Event` object that
-                       signals the interruption of the main thread (only
-                       available when **use_threading** is ``True``; otherwise
-                       it is set to ``None``)
+                     * **intr_event**: Always ``None``, kept for legacy
                      * **pidx**: same to **worker_actxmgr** argument
                      * **args**: same to **worker_actxmgr** argument
 
@@ -490,11 +474,16 @@ def start_server(
        **start_method** argument can be set to change the subprocess spawning
        implementation.
 
-    .. versionchanged:: 1.2.0
+    .. deprecated:: 1.2.0
 
-       Deprecated **start_method** and **use_threading**, in favor of our new
+       The **start_method** and **use_threading** arguments, in favor of our new
        :func:`afork()` function which provides better synchronization and pid-fd
        support.
+
+    .. versionchanged:: 1.2.0
+
+       The **extra_procs** will be always separate processes since **use_threading**
+       is deprecated and thus **intr_event** arguments are now always ``None``.
     """
 
     @_main_ctxmgr

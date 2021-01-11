@@ -2,6 +2,10 @@
 This module implements a simple :func:`os.fork()`-like interface,
 but in an asynchronous way with full support for PID file descriptors
 on Python 3.9 or higher and the Linux kernel 5.4 or higher.
+
+It internally synchronizes the beginning and readiness status of child processes
+so that the users may assume that the child process is completely interruptible after
+:func:`afork()` returns.
 """
 
 import asyncio
@@ -50,6 +54,9 @@ if hasattr(signal, 'pidfd_send_signal'):
 
 
 class AbstractChildProcess(metaclass=ABCMeta):
+    """
+    The abstract interface to control and monitor a forked child process.
+    """
 
     @abstractmethod
     def send_signal(self, signum: int) -> None:
@@ -61,6 +68,9 @@ class AbstractChildProcess(metaclass=ABCMeta):
 
 
 class PosixChildProcess(AbstractChildProcess):
+    """
+    A POSIX-compatible version of :class:`AbstractChildProcess`.
+    """
 
     def __init__(self, pid: int) -> None:
         self._pid = pid
@@ -102,6 +112,9 @@ class PosixChildProcess(AbstractChildProcess):
 
 
 class PidfdChildProcess(AbstractChildProcess):
+    """
+    A PID file descriptor-based version of :class:`AbstractChildProcess`.
+    """
 
     def __init__(self, pid: int, pidfd: int) -> None:
         self._pid = pid
@@ -238,6 +251,11 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
 
 
 async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
+    """
+    Fork the current process and execute the given function in the child.
+    The return value of the function will become the exit code of the child
+    process.
+    """
     if _has_pidfd:
         pid, pidfd = await _clone_pidfd(child_func)
         return PidfdChildProcess(pid, pidfd)

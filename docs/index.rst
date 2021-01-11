@@ -13,6 +13,7 @@ aiotools Documentation
 
    aiotools.context
    aiotools.defer
+   aiotools.fork
    aiotools.func
    aiotools.iter
    aiotools.server
