@@ -48,12 +48,12 @@ from typing import (
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
-from .fork import AbstractChildProcess, fork
+from .fork import AbstractChildProcess, afork
 
 if sys.version_info < (3, 8, 0):
     from typing_extensions import Literal
 else:
-    from typing import Literal  # type: ignore
+    from typing import Literal  # type: ignore  # noqa
 
 __all__ = (
     'main',
@@ -379,8 +379,6 @@ def start_server(
         signal.SIGTERM
     ),
     num_workers: int = 1,
-    use_threading: bool = False,
-    start_method: Literal['spawn', 'fork', 'forkserver'] = None,
     args: Iterable[Any] = tuple()
 ) -> None:
     """
@@ -447,23 +445,6 @@ def start_server(
 
         num_workers: The number of children workers.
 
-        use_threading: Use :mod:`threading` instead of :mod:`multiprocessing`.
-                       In this case, the GIL may become the performance
-                       bottleneck.  Set this ``True`` only when you know what
-                       you are going to do.  Note that this changes the way
-                       to write user-defined functions passed as **extra_procs**.
-
-        start_method: Change the start method when :mod:`multiprocessing` is used.
-                      The default is same to what :mod:`multiprocessing` uses.
-                      Only effective when **use_threading** is ``False``.
-
-                      Note that if there are other libraries that rely on
-                      :mod:`multiprocessing` called before aiotools, you need to
-                      invoke :func:`multiprocessing.set_start_method()` earlier than
-                      both aiotools and such libraries *without* setting this
-                      argument as it changes the global context of
-                      :mod:`multiprocessing`.
-
         args: The user-defined arguments passed to workers and extra
               processes.  If **main_ctxmgr** yields one or more values,
               they are *prepended* to this user arguments when passed to
@@ -508,6 +489,12 @@ def start_server(
 
        **start_method** argument can be set to change the subprocess spawning
        implementation.
+
+    .. versionchanged:: 1.2.0
+
+       Deprecated **start_method** and **use_threading**, in favor of our new
+       :func:`afork()` function which provides better synchronization and pid-fd
+       support.
     """
 
     @_main_ctxmgr
@@ -587,7 +574,7 @@ def start_server(
         # spawn managed async workers
         for i in range(num_workers):
             try:
-                p = main_loop.run_until_complete(fork(functools.partial(
+                p = main_loop.run_until_complete(afork(functools.partial(
                     _worker_main,
                     worker_actxmgr,
                     stop_signals,
@@ -609,7 +596,7 @@ def start_server(
         # spawn extra workers
         for i, f in enumerate(extra_procs):
             try:
-                p = main_loop.run_until_complete(fork(functools.partial(
+                p = main_loop.run_until_complete(afork(functools.partial(
                     _extra_main,
                     f,
                     stop_signals,

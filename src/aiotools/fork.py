@@ -29,7 +29,7 @@ __all__ = (
     'AbstractChildProcess',
     'PosixChildProcess',
     'PidfdChildProcess',
-    'fork',
+    'afork',
 )
 
 logger = logging.getLogger(__name__)
@@ -237,7 +237,7 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     return pid, fd.value
 
 
-async def fork(child_func: Callable[[], int]) -> AbstractChildProcess:
+async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
     if _has_pidfd:
         pid, pidfd = await _clone_pidfd(child_func)
         return PidfdChildProcess(pid, pidfd)
