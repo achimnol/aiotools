@@ -174,8 +174,11 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
 
     pid = os.fork()
     if pid == 0:
+        ret = 0
         try:
             ret = _child_main(None, init_pipe[1], child_func)
+        except KeyboardInterrupt:
+            ret = -signal.SIGINT
         finally:
             os._exit(ret)
 
