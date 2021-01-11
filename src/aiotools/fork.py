@@ -11,20 +11,20 @@ so that the users may assume that the child process is completely interruptible 
 import asyncio
 import ctypes
 import errno
-import functools
+# import functools
 import logging
 import os
-import resource
+# import resource
 import signal
 from abc import ABCMeta, abstractmethod
-from ctypes import (
-    CFUNCTYPE,
-    byref,
-    c_int,
-    c_char_p,
-    c_void_p,
-    cast,
-)
+# from ctypes import (
+#     CFUNCTYPE,
+#     byref,
+#     c_int,
+#     c_char_p,
+#     c_void_p,
+#     cast,
+# )
 from typing import Callable, Tuple
 
 from .compat import get_running_loop
@@ -133,6 +133,8 @@ class PidfdChildProcess(AbstractChildProcess):
         self._returncode = None
         self._wait_event = asyncio.Event()
         self._terminated = False
+        loop = get_running_loop()
+        loop.add_reader(self._pidfd, self._do_wait)
 
     def send_signal(self, signum: int) -> None:
         if self._terminated:
@@ -181,8 +183,6 @@ class PidfdChildProcess(AbstractChildProcess):
             self._wait_event.set()
 
     async def wait(self) -> int:
-        loop = get_running_loop()
-        loop.add_reader(self._pidfd, self._do_wait)
         await self._wait_event.wait()
         assert self._returncode is not None
         return self._returncode
@@ -222,43 +222,75 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
 
 
 async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
-    # reference: os_fork_impl() in the CPython source code
-    fd = c_int()
     loop = get_running_loop()
-
-    # prepare the stack memory
-    stack_size = resource.getrlimit(resource.RLIMIT_STACK)[0]
-    if stack_size <= 0:
-        stack_size = _default_stack_size
-    stack = c_char_p(b"\0" * stack_size)
-
     init_pipe = os.pipe()
     init_event = asyncio.Event()
     loop.add_reader(init_pipe[0], init_event.set)
 
-    func = CFUNCTYPE(c_int)(
-        functools.partial(
-            _child_main,
-            ctypes.pythonapi.PyOS_AfterFork_Child,
-            init_pipe[1],
-            child_func,
-        )
-    )
-    stack_top = c_void_p(cast(stack, c_void_p).value + stack_size)  # type: ignore
-    ctypes.pythonapi.PyOS_BeforeFork()
-    # The flag value is CLONE_PIDFD from linux/sched.h
-    pid = _libc.clone(func, stack_top, 0x1000, 0, byref(fd))
-    ctypes.pythonapi.PyOS_AfterFork_Parent()
+    pid = os.fork()
+    if pid == 0:
+        ret = 0
+        try:
+            ret = _child_main(None, init_pipe[1], child_func)
+        except KeyboardInterrupt:
+            ret = -signal.SIGINT
+        finally:
+            os._exit(ret)
+
+    # Get the pidfd.
+    fd = os.pidfd_open(pid, 0)  # type: ignore
 
     # Wait for the child's readiness notification
     await init_event.wait()
     loop.remove_reader(init_pipe[0])
     os.read(init_pipe[0], 1)
     os.close(init_pipe[0])
+    return pid, fd
 
-    if pid == -1:
-        raise OSError("failed to fork")
-    return pid, fd.value
+
+# The below commneted-out version guarantees the PID reusing issue is prevented
+# regardless of SIGCHLD handler configurations.
+# However, in complicated real-world applications, it seems to have some
+# hard-to-debug side effects when cleaning up... :(
+
+# async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
+#     # reference: os_fork_impl() in the CPython source code
+#     fd = c_int()
+#     loop = get_running_loop()
+#
+#     # prepare the stack memory
+#     stack_size = resource.getrlimit(resource.RLIMIT_STACK)[0]
+#     if stack_size <= 0:
+#         stack_size = _default_stack_size
+#     stack = c_char_p(b"\0" * stack_size)
+#
+#     init_pipe = os.pipe()
+#     init_event = asyncio.Event()
+#     loop.add_reader(init_pipe[0], init_event.set)
+#
+#     func = CFUNCTYPE(c_int)(
+#         functools.partial(
+#             _child_main,
+#             ctypes.pythonapi.PyOS_AfterFork_Child,
+#             init_pipe[1],
+#             child_func,
+#         )
+#     )
+#     stack_top = c_void_p(cast(stack, c_void_p).value + stack_size)  # type: ignore
+#     ctypes.pythonapi.PyOS_BeforeFork()
+#     # The flag value is CLONE_PIDFD from linux/sched.h
+#     pid = _libc.clone(func, stack_top, 0x1000, 0, byref(fd))
+#     ctypes.pythonapi.PyOS_AfterFork_Parent()
+#
+#     # Wait for the child's readiness notification
+#     await init_event.wait()
+#     loop.remove_reader(init_pipe[0])
+#     os.read(init_pipe[0], 1)
+#     os.close(init_pipe[0])
+#
+#     if pid == -1:
+#         raise OSError("failed to fork")
+#     return pid, fd.value
 
 
 async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
