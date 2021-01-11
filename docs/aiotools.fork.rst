@@ -6,6 +6,7 @@ Async Fork
 .. currentmodule:: aiotools.fork
 
 .. autoclass:: aiotools.fork.AbstractChildProcess
+   :members:
 
 .. autofunction:: aiotools.fork.PosixChildProcess
 
