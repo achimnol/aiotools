@@ -304,14 +304,12 @@ def _worker_main(
             async with ctx:
                 err_ctx = 'body'
                 try:
-                    print('child: forever')
                     await forever_future
                 except asyncio.CancelledError:
                     pass
                 finally:
                     err_ctx = 'exit'
-        except Exception as e:
-            print('child: exception', err_ctx, repr(e))
+        except Exception:
             if err_ctx != 'body':
                 err_ctx_str = 'initialization' if err_ctx == 'enter' else 'shutdown'
                 log.exception(f'Worker {proc_idx}: '
