@@ -266,6 +266,12 @@ async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
     Fork the current process and execute the given function in the child.
     The return value of the function will become the exit code of the child
     process.
+
+    Args:
+        child_func: A function that represents the main function of the child and
+                    returns an integer as its exit code.
+                    Note that the function must set up a new event loop if it
+                    wants to run asyncio codes.
     """
     if _has_pidfd:
         pid, pidfd = await _clone_pidfd(child_func)
