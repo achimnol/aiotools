@@ -16,6 +16,13 @@ Changelog
 
 .. towncrier release notes start
 
+1.2.1 (2021-01-12)
+------------------
+
+### Fixes
+* Avoid side effects of custom `clone()` function and resorts back to the combinatino of `os.fork()` and `os.pidfd_open()` for now ([#25](https://github.com/achimnol/aiotools/issues/25))
+
+
 1.2.0 (2021-01-12)
 ------------------
 
