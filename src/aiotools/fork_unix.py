@@ -19,7 +19,7 @@ from typing import Callable, Tuple
 # )
 
 from .compat import get_running_loop
-from .fork_base import AbstractChildProcess, _child_main
+from .fork_base import AbstractChildProcess
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +146,15 @@ class PidfdChildProcess(AbstractChildProcess):
         await self._wait_event.wait()
         assert self._returncode is not None
         return self._returncode
+
+
+def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
+    if init_func is not None:
+        init_func()
+    # notify the parent that the child is ready to execute the requested function.
+    os.write(init_pipe, b"\0")
+    os.close(init_pipe)
+    return child_func()
 
 
 async def _fork_posix(child_func: Callable[[], int]) -> int:

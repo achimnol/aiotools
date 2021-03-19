@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Callable, TYPE_CHECKING
+from typing import Callable
 
 from .fork_base import AbstractChildProcess
 
@@ -20,6 +20,8 @@ __all__ = [
     'AbstractChildProcess',
     'afork',
 ]
+
+logger = logging.getLogger(__name__)
 
 if sys.platform.startswith("win"):
     from .fork_windows import (
@@ -29,6 +31,22 @@ if sys.platform.startswith("win"):
     __all__.extend([
         'WindowsChildProcess',
     ])
+
+    async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
+        """
+        Fork the current process and execute the given function in the child.
+        The return value of the function will become the exit code of the child
+        process.
+
+        Args:
+            child_func: A function that represents the main function of the child and
+                        returns an integer as its exit code.
+                        Note that the function must set up a new event loop if it
+                        wants to run asyncio codes.
+        """
+        proc = await _spawn_windows(child_func)
+        return WindowsChildProcess(proc)
+
 else:
     from .fork_unix import (
         PosixChildProcess,
@@ -42,25 +60,18 @@ else:
         'PidfdChildProcess',
     ])
 
-logger = logging.getLogger(__name__)
+    async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
+        """
+        Fork the current process and execute the given function in the child.
+        The return value of the function will become the exit code of the child
+        process.
 
-
-async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
-    """
-    Fork the current process and execute the given function in the child.
-    The return value of the function will become the exit code of the child
-    process.
-
-    Args:
-        child_func: A function that represents the main function of the child and
-                    returns an integer as its exit code.
-                    Note that the function must set up a new event loop if it
-                    wants to run asyncio codes.
-    """
-    if sys.platform.startswith("win"):
-        proc = await _spawn_windows(child_func)
-        return WindowsChildProcess(proc)
-    else:
+        Args:
+            child_func: A function that represents the main function of the child and
+                        returns an integer as its exit code.
+                        Note that the function must set up a new event loop if it
+                        wants to run asyncio codes.
+        """
         if _has_pidfd:
             pid, pidfd = await _clone_pidfd(child_func)
             return PidfdChildProcess(pid, pidfd)
