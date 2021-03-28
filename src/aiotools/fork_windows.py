@@ -140,7 +140,7 @@ def pack_init_data() -> bytes:
 
 def populate_init_data(data: bytes) -> None:
     """
-    Unpickels the initialization parameters and configure
+    Unpickles the initialization parameters and configure
     the current process using them.
 
     Reference: CPython's multiprocessing.spwan.prepare()
@@ -292,7 +292,7 @@ async def _spawn_windows(child_func) -> WindowsChildProcess:
     await asyncio.sleep(0)
 
     proc = await asyncio.create_subprocess_exec(
-        sys.executable,
+        _python_exe,
         '-c', 'from aiotools.fork_windows import _spawn_main; _spawn_main()',
         pipe_name, '--aiotools-fork',
     )
