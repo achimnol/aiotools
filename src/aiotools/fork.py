@@ -168,9 +168,11 @@ class PidfdChildProcess(AbstractChildProcess):
                 self._pid)
         else:
             if status_info.si_code == os.CLD_KILLED:
-                self._returncode = -status_info.si_status
+                self._returncode = -status_info.si_status  # signal number
             elif status_info.si_code == os.CLD_EXITED:
                 self._returncode = status_info.si_status
+            elif status_info.si_code == os.CLD_DUMPED:
+                self._returncode = -status_info.si_status  # signal number
             else:
                 logger.warning(
                     "unexpected si_code %d and si_status %d for child process %d",
