@@ -59,6 +59,21 @@ async def _do_test_fork_signal():
     assert ret == 101
 
 
+async def _do_test_fork_segfault():
+
+    def child():
+        import ctypes
+        ctypes.string_at(0)  # segfault!
+
+    os.setpgrp()
+    proc = await afork(child)
+    assert proc._pid > 0
+    if isinstance(proc, PidfdChildProcess):
+        assert proc._pidfd > 0
+    ret = await proc.wait()
+    assert ret == -11
+
+
 async def _do_test_fork_many():
 
     def child():
@@ -112,6 +127,15 @@ async def test_fork_already_terminated():
 @pytest.mark.asyncio
 async def test_fork_signal():
     await _do_test_fork_signal()
+
+
+@pytest.mark.skipif(
+    not _has_pidfd,
+    reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
+)
+@pytest.mark.asyncio
+async def test_fork_segfault():
+    await _do_test_fork_segfault()
 
 
 @pytest.mark.skipif(
