@@ -71,7 +71,7 @@ async def _do_test_fork_segfault():
     if isinstance(proc, PidfdChildProcess):
         assert proc._pidfd > 0
     ret = await proc.wait()
-    assert ret == -11
+    assert ret == -11  # SIGSEGV
 
 
 async def _do_test_fork_many():
@@ -169,6 +169,14 @@ async def test_fork_signal_fallback():
         fork_mod, '_has_pidfd', False,
     ):
         await _do_test_fork_signal()
+
+
+@pytest.mark.asyncio
+async def test_fork_segfault_fallback():
+    with mock.patch.object(
+        fork_mod, '_has_pidfd', False,
+    ):
+        await _do_test_fork_segfault()
 
 
 @pytest.mark.asyncio
