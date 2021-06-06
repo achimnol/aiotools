@@ -167,6 +167,7 @@ class PidfdChildProcess(AbstractChildProcess):
                 " will report returncode 255",
                 self._pid)
         else:
+            print(status_info)
             if status_info.si_code == os.CLD_KILLED:
                 self._returncode = -status_info.si_status  # signal number
             elif status_info.si_code == os.CLD_EXITED:
