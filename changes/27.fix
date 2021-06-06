@@ -1,1 +1,0 @@
-**fork**: Handle children's segfault (core-dump with signals) explicitly in `PidfdChildProcess`

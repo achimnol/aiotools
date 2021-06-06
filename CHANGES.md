@@ -16,6 +16,13 @@ Changelog
 
 .. towncrier release notes start
 
+1.2.2 (2021-06-07)
+------------------
+
+### Fixes
+* **fork:** Handle children's segfault (core-dump with signals) explicitly in `PidfdChildProcess` ([#27](https://github.com/achimnol/aiotools/issues/27))
+
+
 1.2.1 (2021-01-12)
 ------------------
 
