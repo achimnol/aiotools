@@ -128,10 +128,6 @@ html_static_path = ['_static']
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
 #html_sidebars = {}
 
-html_context = {
-    'css_files': ['_static/custom.css'],
-}
-
 
 # -- Options for HTMLHelp output ------------------------------------------
 
