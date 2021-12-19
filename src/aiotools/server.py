@@ -50,10 +50,10 @@ from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
 from .fork import AbstractChildProcess, afork
 
-if sys.version_info < (3, 8, 0):
-    from typing_extensions import Literal
-else:
-    from typing import Literal  # type: ignore  # noqa
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal  # type: ignore  # noqa
 
 __all__ = (
     'main',

@@ -106,14 +106,10 @@ async def test_actxmgr_exception_in_context_body():
         yield msg
         await asyncio.sleep(0)
 
-    try:
+    with pytest.raises(ZeroDivisionError):
         async with simple_ctx('hello') as msg:
             assert msg == 'hello'
             raise ZeroDivisionError
-    except ZeroDivisionError:
-        pass
-    else:
-        pytest.fail()
 
     try:
         exc = RuntimeError('oops')
@@ -501,6 +497,8 @@ async def test_actxmgr_no_yield(event_loop):
             assert "must be an async-gen" in exc.args[0]
         except AttributeError:  # in Python 3.7
             pass
+        except TypeError as exc:  # in Python 3.10
+            assert "not an async iterator" in exc.args[0]
         else:
             pytest.fail()
 
@@ -588,9 +586,9 @@ async def test_actxgroup(event_loop):
     assert exit_count == 3
     assert len(ctxgrp._cm_yields) == 0
     returns = ctxgrp.exit_states()
-    assert returns[0] is None
-    assert returns[1] is None
-    assert returns[2] is None
+    assert not returns[0]
+    assert not returns[1]
+    assert not returns[2]
 
     # Test generator/iterator initialization
     exit_count = 0
@@ -605,9 +603,9 @@ async def test_actxgroup(event_loop):
     assert exit_count == 3
     assert len(ctxgrp._cm_yields) == 0
     returns = ctxgrp.exit_states()
-    assert returns[0] is None
-    assert returns[1] is None
-    assert returns[2] is None
+    assert not returns[0]
+    assert not returns[1]
+    assert not returns[2]
 
 
 @pytest.mark.asyncio
@@ -680,8 +678,8 @@ async def test_actxgroup_exception_from_body(event_loop):
         assert isinstance(e, ZeroDivisionError)
 
     exits = ctxgrp.exit_states()
-    assert exits[0] is None  # __aexit__ are called successfully
-    assert exits[1] is None
+    assert not exits[0]  # __aexit__ are called successfully
+    assert not exits[1]
     assert exit_count == 0   # but they errored internally
 
     exit_count = 0
@@ -708,8 +706,8 @@ async def test_actxgroup_exception_from_body(event_loop):
         assert isinstance(e, ZeroDivisionError)
 
     exits = ctxgrp.exit_states()
-    assert exits[0] is None  # __aexit__ are called successfully
-    assert exits[1] is None
+    assert not exits[0]  # __aexit__ are called successfully
+    assert not exits[1]
     assert exit_count == 2   # they also suceeeded
 
 

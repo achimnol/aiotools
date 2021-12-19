@@ -54,14 +54,17 @@ async def _do_test_fork_signal():
     assert proc._pid > 0
     if isinstance(proc, PidfdChildProcess):
         assert proc._pidfd > 0
+    await asyncio.sleep(0.1)
     proc.send_signal(signal.SIGINT)
     ret = await proc.wait()
+    # FIXME: Sometimes it returns 254
     assert ret == 101
 
 
 async def _do_test_fork_segfault():
 
     def child():
+        time.sleep(0.1)
         import ctypes
         ctypes.string_at(0)  # segfault!
 

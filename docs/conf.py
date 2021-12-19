@@ -3,7 +3,6 @@
 #
 import os
 from pathlib import Path
-import sys
 
 import aiotools
 
@@ -44,9 +43,10 @@ root_dir = Path(__file__).resolve().parents[1]
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    'sphinx_autodoc_typehints',
+    # 'sphinx_autodoc_typehints',
     'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
+    'sphinx_rtd_theme',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -99,19 +99,14 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-#html_theme = 'alabaster'
-import guzzle_sphinx_theme
-html_theme_path = guzzle_sphinx_theme.html_theme_path()
-html_theme = 'guzzle_sphinx_theme'
-extensions.append('guzzle_sphinx_theme')
-#if not on_rtd:  # only import and set the theme if we're building docs locally
-#    try:
-#        import sphinx_rtd_theme
-#    except ImportError:
-#        print('Please do pip install sphinx-rtd-theme first.', file=sys.stderr)
-#        sys.exit(1)
-#    html_theme = 'sphinx_rtd_theme'
-#    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+# import guzzle_sphinx_theme
+# html_theme_path = guzzle_sphinx_theme.html_theme_path()
+# extensions.append('guzzle_sphinx_theme')
+html_theme = 'sphinx_rtd_theme'
+if not on_rtd:
+    import sphinx_rtd_theme
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -132,10 +127,6 @@ html_static_path = ['_static']
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
 #html_sidebars = {}
-
-html_context = {
-    'css_files': ['_static/custom.css'],
-}
 
 
 # -- Options for HTMLHelp output ------------------------------------------
