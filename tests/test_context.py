@@ -501,6 +501,8 @@ async def test_actxmgr_no_yield(event_loop):
             assert "must be an async-gen" in exc.args[0]
         except AttributeError:  # in Python 3.7
             pass
+        except TypeError as exc:  # in Python 3.10
+            assert "not an async iterator" in exc.args[0]
         else:
             pytest.fail()
 
