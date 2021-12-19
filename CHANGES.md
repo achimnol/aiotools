@@ -16,6 +16,16 @@ Changelog
 
 .. towncrier release notes start
 
+1.3.0 (2021-12-19)
+------------------
+
+### Fixes
+* Add support for Python 3.10. ([#28](https://github.com/achimnol/aiotools/issues/28))
+
+### Documentation Changes
+* Fix documentation builds on Python 3.10 and Sphinx 4.x, by removing the 3rd-party autodoc-typehints extension and custom stylesheet overrides. ([#28](https://github.com/achimnol/aiotools/issues/28))
+
+
 1.2.2 (2021-06-07)
 ------------------
 
