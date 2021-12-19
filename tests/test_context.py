@@ -106,14 +106,10 @@ async def test_actxmgr_exception_in_context_body():
         yield msg
         await asyncio.sleep(0)
 
-    try:
+    with pytest.raises(ZeroDivisionError):
         async with simple_ctx('hello') as msg:
             assert msg == 'hello'
             raise ZeroDivisionError
-    except ZeroDivisionError:
-        pass
-    else:
-        pytest.fail()
 
     try:
         exc = RuntimeError('oops')
