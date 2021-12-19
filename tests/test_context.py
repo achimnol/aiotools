@@ -590,9 +590,9 @@ async def test_actxgroup(event_loop):
     assert exit_count == 3
     assert len(ctxgrp._cm_yields) == 0
     returns = ctxgrp.exit_states()
-    assert returns[0] is None
-    assert returns[1] is None
-    assert returns[2] is None
+    assert not returns[0]
+    assert not returns[1]
+    assert not returns[2]
 
     # Test generator/iterator initialization
     exit_count = 0
@@ -607,9 +607,9 @@ async def test_actxgroup(event_loop):
     assert exit_count == 3
     assert len(ctxgrp._cm_yields) == 0
     returns = ctxgrp.exit_states()
-    assert returns[0] is None
-    assert returns[1] is None
-    assert returns[2] is None
+    assert not returns[0]
+    assert not returns[1]
+    assert not returns[2]
 
 
 @pytest.mark.asyncio
@@ -682,8 +682,8 @@ async def test_actxgroup_exception_from_body(event_loop):
         assert isinstance(e, ZeroDivisionError)
 
     exits = ctxgrp.exit_states()
-    assert exits[0] is None  # __aexit__ are called successfully
-    assert exits[1] is None
+    assert not exits[0]  # __aexit__ are called successfully
+    assert not exits[1]
     assert exit_count == 0   # but they errored internally
 
     exit_count = 0
@@ -710,8 +710,8 @@ async def test_actxgroup_exception_from_body(event_loop):
         assert isinstance(e, ZeroDivisionError)
 
     exits = ctxgrp.exit_states()
-    assert exits[0] is None  # __aexit__ are called successfully
-    assert exits[1] is None
+    assert not exits[0]  # __aexit__ are called successfully
+    assert not exits[1]
     assert exit_count == 2   # they also suceeeded
 
 
