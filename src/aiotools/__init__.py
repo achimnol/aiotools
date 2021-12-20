@@ -7,6 +7,7 @@ from . import (
     iter as _iter,
     server,
     taskgroup,
+    ptaskgroup,
     timer,
 )
 
@@ -25,6 +26,7 @@ __all__ = (
     *_iter.__all__,
     *server.__all__,
     *taskgroup.__all__,
+    *ptaskgroup.__all__,
     *timer.__all__,
     '__version__',
 )
@@ -35,5 +37,6 @@ from .fork import *        # noqa
 from .func import *        # noqa
 from .iter import *        # noqa
 from .taskgroup import *   # noqa
+from .ptaskgroup import *   # noqa
 from .timer import *       # noqa
 from .server import *      # noqa
