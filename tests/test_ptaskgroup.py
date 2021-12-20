@@ -1,5 +1,6 @@
 import aiotools
 import asyncio
+import sys
 
 import pytest
 
@@ -21,7 +22,8 @@ async def test_ptaskgroup_all_done():
             assert tg.name.startswith("PTaskGroup-")
             for idx in range(10):
                 t = tg.create_task(subtask(), name=f"Task-{idx}")
-                assert t.get_name() == f"Task-{idx}"
+                if sys.version_info >= (3, 8):
+                    assert t.get_name() == f"Task-{idx}"
                 del t  # to prevent ref-leak after loop
             assert len(tg._tasks) == 10
             # all done

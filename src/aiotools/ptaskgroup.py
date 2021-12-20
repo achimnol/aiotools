@@ -1,6 +1,7 @@
 import asyncio
 import itertools
 import logging
+import sys
 import traceback
 from types import TracebackType
 from typing import (
@@ -26,6 +27,7 @@ TAny = TypeVar('TAny')
 
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
+_has_task_name = (sys.version_info >= (3, 8, 0))
 
 
 class PersistentTaskGroupExceptionHandler(Protocol):
@@ -86,7 +88,11 @@ class PersistentTaskGroup:
             #       with nested sub-tasks and sub-taskgroups.
             return None
 
-        t = asyncio.create_task(wrapped_task(), name=name)
+        loop = compat.get_running_loop()
+        if _has_task_name:
+            t = loop.create_task(wrapped_task(), name=name)
+        else:
+            t = loop.create_task(wrapped_task())
         self._tasks.add(t)
         return t
 
