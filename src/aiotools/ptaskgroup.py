@@ -15,7 +15,7 @@ from typing import (
 try:
     from typing import Protocol
 except ImportError:
-    from typing_extension import Protocol  # type: ignore  # noqa
+    from typing_extensions import Protocol  # type: ignore  # noqa
 import weakref
 
 from . import compat
