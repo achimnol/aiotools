@@ -1,4 +1,5 @@
 import asyncio
+import enum
 import itertools
 import logging
 import sys
@@ -10,6 +11,7 @@ from typing import (
     Optional,
     Type,
     TypeVar,
+    Union,
 )
 try:
     from typing import Protocol
@@ -28,6 +30,13 @@ TAny = TypeVar('TAny')
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
 _has_task_name = (sys.version_info >= (3, 8, 0))
+
+
+class UndefinedResult(enum.Enum):
+    UNDEFINED = 0
+
+
+UNDEFINED = UndefinedResult.UNDEFINED
 
 
 class ExceptionHandler(Protocol):
@@ -66,10 +75,10 @@ class PersistentTaskGroup:
         coro: Coroutine[Any, Any, TAny],
         *,
         name: str = None,
-    ) -> "asyncio.Task[Optional[TAny]]":
+    ) -> "asyncio.Task[Union[TAny, UndefinedResult]]":
 
         # TODO: functools.wraps equivalent for coro?
-        async def wrapped_task() -> Optional[TAny]:
+        async def wrapped_task() -> Union[TAny, UndefinedResult]:
             current_task = compat.current_task()
             assert current_task is not None
             _log.debug("%r is spawned in %r.", current_task, self)
@@ -86,7 +95,7 @@ class PersistentTaskGroup:
             # terminate silently with no explicit result.
             # TODO: Add support for ExceptionGroup in Python 3.11, for the cases
             #       with nested sub-tasks and sub-taskgroups.
-            return None
+            return UNDEFINED
 
         loop = compat.get_running_loop()
         if _has_task_name:
@@ -105,6 +114,9 @@ class PersistentTaskGroup:
             if not t.done():
                 t.cancel()
                 cancelled_tasks.add(t)
+        # Even though we handle CancelledError in wrapped_task,
+        # there are still possibilities to raise CancelledError
+        # when the tasks are not scheduled yet.
         await asyncio.gather(*cancelled_tasks, return_exceptions=True)
 
     async def __aenter__(self) -> "PersistentTaskGroup":
