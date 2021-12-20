@@ -59,7 +59,7 @@ class PersistentTaskGroup:
     def name(self) -> str:
         return self._name
 
-    async def create_task(
+    def create_task(
         self,
         coro: Coroutine[Any, Any, TAny],
         *,
@@ -75,11 +75,11 @@ class PersistentTaskGroup:
                 return await coro
             except asyncio.CancelledError:
                 _log.debug("%r in %r has been cancelled.", current_task, self)
+            except Exception as exc:
+                await self._exc_handler(exc)
             except BaseException:
                 # TODO: implement
                 raise
-            except Exception as exc:
-                await self._exc_handler(exc)
             # As our fallback handler handled the exception, the task should
             # terminate silently with no explicit result.
             # TODO: Add support for ExceptionGroup in Python 3.11, for the cases
@@ -99,10 +99,10 @@ class PersistentTaskGroup:
             if not t.done():
                 t.cancel()
                 cancelled_tasks.add(t)
-        await asyncio.gather(*cancelled_tasks)
+        await asyncio.gather(*cancelled_tasks, return_exceptions=True)
 
-    async def __aenter__(self) -> None:
-        pass
+    async def __aenter__(self) -> "PersistentTaskGroup":
+        return self
 
     async def __aexit__(
         self,
