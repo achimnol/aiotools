@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import itertools
 import logging
@@ -7,10 +9,13 @@ from typing import (
     Any,
     Coroutine,
     Optional,
-    Protocol,
     Type,
     TypeVar,
 )
+try:
+    from typing import Protocol
+except ImportError:
+    from typing_extension import Protocol  # type: ignore  # noqa
 import weakref
 
 from . import compat
