@@ -30,7 +30,7 @@ _log = logging.getLogger(__name__)
 _has_task_name = (sys.version_info >= (3, 8, 0))
 
 
-class PersistentTaskGroupExceptionHandler(Protocol):
+class ExceptionHandler(Protocol):
     async def __call__(self, exc: Exception) -> None:
         ...
 
@@ -41,14 +41,14 @@ async def _default_exc_handler(exc: Exception) -> None:
 
 class PersistentTaskGroup:
 
-    _exc_handler: PersistentTaskGroupExceptionHandler
+    _exc_handler: ExceptionHandler
     _tasks: "weakref.WeakSet[asyncio.Task[Any]]"
 
     def __init__(
         self,
         *,
         name: str = None,
-        exception_handler: PersistentTaskGroupExceptionHandler = None,
+        exception_handler: ExceptionHandler = None,
     ) -> None:
         self._name = name or f"PTaskGroup-{next(_ptaskgroup_idx)}"
         self._tasks = weakref.WeakSet()
