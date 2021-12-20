@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import itertools
 import logging
@@ -42,7 +40,7 @@ async def _default_exc_handler(exc: Exception) -> None:
 class PersistentTaskGroup:
 
     _exc_handler: PersistentTaskGroupExceptionHandler
-    _tasks: weakref.WeakSet[asyncio.Task[Any]]
+    _tasks: "weakref.WeakSet[asyncio.Task[Any]]"
 
     def __init__(
         self,
@@ -66,7 +64,7 @@ class PersistentTaskGroup:
         coro: Coroutine[Any, Any, TAny],
         *,
         name: str = None,
-    ) -> asyncio.Task[Optional[TAny]]:
+    ) -> "asyncio.Task[Optional[TAny]]":
 
         # TODO: functools.wraps equivalent for coro?
         async def wrapped_task() -> Optional[TAny]:
