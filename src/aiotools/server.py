@@ -27,6 +27,11 @@ import asyncio
 from contextlib import (
     AbstractContextManager, ContextDecorator,
 )
+try:
+    import contextvars
+    _cv_available = True
+except ImportError:
+    _cv_available = False
 import functools
 import inspect
 import logging
@@ -58,12 +63,17 @@ except ImportError:
 __all__ = (
     'main',
     'start_server',
+    'process_index',
     'AsyncServerContextManager',
     'ServerMainContextManager',
     'InterruptedBySignal',
 )
 
 log = logging.getLogger(__name__)
+
+if _cv_available:
+    process_index: 'contextvars.ContextVar[int]'
+    process_index = contextvars.ContextVar('process_index')
 
 
 class InterruptedBySignal(BaseException):
@@ -279,6 +289,8 @@ def _worker_main(
     setup_child_watcher()
     interrupted = asyncio.Event()
     ctx = worker_actxmgr(loop, proc_idx, args)
+    if _cv_available:
+        process_index.set(proc_idx)
     forever_future = loop.create_future()
 
     def handle_stop_signal(signum):
@@ -332,8 +344,15 @@ def _worker_main(
         return 0
 
 
-def _extra_main(extra_func, stop_signals, proc_idx, args) -> int:
+def _extra_main(
+    extra_func,
+    stop_signals: Set[signal.Signals],
+    proc_idx: int,
+    args: Sequence[Any],
+) -> int:
     interrupted = threading.Event()
+    if _cv_available:
+        process_index.set(proc_idx)
 
     # Since signals only work for the main thread in Python,
     # extra processes in use_threading=True mode should check
