@@ -74,6 +74,9 @@ log = logging.getLogger(__name__)
 if _cv_available:
     process_index: 'contextvars.ContextVar[int]'
     process_index = contextvars.ContextVar('process_index')
+else:
+    # Unsupported in Python 3.6
+    process_index = None  # type: ignore  # noqa
 
 
 class InterruptedBySignal(BaseException):
