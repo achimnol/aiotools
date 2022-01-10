@@ -16,6 +16,14 @@ Changelog
 
 .. towncrier release notes start
 
+1.4.0 (2022-01-10)
+------------------
+
+### Features
+* **ptaskgroup**: Implement `PersistentTaskGroup` ([#30](https://github.com/achimnol/aiotools/issues/30))
+* **server**: Expose `process_index` context variable for worker processes ([#31](https://github.com/achimnol/aiotools/issues/31))
+
+
 1.3.0 (2021-12-19)
 ------------------
 
