@@ -115,5 +115,35 @@ async def test_ptaskgroup_exc_handler():
 
         assert count == 0
         assert error_count == 10
-        # after handlign error, all refs should be gone
+        # after handling error, all refs should be gone
+        assert len(tg._tasks) == 0
+
+
+@pytest.mark.asyncio
+async def test_ptaskgroup_cancel_with_await():
+
+    count = 0
+
+    vclock = aiotools.VirtualClock()
+    with vclock.patch_loop():
+
+        async def subtask():
+            nonlocal count
+            try:
+                await asyncio.sleep(0.1)
+                count += 1   # should not be executed
+            except asyncio.CancelledError:
+                await asyncio.sleep(0.1)
+                count += 10  # should be executed
+
+        async with aiotools.PersistentTaskGroup() as tg:
+            for _ in range(10):
+                tg.create_task(subtask())
+            assert len(tg._tasks) == 10
+            # close it immediately after starting subtasks
+            await asyncio.sleep(0)
+
+        # ensure that awaits in all cancellation handling blocks have been executed
+        assert count == 100
+        # after handling error, all refs should be gone
         assert len(tg._tasks) == 0
