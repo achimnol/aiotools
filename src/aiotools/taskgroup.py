@@ -220,9 +220,12 @@ class TaskGroup:
         # we need a flag to say if a task was cancelled or not.
         # We also need to be able to flip that flag.
 
-        def _task_cancel(task, orig_cancel):
+        def _task_cancel(task, orig_cancel, msg=None):
             task.__cancel_requested__ = True
-            return orig_cancel()
+            if msg is not None:
+                return orig_cancel(msg)
+            else:
+                return orig_cancel()
 
         if hasattr(task, '__cancel_requested__'):
             return
