@@ -146,4 +146,5 @@ async def test_ptaskgroup_cancel_with_await():
         # ensure that awaits in all cancellation handling blocks have been executed
         assert count == 100
         # after handling error, all refs should be gone
+        await asyncio.sleep(0)
         assert len(tg._tasks) == 0
