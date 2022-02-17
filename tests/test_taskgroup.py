@@ -173,7 +173,7 @@ async def test_cancel_parent_task(cancel_msg):
 
     async def parent():
         async with TaskGroup() as tg:
-            t1 = tg.create_task(do_job())
+            tg.create_task(do_job())
 
     with VirtualClock().patch_loop():
         parent_task = asyncio.create_task(parent())
