@@ -176,7 +176,7 @@ async def test_cancel_parent_task(cancel_msg):
             tg.create_task(do_job())
 
     with VirtualClock().patch_loop():
-        parent_task = asyncio.create_task(parent())
+        parent_task = asyncio.ensure_future(parent())
         await asyncio.sleep(0.1)
         if cancel_msg == "MISSING":
             parent_task.cancel()
