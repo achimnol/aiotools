@@ -187,6 +187,21 @@ async def test_cancel_parent_task(cancel_msg):
 
 
 @pytest.mark.asyncio
+async def test_subtask_error():
+
+    async def do_error():
+        await asyncio.sleep(0.5)
+        raise Exception("bad stuff")
+
+    with VirtualClock().patch_loop():
+        with pytest.raises(TaskGroupError):
+            async with TaskGroup() as tg:
+                t1 = tg.create_task(do_error())
+                await asyncio.sleep(1)
+        assert t1.done()
+
+
+@pytest.mark.asyncio
 async def test_taskgroup_error():
     with VirtualClock().patch_loop():
 
