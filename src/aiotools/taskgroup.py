@@ -114,11 +114,6 @@ class TaskGroup:
         self._exiting = True
         propagate_cancelation = False
 
-        if (exc is not None and
-                self._is_base_error(exc) and
-                self._base_error is None):
-            self._base_error = exc
-
         if et is asyncio.CancelledError:
             if self._parent_cancel_requested:
                 # Only if we did request task to cancel ourselves
@@ -126,6 +121,11 @@ class TaskGroup:
                 self._parent_task.__cancel_requested__ = False
             else:
                 propagate_cancelation = True
+        else:
+            if (exc is not None and
+                    self._is_base_error(exc) and
+                    self._base_error is None):
+                self._base_error = exc
 
         if et is not None and not self._aborting:
             # Our parent task is being cancelled:
