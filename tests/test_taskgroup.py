@@ -155,6 +155,38 @@ async def test_subtask_cancellation():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "cancel_msg",
+    (
+        ["MISSING", None, "msg"]
+        if sys.version_info >= (3, 9, 0)
+        else ["MISSING"]
+    ),
+)
+async def test_cancel_parent_task(cancel_msg):
+
+    results = []
+
+    async def do_job():
+        await asyncio.sleep(1)
+        results.append('a')
+
+    async def parent():
+        async with TaskGroup() as tg:
+            tg.create_task(do_job())
+
+    with VirtualClock().patch_loop():
+        parent_task = asyncio.ensure_future(parent())
+        await asyncio.sleep(0.1)
+        if cancel_msg == "MISSING":
+            parent_task.cancel()
+        else:
+            parent_task.cancel(cancel_msg)
+        await asyncio.gather(parent_task, return_exceptions=True)
+        assert results == []
+
+
+@pytest.mark.asyncio
 async def test_taskgroup_error():
     with VirtualClock().patch_loop():
 
