@@ -101,6 +101,11 @@ class PersistentTaskGroup(Generic[TResult]):
         *,
         name: str = None,
     ) -> "asyncio.Task[TResult]":
+        if not self._entered:
+            # When used as object attribute, auto-enter.
+            self._entered = True
+        if self._exiting and self._unfinished_tasks == 0:
+            raise RuntimeError(f"{self!r} has already finished")
         loop = compat.get_running_loop()
         if _has_task_name:
             t = loop.create_task(coro, name=name)

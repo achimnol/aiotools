@@ -26,12 +26,16 @@ async def test_ptaskgroup_all_done():
                     assert t.get_name() == f"Task-{idx}"
                 del t  # prevent ref-leak after loop
             assert len(tg._tasks) == 10
+            assert tg._unfinished_tasks == 10
             # all done
             await asyncio.sleep(0.2)
             assert count == 10
             assert len(tg._tasks) == 0
+            assert tg._unfinished_tasks == 0
 
         assert count == 10
+        with pytest.raises(RuntimeError):
+            tg.create_task(subtask())
 
 
 @pytest.mark.asyncio
@@ -48,9 +52,11 @@ async def test_ptaskgroup_as_obj_attr():
 
         def __init__(self):
             self.tg = aiotools.PersistentTaskGroup()
+            assert not self.tg._entered
 
         async def work(self):
             self.tg.create_task(subtask())
+            assert self.tg._entered
 
         async def aclose(self):
             await self.tg.shutdown()
@@ -62,6 +68,7 @@ async def test_ptaskgroup_as_obj_attr():
         for idx in range(10):
             await obj.work()
         assert len(obj.tg._tasks) == 10
+        assert obj.tg._unfinished_tasks == 10
 
         # shutdown after all done
         await asyncio.sleep(0.2)
@@ -69,24 +76,28 @@ async def test_ptaskgroup_as_obj_attr():
 
         assert count == 10
         assert len(obj.tg._tasks) == 0
+        assert obj.tg._unfinished_tasks == 0
 
         count = 0
         obj = LongLivedObject()
         for idx in range(10):
             await obj.work()
         assert len(obj.tg._tasks) == 10
+        assert obj.tg._unfinished_tasks == 10
 
         # shutdown immediately
         await obj.aclose()
 
         assert count == 0
         assert len(obj.tg._tasks) == 0
+        assert obj.tg._unfinished_tasks == 0
 
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_shutdown_from_different_task():
 
     count = 0
+    exec_after_termination = False
 
     async def subtask(idx):
         nonlocal count
@@ -96,24 +107,40 @@ async def test_ptaskgroup_shutdown_from_different_task():
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
 
+        outer_myself = asyncio.current_task()
         tg = aiotools.PersistentTaskGroup()
+        assert tg._parent_task is outer_myself
 
         async def _main_task():
+            nonlocal exec_after_termination
+            myself = asyncio.current_task()
             async with tg:
+                # The parent task is overriden when
+                # using "async with", to keep consistency with
+                # the original asyncio.TaskGroup.
+                assert tg._parent_task is myself
+
                 for idx in range(10):
                     tg.create_task(subtask(idx))
                 assert len(tg._tasks) == 10
 
-        async def _canceller_task():
+            # The code below must be executed even when
+            # tg is shutdown from other tasks.
+            exec_after_termination = True
+
+        async def _stop_task():
             await asyncio.sleep(0.49)
             await tg.shutdown()
 
         async with asyncio.TaskGroup() as outer_tg:
             outer_tg.create_task(_main_task())
-            outer_tg.create_task(_canceller_task())
+            outer_tg.create_task(_stop_task())
 
         assert count == 5
         assert len(tg._tasks) == 0
+        assert exec_after_termination
+        assert tg._parent_task is not outer_myself
+        assert tg._unfinished_tasks == 0
 
 
 @pytest.mark.asyncio
@@ -138,8 +165,10 @@ async def test_ptaskgroup_cancel_after_schedule():
         # shutdown after exit (all done) is no-op.
         assert count == 10
         assert len(tg._tasks) == 0
+        assert tg._unfinished_tasks == 0
         await tg.shutdown()
         assert len(tg._tasks) == 0
+        assert tg._unfinished_tasks == 0
 
 
 @pytest.mark.asyncio
@@ -171,6 +200,7 @@ async def test_ptaskgroup_exc_handler():
 
     count = 0
     error_count = 0
+    not_swallowed = 0
 
     async def subtask():
         nonlocal count
@@ -186,15 +216,22 @@ async def test_ptaskgroup_exc_handler():
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
 
-        async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
-            for _ in range(10):
-                tg.create_task(subtask())
-            assert len(tg._tasks) == 10
-            await asyncio.sleep(1.0)
+        try:
+            async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
+                for _ in range(10):
+                    tg.create_task(subtask())
+                assert len(tg._tasks) == 10
+                await asyncio.sleep(1.0)
+        except* ZeroDivisionError:
+            # All non-base exceptions must be swallowed by
+            # our exception handler.
+            not_swallowed += 1
 
         assert count == 0
         assert error_count == 10
+        assert not_swallowed == 0
         assert len(tg._tasks) == 0
+        assert tg._unfinished_tasks == 0
 
 
 @pytest.mark.asyncio
@@ -225,3 +262,4 @@ async def test_ptaskgroup_cancel_with_await():
         # ensure that awaits in all cancellation handling blocks have been executed
         assert count == 100
         assert len(tg._tasks) == 0
+        assert tg._unfinished_tasks == 0
