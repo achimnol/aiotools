@@ -7,6 +7,7 @@ import traceback
 from types import TracebackType
 from typing import (
     Any,
+    Callable,
     Coroutine,
     Generic,
     List,
@@ -28,6 +29,7 @@ __all__ = (
 )
 
 TResult = TypeVar('TResult')
+TResultInner = TypeVar('TResultInner')
 
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
@@ -66,7 +68,7 @@ class PersistentTaskGroup(Generic[TResult]):
     _base_error: Optional[BaseException]
     _exc_handler: ExceptionHandler
     _errors: Optional[List[BaseException]]
-    _tasks: "weakref.WeakSet[asyncio.Task[TResult]]"
+    _tasks: "weakref.WeakSet[asyncio.Task]"
     _on_completed_fut: Optional[asyncio.Future]
 
     def __init__(
@@ -80,7 +82,7 @@ class PersistentTaskGroup(Generic[TResult]):
         self._aborting = False
         self._errors = []
         self._base_error = None
-        self._name = name or f"PTaskGroup-{next(_ptaskgroup_idx)}"
+        self._name = name or f"{next(_ptaskgroup_idx)}"
         self._parent_cancel_requested = False
         self._unfinished_tasks = 0
         self._on_completed_fut = None
@@ -106,16 +108,25 @@ class PersistentTaskGroup(Generic[TResult]):
             self._entered = True
         if self._exiting and self._unfinished_tasks == 0:
             raise RuntimeError(f"{self!r} has already finished")
+        return self._create_task_with_name(coro, name=name, cb=self._on_task_done)
+
+    def _create_task_with_name(
+        self,
+        coro: Coroutine[Any, Any, TResultInner],
+        *,
+        name: str = None,
+        cb: Callable[[asyncio.Task[TResultInner]], Any],
+    ) -> "asyncio.Task[TResultInner]":
         loop = compat.get_running_loop()
-        if _has_task_name:
-            t = loop.create_task(coro, name=name)
+        if _has_task_name and name:
+            child_task = loop.create_task(coro, name=name)
         else:
-            t = loop.create_task(coro)
-        _log.debug("%r is spawned in %r.", t, self)
+            child_task = loop.create_task(coro)
+        _log.debug("%r is spawned in %r.", child_task, self)
         self._unfinished_tasks += 1
-        t.add_done_callback(self._on_task_done)
-        self._tasks.add(t)
-        return t
+        child_task.add_done_callback(cb)
+        self._tasks.add(child_task)
+        return child_task
 
     def _is_base_error(self, exc: BaseException) -> bool:
         assert isinstance(exc, BaseException)
@@ -183,10 +194,11 @@ class PersistentTaskGroup(Generic[TResult]):
             # Spawn our exception handler for non-base exceptions
             # and swallow the error.
             if not self._is_base_error(exc):
-                t = asyncio.create_task(self._exc_handler(exc))
-                t.add_done_callback(self._on_exc_handler_done)
-                self._tasks.add(t)
-                self._unfinished_tasks += 1
+                self._create_task_with_name(
+                    self._exc_handler(exc),
+                    name="PTaskGroup Exception Handler",
+                    cb=self._on_exc_handler_done,
+                )
                 set_completed = False
                 return
 
@@ -240,7 +252,7 @@ class PersistentTaskGroup(Generic[TResult]):
         if propagate_cancellation_error is not None:
             raise propagate_cancellation_error
 
-        if exc_type is not None and exc_type is not asyncio.CancelledError:
+        if exc_val is not None and exc_type is not asyncio.CancelledError:
             # If there are any unhandled errors, let's add them to
             # the bubbled up exception group.
             # Normally, they should have been swallowed and logged
@@ -258,6 +270,8 @@ class PersistentTaskGroup(Generic[TResult]):
 
     def __repr__(self) -> str:
         info = ['']
+        if self._name:
+            info.append(f'name={self._name}')
         if self._tasks:
             info.append(f'tasks={len(self._tasks)}')
         if self._unfinished_tasks:
@@ -269,4 +283,4 @@ class PersistentTaskGroup(Generic[TResult]):
         elif self._entered:
             info.append('entered')
         info_str = ' '.join(info)
-        return f'<PersistentTaskGroup{info_str}>'
+        return f'<PersistentTaskGroup({info_str})>'
