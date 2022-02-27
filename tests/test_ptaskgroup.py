@@ -5,6 +5,28 @@ import sys
 import pytest
 
 
+# NOTE: Until pytest-asyncio support ExceptionGroup,
+#       assertion failures inside PersistentTaskGroup/TaskGroup blocks
+#       may be represented as sub-task errors instead of
+#       being logged explicitly by pytest.
+
+
+@pytest.mark.skipif(
+    sys.version_info <= (3, 8, 0),
+    reason='Requires Python 3.8 or higher',
+)
+@pytest.mark.asyncio
+async def test_ptaskgroup_naming():
+
+    async def subtask():
+        pass
+
+    async with aiotools.PersistentTaskGroup(name="XYZ") as tg:
+        t = tg.create_task(subtask(), name="ABC")
+        assert tg.name == "XYZ"
+        assert t.get_name() == "ABC"
+
+
 @pytest.mark.asyncio
 async def test_ptaskgroup_all_done():
 
@@ -19,15 +41,11 @@ async def test_ptaskgroup_all_done():
     with vclock.patch_loop():
 
         async with aiotools.PersistentTaskGroup() as tg:
-            assert tg.name.startswith("PTaskGroup-")
             for idx in range(10):
-                t = tg.create_task(subtask(), name=f"Task-{idx}")
-                if sys.version_info >= (3, 8):
-                    assert t.get_name() == f"Task-{idx}"
-                del t  # prevent ref-leak after loop
+                tg.create_task(subtask())
             assert len(tg._tasks) == 10
             assert tg._unfinished_tasks == 10
-            # all done
+            # wait until all is done
             await asyncio.sleep(0.2)
             assert count == 10
             assert len(tg._tasks) == 0

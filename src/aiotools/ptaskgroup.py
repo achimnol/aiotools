@@ -13,7 +13,6 @@ from typing import (
     List,
     Optional,
     Type,
-    TypeVar,
     Union,
 )
 try:
@@ -27,9 +26,6 @@ from . import compat
 __all__ = (
     'PersistentTaskGroup',
 )
-
-TResult = TypeVar('TResult')
-TResultInner = TypeVar('TResultInner')
 
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
@@ -52,7 +48,7 @@ async def _default_exc_handler(exc: BaseException) -> None:
     traceback.print_exc()
 
 
-class PersistentTaskGroup(Generic[TResult]):
+class PersistentTaskGroup:
     """
     Provides an abstraction of long-running task group for server applications.
 
@@ -99,10 +95,10 @@ class PersistentTaskGroup(Generic[TResult]):
 
     def create_task(
         self,
-        coro: Coroutine[Any, Any, TResult],
+        coro: Coroutine[Any, Any, Any],
         *,
         name: str = None,
-    ) -> "asyncio.Task[TResult]":
+    ) -> "asyncio.Task":
         if not self._entered:
             # When used as object attribute, auto-enter.
             self._entered = True
@@ -112,11 +108,11 @@ class PersistentTaskGroup(Generic[TResult]):
 
     def _create_task_with_name(
         self,
-        coro: Coroutine[Any, Any, TResultInner],
+        coro: Coroutine[Any, Any, Any],
         *,
         name: str = None,
-        cb: Callable[[asyncio.Task[TResultInner]], Any],
-    ) -> "asyncio.Task[TResultInner]":
+        cb: Callable[[asyncio.Task], Any],
+    ) -> "asyncio.Task":
         loop = compat.get_running_loop()
         if _has_task_name and name:
             child_task = loop.create_task(coro, name=name)
@@ -171,7 +167,7 @@ class PersistentTaskGroup(Generic[TResult]):
             if not self._on_completed_fut.done():
                 self._on_completed_fut.set_result(True)
 
-    def _on_task_done(self, task: asyncio.Task[TResult]) -> None:
+    def _on_task_done(self, task: asyncio.Task) -> None:
         self._unfinished_tasks -= 1
         assert self._unfinished_tasks >= 0
         assert self._parent_task is not None
