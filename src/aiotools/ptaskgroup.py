@@ -64,23 +64,22 @@ class PersistentTaskGroup:
     When used as an async context manager, it works similarly to
     :func:`asyncio.gather()` with ``return_exceptions=True`` option.  It exits the
     context scope when all tasks finish, just like :class:`asyncio.TaskGroup`, but
-    it does NOT abort when there are unhandled exceptions from child tasks, just
-    keep sibling tasks running, and report errors immediately (see below).
+    it does NOT abort when there are unhandled exceptions from child tasks; just
+    keeps sibling tasks running, and report errors immediately (see below).
 
     When *not* used as an async context maanger (e.g., used as attributes of
-    long-lived objects), it keeps running until :method:`shutdown()` is called
-    explicitly.  In this case, it persists until :method:`shutdown()` is explicitly
-    called.  Note that it is the user's responsibility to call :method:`shutdown()`
-    because ``PersistentTaskGroup`` does not provide the ``__del__()`` method.
+    long-lived objects), it persists running until :method:`shutdown()` is called
+    explicitly.  Note that it is the user's responsibility to call
+    :method:`shutdown()` because ``PersistentTaskGroup`` does not provide the
+    ``__del__()`` method.
 
-    Regardless how it is executed, it lets all spawned tasks to run to their
-    completion and then terminate and call the exception handler to report the
-    unhandled exceptions immediately.  If there are exceptions occurred again in the
-    exception handlers, then it uses
+    Regardless how it is executed, it lets all spawned tasks run to their completion
+    and calls the exception handler to report any unhandled exceptions immediately.
+    If there are exceptions occurred again in the exception handlers, then it uses
     :method:`AbstractEventLoop.call_exception_handler()` as the last resort.
 
-    In any case, the exception handling and reporting takes places immediately, to
-    eliminate potential arbitrary report delay due to other tasks or the execution
+    Since the exception handling and reporting takes places immediately, it
+    eliminates potential arbitrary report delay due to other tasks or the execution
     method.  This resolves a critical debugging pain when only termination of the
     application displays accumulated errors, as sometimes we don't want to terminate
     but just inspect what is happening.
@@ -97,7 +96,6 @@ class PersistentTaskGroup:
         *,
         name: str = None,
         exception_handler: ExceptionHandler = None,
-        # TODO: propagate_errors option?
     ) -> None:
         self._entered = False
         self._exiting = False
@@ -114,6 +112,8 @@ class PersistentTaskGroup:
             self._exc_handler = _default_exc_handler
         else:
             self._exc_handler = exception_handler
+
+    # TODO: task statistics and enumeration (for aiomonitor)
 
     @property
     def name(self) -> str:
