@@ -60,6 +60,12 @@ async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
 class PersistentTaskGroup:
     """
     Provides an abstraction of long-running task groups for server applications.
+    The main use case is to implement a dispatcher of async event handlers, to group
+    RPC/API request handlers, etc. with safe and graceful shutdown.
+    Here "long-running" means that all tasks should keep going even when sibling
+    tasks fail with unhandled errors and such errors must be reported immediately.
+    Here "safety" means that all spawned tasks should be reclaimed before exit or
+    shutdown.
 
     When used as an async context manager, it works similarly to
     :func:`asyncio.gather()` with ``return_exceptions=True`` option.  It exits the
@@ -114,6 +120,7 @@ class PersistentTaskGroup:
             self._exc_handler = exception_handler
 
     # TODO: task statistics and enumeration (for aiomonitor)
+    # TODO: two-phase shutdown
 
     @property
     def name(self) -> str:
