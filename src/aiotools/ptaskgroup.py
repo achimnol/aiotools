@@ -122,8 +122,7 @@ class PersistentTaskGroup:
     # TODO: task statistics and enumeration (for aiomonitor)
     # TODO: two-phase shutdown
 
-    @property
-    def name(self) -> str:
+    def get_name(self) -> str:
         return self._name
 
     def create_task(
