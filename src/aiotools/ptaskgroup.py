@@ -59,13 +59,13 @@ async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
 
 class PersistentTaskGroup:
     """
-    Provides an abstraction of long-running task group for server applications.
+    Provides an abstraction of long-running task groups for server applications.
 
     When used as an async context manager, it works similarly to
     :func:`asyncio.gather()` with ``return_exceptions=True`` option.  It exits the
     context scope when all tasks finish, just like :class:`asyncio.TaskGroup`, but
-    it does NOT abort when there are unhandled exceptions from child tasks and just
-    keep them running.
+    it does NOT abort when there are unhandled exceptions from child tasks, just
+    keep sibling tasks running, and report errors immediately (see below).
 
     When *not* used as an async context maanger (e.g., used as attributes of
     long-lived objects), it keeps running until :method:`shutdown()` is called
@@ -79,7 +79,7 @@ class PersistentTaskGroup:
     exception handlers, then it uses
     :method:`AbstractEventLoop.call_exception_handler()` as the last resort.
 
-    In any case, the exception handling and reporting happens immediately, to
+    In any case, the exception handling and reporting takes places immediately, to
     eliminate potential arbitrary report delay due to other tasks or the execution
     method.  This resolves a critical debugging pain when only termination of the
     application displays accumulated errors, as sometimes we don't want to terminate
