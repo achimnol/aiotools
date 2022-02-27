@@ -187,7 +187,7 @@ async def test_cancel_parent_task(cancel_msg):
 
 
 @pytest.mark.asyncio
-async def test_subtask_error():
+async def test_taskgroup_distinguish_inner_error_and_outer_cancel():
 
     async def do_error():
         await asyncio.sleep(0.5)
@@ -195,13 +195,21 @@ async def test_subtask_error():
 
     with VirtualClock().patch_loop():
 
-        with pytest.raises(TaskGroupError):
+        with pytest.raises(TaskGroupError) as eg:
             async with TaskGroup() as tg:
                 t1 = tg.create_task(do_error())
+                # The following sleep is cancelled due to do_error(),
+                # raising CancelledError!
                 await asyncio.sleep(1)
+                # We need to preserve the source exception instead of the outer
+                # cancellation.  __aexit__() should not treat CancelledError as a
+                # base error to handle such cases.
 
         assert t1.done()
+        assert not t1.cancelled()
         assert isinstance(t1.exception(), ValueError)
+        assert len(eg.value.__errors__) == 1
+        assert isinstance(eg.value.__errors__[0], ValueError)
 
 
 @pytest.mark.asyncio
