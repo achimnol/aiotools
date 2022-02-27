@@ -61,13 +61,23 @@ class PersistentTaskGroup:
     """
     Provides an abstraction of long-running task group for server applications.
 
-    If used as async context manager, it propagates cancellation from the parent task
-    into the child tasks.
-    It exits the context scope when all tasks finish, just like
-    :class:`asyncio.TaskGroup`.
+    When used as an async context manager, it propagates cancellation from the parent
+    task into the child tasks.  It exits the context scope when all tasks finish,
+    just like :class:`asyncio.TaskGroup`.  This works similarly to
+    :func:`asyncio.gather()` with ``return_exceptions=True`` option.
 
-    If used without async context manager, it keeps running until
-    :method:`shutdown()` is called explicitly.
+    When *not* used as an async context maanger (e.g., used as attributes of
+    long-lived objects), it keeps running until :method:`shutdown()` is called
+    explicitly.  In this case, it persists until :method:`shutdown()` is explicitly
+    called.  Note that it is the user's responsibility to call :method:`shutdown()`
+    because ``PersistentTaskGroup`` does not provide the ``__del__()`` method.
+
+    The key difference to :class:`asyncio.TaskGroup` is that it does not abort
+    when there are unhandled exceptions from child tasks.  Instead, it let all
+    spawned tasks to run to their completion and then terminate and call the
+    exception handler to report the unhandled exceptions immediately.
+    If there are exceptions occurred again in the exception handlers, then it uses
+    :method:`AbstractEventLoop.call_exception_handler()` as the last resort.
     """
 
     _base_error: Optional[BaseException]
@@ -81,6 +91,7 @@ class PersistentTaskGroup:
         *,
         name: str = None,
         exception_handler: ExceptionHandler = None,
+        # TODO: propagate_errors option?
     ) -> None:
         self._entered = False
         self._exiting = False
@@ -166,6 +177,8 @@ class PersistentTaskGroup:
         await self._wait_completion()
 
     async def _task_wrapper(self, coro: Coroutine) -> Any:
+        loop = compat.get_running_loop()
+        task = compat.current_task()
         try:
             return await coro
         except Exception:
@@ -175,7 +188,19 @@ class PersistentTaskGroup:
             # exception handlers to access full traceback
             # and there is no need to implement separate
             # mechanism to wait for exception handler tasks.
-            await self._exc_handler(*sys.exc_info())
+            try:
+                await self._exc_handler(*sys.exc_info())
+            except Exception as exc:
+                # If there are exceptions inside the exception handler
+                # we report it as soon as possible using the event loop's
+                # exception handler, instead of postponing
+                # to the timing when PersistentTaskGroup terminates.
+                loop.call_exception_handler({
+                    'message': f"Got an unhandled exception "
+                               f"in the exception handler of Task {task!r}",
+                    'exception': exc,
+                    'task': task,
+                })
 
     def _on_task_done(self, task: asyncio.Task) -> None:
         self._unfinished_tasks -= 1
