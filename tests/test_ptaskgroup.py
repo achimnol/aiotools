@@ -24,7 +24,7 @@ async def test_ptaskgroup_naming():
 
     async with aiotools.PersistentTaskGroup(name="XYZ") as tg:
         t = tg.create_task(subtask(), name="ABC")
-        assert tg.name == "XYZ"
+        assert tg.get_name() == "XYZ"
         assert t.get_name() == "ABC"
 
 
