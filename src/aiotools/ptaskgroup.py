@@ -65,7 +65,7 @@ class PersistentTaskGroup:
     :func:`asyncio.gather()` with ``return_exceptions=True`` option.  It exits the
     context scope when all tasks finish, just like :class:`asyncio.TaskGroup`, but
     it does NOT abort when there are unhandled exceptions from child tasks; just
-    keeps sibling tasks running, and report errors immediately (see below).
+    keeps sibling tasks running and reporting errors as they occur (see below).
 
     When *not* used as an async context maanger (e.g., used as attributes of
     long-lived objects), it persists running until :method:`shutdown()` is called
