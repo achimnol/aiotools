@@ -61,10 +61,11 @@ class PersistentTaskGroup:
     """
     Provides an abstraction of long-running task group for server applications.
 
-    When used as an async context manager, it propagates cancellation from the parent
-    task into the child tasks.  It exits the context scope when all tasks finish,
-    just like :class:`asyncio.TaskGroup`.  This works similarly to
-    :func:`asyncio.gather()` with ``return_exceptions=True`` option.
+    When used as an async context manager, it works similarly to
+    :func:`asyncio.gather()` with ``return_exceptions=True`` option.  It exits the
+    context scope when all tasks finish, just like :class:`asyncio.TaskGroup`, but
+    it does NOT abort when there are unhandled exceptions from child tasks and just
+    keep them running.
 
     When *not* used as an async context maanger (e.g., used as attributes of
     long-lived objects), it keeps running until :method:`shutdown()` is called
@@ -72,12 +73,17 @@ class PersistentTaskGroup:
     called.  Note that it is the user's responsibility to call :method:`shutdown()`
     because ``PersistentTaskGroup`` does not provide the ``__del__()`` method.
 
-    The key difference to :class:`asyncio.TaskGroup` is that it does not abort
-    when there are unhandled exceptions from child tasks.  Instead, it let all
-    spawned tasks to run to their completion and then terminate and call the
-    exception handler to report the unhandled exceptions immediately.
-    If there are exceptions occurred again in the exception handlers, then it uses
+    Regardless how it is executed, it lets all spawned tasks to run to their
+    completion and then terminate and call the exception handler to report the
+    unhandled exceptions immediately.  If there are exceptions occurred again in the
+    exception handlers, then it uses
     :method:`AbstractEventLoop.call_exception_handler()` as the last resort.
+
+    In any case, the exception handling and reporting happens immediately, to
+    eliminate potential arbitrary report delay due to other tasks or the execution
+    method.  This resolves a critical debugging pain when only termination of the
+    application displays accumulated errors, as sometimes we don't want to terminate
+    but just inspect what is happening.
     """
 
     _base_error: Optional[BaseException]
