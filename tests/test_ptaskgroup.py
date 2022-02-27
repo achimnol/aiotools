@@ -1,6 +1,7 @@
 import aiotools
 import asyncio
 import sys
+import traceback
 
 import pytest
 
@@ -194,13 +195,13 @@ async def test_ptaskgroup_cancel_before_schedule():
 
     count = 0
 
+    async def subtask():
+        nonlocal count
+        await asyncio.sleep(0.1)
+        count += 1
+
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
-        async def subtask():
-            nonlocal count
-            await asyncio.sleep(0.1)
-            count += 1
 
         async with aiotools.PersistentTaskGroup() as tg:
             for _ in range(10):
@@ -214,7 +215,7 @@ async def test_ptaskgroup_cancel_before_schedule():
 
 
 @pytest.mark.asyncio
-async def test_ptaskgroup_exc_handler():
+async def test_ptaskgroup_exc_handler_swallow():
 
     count = 0
     error_count = 0
@@ -226,9 +227,9 @@ async def test_ptaskgroup_exc_handler():
         1 / 0
         count += 1
 
-    async def handler(e):
+    async def handler(exc_type, exc_obj, exc_tb):
         nonlocal error_count
-        assert isinstance(e, ZeroDivisionError)
+        assert issubclass(exc_type, ZeroDivisionError)
         error_count += 1
 
     vclock = aiotools.VirtualClock()
@@ -239,7 +240,6 @@ async def test_ptaskgroup_exc_handler():
                 for _ in range(10):
                     tg.create_task(subtask())
                 assert len(tg._tasks) == 10
-                await asyncio.sleep(1.0)
         except* ZeroDivisionError:
             # All non-base exceptions must be swallowed by
             # our exception handler.
@@ -248,6 +248,74 @@ async def test_ptaskgroup_exc_handler():
         assert count == 0
         assert error_count == 10
         assert not_swallowed == 0
+        assert len(tg._tasks) == 0
+        assert tg._unfinished_tasks == 0
+
+
+@pytest.mark.asyncio
+async def test_ptaskgroup_error_in_exc_handlers():
+
+    count = 0
+    error_count = 0
+    error2_count = 0
+
+    async def subtask():
+        nonlocal count
+        await asyncio.sleep(0.1)
+        1 / 0
+        count += 1
+
+    async def handler(exc_type, exc_obj, exc_tb):
+        nonlocal error_count, error2_count
+        assert issubclass(exc_type, ZeroDivisionError)
+        error_count += 1
+        raise ValueError("something wrong in exception handler")
+        error2_count += 1
+
+    vclock = aiotools.VirtualClock()
+    with vclock.patch_loop():
+
+        try:
+            async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
+                for _ in range(10):
+                    tg.create_task(subtask())
+                assert len(tg._tasks) == 10
+        except ValueError:
+            assert False, "should not reach here"
+        except ExceptionGroup as eg:
+            # Unhandled exceptions in exception handlers should be treated
+            # like the normal TaskGroup, while all tasks should continue until
+            # their completion (either success or error).
+            value_errors = eg.subgroup(lambda e: isinstance(e, ValueError))
+            assert len(value_errors.exceptions) == 10
+
+        assert count == 0
+        assert error_count == 10
+        assert error2_count == 0  # not reached
+        assert len(tg._tasks) == 0
+        assert tg._unfinished_tasks == 0
+
+        count = 0
+        error_count = 0
+        outer_except_count = 0
+        try:
+            async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
+                for _ in range(10):
+                    tg.create_task(subtask())
+                assert len(tg._tasks) == 10
+        except* Exception as e:
+            # Since PersistentTaskGroup keeps running until all siblings have their
+            # result (either success or error), the exceptions raised in exception
+            # handlers are always wrapped as ExceptionGroup, UNLIKE the plain
+            # asyncio.TaskGroup.
+            assert isinstance(e, ExceptionGroup)
+            value_errors = e.subgroup(lambda e: isinstance(e, ValueError))
+            assert len(value_errors.exceptions) == 10
+            outer_except_count += 1
+
+        assert count == 0
+        assert error_count == 10
+        assert outer_except_count == 1
         assert len(tg._tasks) == 0
         assert tg._unfinished_tasks == 0
 

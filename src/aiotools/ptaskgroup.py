@@ -9,7 +9,6 @@ from typing import (
     Any,
     Callable,
     Coroutine,
-    Generic,
     List,
     Optional,
     Type,
@@ -40,11 +39,21 @@ UNDEFINED = UndefinedResult.UNDEFINED
 
 
 class ExceptionHandler(Protocol):
-    async def __call__(self, exc: BaseException) -> None:
+    """
+    A shorthand for an async exception handler type.
+    This is always called under exception context where
+    :func:`sys.exc_info()` is available.
+    """
+    async def __call__(
+        self,
+        exc_type: Type[Exception],
+        exc_obj: Exception,
+        exc_tb: TracebackType,
+    ) -> None:
         ...
 
 
-async def _default_exc_handler(exc: BaseException) -> None:
+async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
     traceback.print_exc()
 
 
@@ -115,9 +124,9 @@ class PersistentTaskGroup:
     ) -> "asyncio.Task":
         loop = compat.get_running_loop()
         if _has_task_name and name:
-            child_task = loop.create_task(coro, name=name)
+            child_task = loop.create_task(self._task_wrapper(coro), name=name)
         else:
-            child_task = loop.create_task(coro)
+            child_task = loop.create_task(self._task_wrapper(coro))
         _log.debug("%r is spawned in %r.", child_task, self)
         self._unfinished_tasks += 1
         child_task.add_done_callback(cb)
@@ -156,59 +165,44 @@ class PersistentTaskGroup:
         self._trigger_shutdown()
         await self._wait_completion()
 
-    def _on_exc_handler_done(self, task: asyncio.Task[None]) -> None:
-        self._unfinished_tasks -= 1
-        assert self._unfinished_tasks >= 0
-
-        # TODO: how to handle exceptions in the exception handler?
-        # TODO: prevent infinite recursion
-
-        if self._on_completed_fut is not None and not self._unfinished_tasks:
-            if not self._on_completed_fut.done():
-                self._on_completed_fut.set_result(True)
+    async def _task_wrapper(self, coro: Coroutine) -> Any:
+        try:
+            return await coro
+        except Exception:
+            # Swallow unhandled exceptions by our own and
+            # prevent abortion of the task group bu them.
+            # Wrapping corotuines directly has advantage for
+            # exception handlers to access full traceback
+            # and there is no need to implement separate
+            # mechanism to wait for exception handler tasks.
+            await self._exc_handler(*sys.exc_info())
 
     def _on_task_done(self, task: asyncio.Task) -> None:
         self._unfinished_tasks -= 1
         assert self._unfinished_tasks >= 0
         assert self._parent_task is not None
         assert self._errors is not None
-        set_completed = False
 
         if self._on_completed_fut is not None and not self._unfinished_tasks:
             if not self._on_completed_fut.done():
-                set_completed = True
-
-        try:
-            if task.cancelled():
-                _log.debug("%r in %r has been cancelled.", task, self)
-                return
-
-            exc = task.exception()
-            if exc is None:
-                return
-
-            # Spawn our exception handler for non-base exceptions
-            # and swallow the error.
-            if not self._is_base_error(exc):
-                self._create_task_with_name(
-                    self._exc_handler(exc),
-                    name="PTaskGroup Exception Handler",
-                    cb=self._on_exc_handler_done,
-                )
-                set_completed = False
-                return
-
-            # Now the exception is BaseException.
-            self._errors.append(exc)
-            if self._base_error is None:
-                self._base_error = exc
-
-            self._trigger_shutdown()
-            if not self._parent_task.cancelling():
-                self._parent_cancel_requested = True
-        finally:
-            if self._on_completed_fut is not None and set_completed:
                 self._on_completed_fut.set_result(True)
+
+        if task.cancelled():
+            _log.debug("%r in %r has been cancelled.", task, self)
+            return
+
+        exc = task.exception()
+        if exc is None:
+            return
+
+        # Now the exception is BaseException.
+        self._errors.append(exc)
+        if self._base_error is None:
+            self._base_error = exc
+
+        self._trigger_shutdown()
+        if not self._parent_task.cancelling():
+            self._parent_cancel_requested = True
 
     async def __aenter__(self) -> "PersistentTaskGroup":
         self._parent_task = compat.current_task()
@@ -259,7 +253,10 @@ class PersistentTaskGroup:
             # Bubble up errors
             errors = self._errors
             self._errors = None
-            me = BaseExceptionGroup('unhandled errors in a TaskGroup', errors)
+            me = BaseExceptionGroup(
+                'unhandled errors in a PersistentTaskGroup',
+                errors,
+            )
             raise me from None
 
         return None
