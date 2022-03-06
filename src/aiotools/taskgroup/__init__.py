@@ -1,8 +1,8 @@
-import sys
+import asyncio
 
 from .types import TaskGroupError
 
-if sys.version_info < (3, 11, 0, 'alpha', 6):
+if not hasattr(asyncio, 'TaskGroup'):
     from . import base_compat
     from . import persistent_compat
     from .base_compat import *        # noqa

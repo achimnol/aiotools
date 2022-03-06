@@ -1,11 +1,7 @@
 import asyncio
-import sys
 from contextvars import ContextVar
 
 from .types import TaskGroupError
-
-assert sys.version_info >= (3, 11, 0, 'alpha', 6), \
-       "This module requires Python 3.11.0a6 or higher."
 
 __all__ = (
     'TaskGroup',

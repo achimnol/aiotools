@@ -1,4 +1,4 @@
-import sys
+import asyncio
 import textwrap
 import traceback
 from typing import Type
@@ -24,7 +24,7 @@ class AsyncExceptionHandler(Protocol):
         ...
 
 
-if sys.version_info < (3, 11, 0, 'alpha', 6):
+if not hasattr(asyncio, 'BaseExceptionGroup'):
 
     class MultiError(Exception):
         """
