@@ -269,14 +269,12 @@ async def test_ptaskgroup_error_in_exc_handlers():
 
     loop = aiotools.compat.get_running_loop()
     vclock = aiotools.VirtualClock()
-    with (
-        vclock.patch_loop(),
-        mock.patch.object(
-            loop,
-            'call_exception_handler',
-            mock.MagicMock(),
-        ),
-    ):
+    with vclock.patch_loop(), \
+         mock.patch.object(
+             loop,
+             'call_exception_handler',
+             mock.MagicMock(),
+         ):
         # Errors in exception handlers are covered by the event loop's exception
         # handler, so that they can be reported as soon as possible when they occur.
         #
