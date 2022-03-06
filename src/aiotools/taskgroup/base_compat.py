@@ -198,7 +198,7 @@ class TaskGroup:
     def create_task(self, coro, *, name=None):
         if not self._entered:
             raise RuntimeError(f"TaskGroup {self!r} has not been entered")
-        if self._exiting:
+        if self._exiting and self._unfinished_tasks == 0:
             raise RuntimeError(f"TaskGroup {self!r} is awaiting in exit")
         task = create_task_with_name(coro, name=name)
         task.add_done_callback(self._on_task_done)
