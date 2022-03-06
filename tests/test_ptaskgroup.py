@@ -413,6 +413,6 @@ async def test_ptaskgroup_enumeration():
             tg.create_task(job())
             tg.create_task(job())
             await asyncio.sleep(0.1)
-            all_tgs = aiotools.PersistentTaskGroup.all()
+            all_tgs = aiotools.PersistentTaskGroup.all_ptaskgroups()
 
         assert len(all_tgs) == 4

@@ -47,7 +47,7 @@ class PersistentTaskGroup:
     _current_taskgroup_token: Optional[Token["PersistentTaskGroup"]]
 
     @classmethod
-    def all(cls) -> Sequence['PersistentTaskGroup']:
+    def all_ptaskgroups(cls) -> Sequence['PersistentTaskGroup']:
         return list(_all_ptaskgroups)
 
     def __init__(
