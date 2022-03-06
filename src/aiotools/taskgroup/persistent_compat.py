@@ -35,7 +35,7 @@ if has_contextvars:
 
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
-_all_ptaskgroups: weakref.WeakSet['PersistentTaskGroup'] = weakref.WeakSet()
+_all_ptaskgroups: 'weakref.WeakSet[PersistentTaskGroup]' = weakref.WeakSet()
 
 
 async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
