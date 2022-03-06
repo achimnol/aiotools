@@ -14,7 +14,7 @@ import aiotools
 
 
 @pytest.mark.skipif(
-    sys.version_info <= (3, 8, 0),
+    sys.version_info < (3, 8, 0),
     reason='Requires Python 3.8 or higher',
 )
 @pytest.mark.asyncio
@@ -250,7 +250,7 @@ async def test_ptaskgroup_exc_handler_swallow():
 
 
 @pytest.mark.skipif(
-    sys.version_info <= (3, 8, 0),
+    sys.version_info < (3, 8, 0),
     reason='Requires Python 3.8 or higher',
 )
 @pytest.mark.asyncio
@@ -362,3 +362,57 @@ async def test_ptaskgroup_cancel_with_await():
         assert done_count == 100
         assert len(tg._tasks) == 0
         assert tg._unfinished_tasks == 0
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 7, 0),
+    reason='Requires Python 3.7 or higher',
+)
+@pytest.mark.asyncio
+async def test_ptaskgroup_current():
+
+    names = []
+
+    async def subtask():
+        await asyncio.sleep(1)
+        names.append(aiotools.current_ptaskgroup.get().get_name())
+
+    async def job():
+        names.append(aiotools.current_ptaskgroup.get().get_name())
+        async with aiotools.PersistentTaskGroup(name="inner") as tg:
+            for _ in range(10):
+                tg.create_task(subtask())
+
+    vclock = aiotools.VirtualClock()
+    with vclock.patch_loop():
+
+        async with aiotools.PersistentTaskGroup(name="outer") as tg:
+            tg.create_task(job())
+            tg.create_task(job())
+            tg.create_task(job())
+
+    assert names == ["outer"] * 3 + ["inner"] * 30
+
+
+@pytest.mark.asyncio
+async def test_ptaskgroup_enumeration():
+
+    async def subtask():
+        await asyncio.sleep(1)
+
+    async def job():
+        async with aiotools.PersistentTaskGroup() as tg:
+            for _ in range(10):
+                tg.create_task(subtask())
+
+    vclock = aiotools.VirtualClock()
+    with vclock.patch_loop():
+
+        async with aiotools.PersistentTaskGroup() as tg:
+            tg.create_task(job())
+            tg.create_task(job())
+            tg.create_task(job())
+            await asyncio.sleep(0.1)
+            all_tgs = aiotools.PersistentTaskGroup.all_ptaskgroups()
+
+        assert len(all_tgs) == 4
