@@ -18,7 +18,8 @@ import weakref
 from .. import compat
 from .types import AsyncExceptionHandler
 
-assert sys.version_info >= (3, 11), "This module requires Python 3.11 or higher."
+assert sys.version_info >= (3, 11, 0, 'alpha', 6), \
+       "This module requires Python 3.11.0a6 or higher."
 
 __all__ = (
     'PersistentTaskGroup',
