@@ -32,7 +32,7 @@ import itertools
 import weakref
 
 from ..compat import current_task, get_running_loop
-from .common import patch_task
+from .common import create_task_with_name, patch_task
 from .types import TaskGroupError
 
 
@@ -195,12 +195,12 @@ class TaskGroup:
                                 errors=errors)
             raise me from None
 
-    def create_task(self, coro):
+    def create_task(self, coro, *, name=None):
         if not self._entered:
             raise RuntimeError(f"TaskGroup {self!r} has not been entered")
         if self._exiting:
             raise RuntimeError(f"TaskGroup {self!r} is awaiting in exit")
-        task = self._loop.create_task(coro)
+        task = create_task_with_name(coro, name=name)
         task.add_done_callback(self._on_task_done)
         self._unfinished_tasks += 1
         self._tasks.add(task)

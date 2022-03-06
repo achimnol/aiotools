@@ -2,7 +2,21 @@
 A set of common utilities for legacy Pythons
 """
 
+import asyncio
 import functools
+
+from .. import compat
+
+_has_task_name = hasattr(asyncio.Task, 'get_name')
+
+
+def create_task_with_name(coro, *, name=None):
+    loop = compat.get_running_loop()
+    if _has_task_name and name:
+        child_task = loop.create_task(coro, name=name)
+    else:
+        child_task = loop.create_task(coro)
+    return child_task
 
 
 def patch_task(task) -> None:

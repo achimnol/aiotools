@@ -15,7 +15,7 @@ from typing import (
 import weakref
 
 from .. import compat
-from .common import patch_task
+from .common import create_task_with_name, patch_task
 from .types import AsyncExceptionHandler, TaskGroupError
 
 __all__ = (
@@ -24,7 +24,6 @@ __all__ = (
 
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
-_has_task_name = (sys.version_info >= (3, 8, 0))
 
 
 async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
@@ -119,11 +118,7 @@ class PersistentTaskGroup:
         name: str = None,
         cb: Callable[[asyncio.Task], Any],
     ) -> "asyncio.Task":
-        loop = compat.get_running_loop()
-        if _has_task_name and name:
-            child_task = loop.create_task(self._task_wrapper(coro), name=name)
-        else:
-            child_task = loop.create_task(self._task_wrapper(coro))
+        child_task = create_task_with_name(self._task_wrapper(coro), name=name)
         _log.debug("%r is spawned in %r.", child_task, self)
         self._unfinished_tasks += 1
         child_task.add_done_callback(cb)
