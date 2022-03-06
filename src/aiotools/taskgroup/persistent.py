@@ -11,6 +11,7 @@ from typing import (
     Coroutine,
     List,
     Optional,
+    Sequence,
     Type,
     Union,
 )
@@ -21,6 +22,7 @@ from .types import AsyncExceptionHandler
 
 __all__ = (
     'PersistentTaskGroup',
+    'current_ptaskgroup',
 )
 
 current_ptaskgroup: ContextVar['PersistentTaskGroup'] = \
@@ -28,6 +30,7 @@ current_ptaskgroup: ContextVar['PersistentTaskGroup'] = \
 
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
+_all_ptaskgroups: weakref.WeakSet['PersistentTaskGroup'] = weakref.WeakSet()
 
 
 async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
@@ -42,6 +45,10 @@ class PersistentTaskGroup:
     _tasks: "weakref.WeakSet[asyncio.Task]"
     _on_completed_fut: Optional[asyncio.Future]
     _current_taskgroup_token: Optional[Token["PersistentTaskGroup"]]
+
+    @classmethod
+    def all(cls) -> Sequence['PersistentTaskGroup']:
+        return list(_all_ptaskgroups)
 
     def __init__(
         self,
@@ -61,6 +68,7 @@ class PersistentTaskGroup:
         self._parent_task = compat.current_task()
         self._tasks = weakref.WeakSet()
         self._current_taskgroup_token = None
+        _all_ptaskgroups.add(self)
         if exception_handler is None:
             self._exc_handler = _default_exc_handler
         else:
@@ -124,6 +132,7 @@ class PersistentTaskGroup:
             current_ptaskgroup.reset(self._current_taskgroup_token)
         self._current_taskgroup_token = None
         self._on_completed_fut = None
+        _all_ptaskgroups.discard(self)
         return propagate_cancellation_error
 
     def _trigger_shutdown(self) -> None:
