@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.5.1 (2022-03-06)
+------------------
+
+### Fixes
+* Fix missing naming support of `TaskGroup` in Python 3.11 ([#39](https://github.com/achimnol/aiotools/issues/39))
+
+
 1.5.0 (2022-03-06)
 ------------------
 
