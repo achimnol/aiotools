@@ -13,10 +13,6 @@ import aiotools
 #       being logged explicitly by pytest.
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 8, 0),
-    reason='Requires Python 3.8 or higher',
-)
 @pytest.mark.asyncio
 async def test_ptaskgroup_naming():
 
@@ -26,7 +22,8 @@ async def test_ptaskgroup_naming():
     async with aiotools.PersistentTaskGroup(name="XYZ") as tg:
         t = tg.create_task(subtask(), name="ABC")
         assert tg.get_name() == "XYZ"
-        assert t.get_name() == "ABC"
+        if hasattr(t, 'get_name'):
+            assert t.get_name() == "ABC"
 
 
 @pytest.mark.asyncio
