@@ -1,5 +1,4 @@
 import asyncio
-import enum
 import itertools
 import logging
 import sys
@@ -12,7 +11,6 @@ from typing import (
     List,
     Optional,
     Type,
-    Union,
 )
 try:
     from typing import Protocol
@@ -20,7 +18,9 @@ except ImportError:
     from typing_extensions import Protocol  # type: ignore  # noqa
 import weakref
 
-from . import compat
+from .. import compat
+from .common import patch_task
+from .types import AsyncExceptionHandler, TaskGroupError
 
 __all__ = (
     'PersistentTaskGroup',
@@ -29,28 +29,6 @@ __all__ = (
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
 _has_task_name = (sys.version_info >= (3, 8, 0))
-
-
-class UndefinedResult(enum.Enum):
-    UNDEFINED = 0
-
-
-UNDEFINED = UndefinedResult.UNDEFINED
-
-
-class ExceptionHandler(Protocol):
-    """
-    A shorthand for an async exception handler type.
-    This is always called under exception context where
-    :func:`sys.exc_info()` is available.
-    """
-    async def __call__(
-        self,
-        exc_type: Type[Exception],
-        exc_obj: Exception,
-        exc_tb: TracebackType,
-    ) -> None:
-        ...
 
 
 async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
@@ -92,7 +70,7 @@ class PersistentTaskGroup:
     """
 
     _base_error: Optional[BaseException]
-    _exc_handler: ExceptionHandler
+    _exc_handler: AsyncExceptionHandler
     _errors: Optional[List[BaseException]]
     _tasks: "weakref.WeakSet[asyncio.Task]"
     _on_completed_fut: Optional[asyncio.Future]
@@ -101,7 +79,7 @@ class PersistentTaskGroup:
         self,
         *,
         name: str = None,
-        exception_handler: ExceptionHandler = None,
+        exception_handler: AsyncExceptionHandler = None,
     ) -> None:
         self._entered = False
         self._exiting = False
@@ -160,7 +138,7 @@ class PersistentTaskGroup:
         assert isinstance(exc, BaseException)
         return isinstance(exc, (SystemExit, KeyboardInterrupt))
 
-    async def _wait_completion(self) -> Optional[BaseException]:
+    async def _wait_completion(self) -> Optional[bool]:
         loop = compat.get_running_loop()
         propagate_cancellation_error = None
         while self._unfinished_tasks:
@@ -168,9 +146,9 @@ class PersistentTaskGroup:
                 self._on_completed_fut = loop.create_future()
             try:
                 await self._on_completed_fut
-            except asyncio.CancelledError as ex:
+            except asyncio.CancelledError:
                 if not self._aborting:
-                    propagate_cancellation_error = ex
+                    propagate_cancellation_error = True
                     self._trigger_shutdown()
             self._on_completed_fut = None
 
@@ -238,11 +216,12 @@ class PersistentTaskGroup:
             self._base_error = exc
 
         self._trigger_shutdown()
-        if not self._parent_task.cancelling():
+        if not self._parent_task.__cancel_requested__:  # type: ignore
             self._parent_cancel_requested = True
 
     async def __aenter__(self) -> "PersistentTaskGroup":
         self._parent_task = compat.current_task()
+        patch_task(self._parent_task)
         self._entered = True
         return self
 
@@ -254,9 +233,7 @@ class PersistentTaskGroup:
     ) -> Optional[bool]:
         self._exiting = True
         assert self._errors is not None
-        propagate_cancellation_error: Optional[
-            Union[Type[BaseException], BaseException]
-        ] = None
+        propagate_cancelation = False
 
         if (exc_val is not None and
                 self._is_base_error(exc_val) and
@@ -265,19 +242,26 @@ class PersistentTaskGroup:
 
         if exc_type is asyncio.CancelledError:
             if self._parent_cancel_requested:
-                self._parent_task.uncancel()
+                # Only if we did request task to cancel ourselves
+                # we mark it as no longer cancelled.
+                self._parent_task.__cancel_requested__ = False  # type: ignore
             else:
-                propagate_cancellation_error = exc_type
+                propagate_cancelation = True
+
         if exc_type is not None and not self._aborting:
             if exc_type is asyncio.CancelledError:
-                propagate_cancellation_error = exc_type
+                propagate_cancelation = True
             self._trigger_shutdown()
 
         prop_ex = await self._wait_completion()
         if prop_ex is not None:
-            propagate_cancellation_error = prop_ex
-        if propagate_cancellation_error is not None:
-            raise propagate_cancellation_error
+            propagate_cancelation = prop_ex
+
+        if propagate_cancelation:
+            # The wrapping task was cancelled; since we're done with
+            # closing all child tasks, just propagate the cancellation
+            # request now.
+            raise asyncio.CancelledError()
 
         if exc_val is not None and exc_type is not asyncio.CancelledError:
             # If there are any unhandled errors, let's add them to
@@ -290,7 +274,7 @@ class PersistentTaskGroup:
             # Bubble up errors
             errors = self._errors
             self._errors = None
-            me = BaseExceptionGroup(
+            me = TaskGroupError(
                 'unhandled errors in a PersistentTaskGroup',
                 errors,
             )
