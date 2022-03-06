@@ -93,8 +93,6 @@ class PersistentTaskGroup:
     ) -> "asyncio.Task":
         if not self._entered:
             # When used as object attribute, auto-enter.
-            if has_contextvars:
-                self._current_taskgroup_token = current_ptaskgroup.set(self)
             self._entered = True
         if self._exiting and self._unfinished_tasks == 0:
             raise RuntimeError(f"{self!r} has already finished")
@@ -133,10 +131,6 @@ class PersistentTaskGroup:
             self._on_completed_fut = None
 
         assert self._unfinished_tasks == 0
-        if has_contextvars:
-            if self._current_taskgroup_token:
-                current_ptaskgroup.reset(self._current_taskgroup_token)
-            self._current_taskgroup_token = None
         self._on_completed_fut = None
         _all_ptaskgroups.discard(self)
         return propagate_cancellation_error
@@ -243,6 +237,10 @@ class PersistentTaskGroup:
         prop_ex = await self._wait_completion()
         if prop_ex is not None:
             propagate_cancelation = prop_ex
+        if has_contextvars:
+            if self._current_taskgroup_token:
+                current_ptaskgroup.reset(self._current_taskgroup_token)
+                self._current_taskgroup_token = None
 
         if propagate_cancelation:
             # The wrapping task was cancelled; since we're done with
