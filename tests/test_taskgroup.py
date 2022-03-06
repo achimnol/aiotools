@@ -87,14 +87,11 @@ async def test_contextual_taskgroup_spawning():
     with VirtualClock().patch_loop():
 
         total_jobs = 0
-        with pytest.raises(TaskGroupError), pytest.warns(RuntimeWarning):
-            # When the taskgroup terminates immediately after spawning subtasks,
-            # the spawned subtasks may not be allowed to proceed because the parent
-            # taskgroup is already in the terminating procedure.
-            async with TaskGroup() as tg:
-                t = tg.create_task(spawn_job())
-            assert not t.done()
-        assert total_jobs == 0
+        async with TaskGroup() as tg:
+            t = tg.create_task(spawn_job())
+        assert t.done()
+        del t
+        assert total_jobs == 1
 
         total_jobs = 0
         async with TaskGroup() as tg:
