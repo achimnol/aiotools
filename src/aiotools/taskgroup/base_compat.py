@@ -28,19 +28,16 @@ try:
     has_contextvars = True
 except ImportError:
     has_contextvars = False
-import functools
 import itertools
-import textwrap
-import traceback
 import weakref
 
-from .compat import current_task, get_running_loop
+from ..compat import current_task, get_running_loop
+from .common import create_task_with_name, patch_task
+from .types import TaskGroupError
 
 
 __all__ = [
-    'MultiError',
     'TaskGroup',
-    'TaskGroupError',
 ]
 
 
@@ -50,13 +47,6 @@ if has_contextvars:
 
 
 class TaskGroup:
-    """
-    Provides a guard against a group of tasks spawend via its :meth:`create_task`
-    method instead of the vanilla fire-and-forgetting :meth:`asyncio.create_task`.
-
-    See the motivation and rationale in `the trio's documentation
-    <https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning>`_.
-    """
 
     def __init__(self, *, name=None):
         if name is None:
@@ -105,7 +95,7 @@ class TaskGroup:
         if self._parent_task is None:
             raise RuntimeError(
                 f'TaskGroup {self!r} cannot determine the parent task')
-        self._patch_task(self._parent_task)
+        patch_task(self._parent_task)
         if has_contextvars:
             self._current_taskgroup_token = current_taskgroup.set(self)
         return self
@@ -198,12 +188,12 @@ class TaskGroup:
                                 errors=errors)
             raise me from None
 
-    def create_task(self, coro):
+    def create_task(self, coro, *, name=None):
         if not self._entered:
             raise RuntimeError(f"TaskGroup {self!r} has not been entered")
-        if self._exiting:
+        if self._exiting and self._unfinished_tasks == 0:
             raise RuntimeError(f"TaskGroup {self!r} is awaiting in exit")
-        task = self._loop.create_task(coro)
+        task = create_task_with_name(coro, name=name)
         task.add_done_callback(self._on_task_done)
         self._unfinished_tasks += 1
         self._tasks.add(task)
@@ -212,30 +202,6 @@ class TaskGroup:
     def _is_base_error(self, exc):
         assert isinstance(exc, BaseException)
         return isinstance(exc, (SystemExit, KeyboardInterrupt))
-
-    def _patch_task(self, task):
-        # In Python 3.8 we'll need proper API on asyncio.Task to
-        # make TaskGroups possible. We need to be able to access
-        # information about task cancellation, more specifically,
-        # we need a flag to say if a task was cancelled or not.
-        # We also need to be able to flip that flag.
-
-        def _task_cancel(task, orig_cancel, msg=None):
-            task.__cancel_requested__ = True
-            if msg is not None:
-                return orig_cancel(msg)
-            else:
-                return orig_cancel()
-
-        if hasattr(task, '__cancel_requested__'):
-            return
-
-        task.__cancel_requested__ = False
-        # confirm that we were successful at adding the new attribute:
-        assert not task.__cancel_requested__
-
-        orig_cancel = task.cancel
-        task.cancel = functools.partial(_task_cancel, task, orig_cancel)
 
     def _abort(self):
         self._aborting = True
@@ -296,39 +262,6 @@ class TaskGroup:
             #                                 # after TaskGroup is finished.
             self._parent_cancel_requested = True
             self._parent_task.cancel()
-
-
-class MultiError(Exception):
-    """
-    Represents a collection of errors raised inside a task group.
-    Callers may iterate over the errors using the ``__erros__`` attribute.
-    """
-
-    def __init__(self, msg, *args, errors=()):
-        if errors:
-            types = set(type(e).__name__ for e in errors)
-            msg = f'{msg}; {len(errors)} sub errors: ({", ".join(types)})'
-            for er in errors:
-                msg += f'\n + {type(er).__name__}: {er}'
-                if er.__traceback__:
-                    er_tb = ''.join(traceback.format_tb(er.__traceback__))
-                    er_tb = textwrap.indent(er_tb, ' | ')
-                    msg += f'\n{er_tb}\n'
-        super().__init__(msg, *args)
-        self.__errors__ = tuple(errors)
-
-    def get_error_types(self):
-        return {type(e) for e in self.__errors__}
-
-    def __reduce__(self):
-        return (type(self), (self.args,), {'__errors__': self.__errors__})
-
-
-class TaskGroupError(MultiError):
-    """
-    An alias to :exc:`MultiError`.
-    """
-    pass
 
 
 _name_counter = itertools.count(1).__next__

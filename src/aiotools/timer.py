@@ -86,7 +86,8 @@ class VirtualClock:
         return self.vtime
 
     def _virtual_select(self, orig_select, timeout):
-        self.vtime += timeout
+        if timeout is not None:
+            self.vtime += timeout
         return orig_select(0)  # override the timeout to zero
 
     @contextlib.contextmanager
