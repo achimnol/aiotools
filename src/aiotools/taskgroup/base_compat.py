@@ -185,7 +185,7 @@ class TaskGroup:
             self._errors = None
 
             me = TaskGroupError('unhandled errors in a TaskGroup',
-                                errors=errors)
+                                errors)
             raise me from None
 
     def create_task(self, coro, *, name=None):

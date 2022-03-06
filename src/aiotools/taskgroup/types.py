@@ -1,4 +1,4 @@
-import asyncio
+import builtins
 import textwrap
 import traceback
 from typing import Type
@@ -24,7 +24,7 @@ class AsyncExceptionHandler(Protocol):
         ...
 
 
-if not hasattr(asyncio, 'BaseExceptionGroup'):
+if not hasattr(builtins, 'ExceptionGroup'):
 
     class MultiError(Exception):
 
@@ -55,7 +55,7 @@ if not hasattr(asyncio, 'BaseExceptionGroup'):
 
 else:
 
-    class MultiError(BaseExceptionGroup):
+    class MultiError(ExceptionGroup):
 
         def __init__(self, msg, errors=()):
             super().__init__(msg, errors)
