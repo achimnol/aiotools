@@ -27,10 +27,6 @@ class AsyncExceptionHandler(Protocol):
 if not hasattr(asyncio, 'BaseExceptionGroup'):
 
     class MultiError(Exception):
-        """
-        Represents a collection of errors raised inside a task group.
-        Callers may iterate over the errors using the ``__errors__`` attribute.
-        """
 
         def __init__(self, msg, errors=()):
             if errors:
@@ -60,9 +56,6 @@ if not hasattr(asyncio, 'BaseExceptionGroup'):
 else:
 
     class MultiError(BaseExceptionGroup):
-        """
-        An adapter for the ExceptionGroup to keep backward compatibility.
-        """
 
         def __init__(self, msg, errors=()):
             super().__init__(msg, errors)

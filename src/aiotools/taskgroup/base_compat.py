@@ -47,13 +47,6 @@ if has_contextvars:
 
 
 class TaskGroup:
-    """
-    Provides a guard against a group of tasks spawend via its :meth:`create_task`
-    method instead of the vanilla fire-and-forgetting :meth:`asyncio.create_task`.
-
-    See the motivation and rationale in `the trio's documentation
-    <https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning>`_.
-    """
 
     def __init__(self, *, name=None):
         if name is None:

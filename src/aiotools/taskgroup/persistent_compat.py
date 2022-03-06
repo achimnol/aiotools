@@ -31,38 +31,6 @@ async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
 
 
 class PersistentTaskGroup:
-    """
-    Provides an abstraction of long-running task groups for server applications.
-    The main use case is to implement a dispatcher of async event handlers, to group
-    RPC/API request handlers, etc. with safe and graceful shutdown.
-    Here "long-running" means that all tasks should keep going even when sibling
-    tasks fail with unhandled errors and such errors must be reported immediately.
-    Here "safety" means that all spawned tasks should be reclaimed before exit or
-    shutdown.
-
-    When used as an async context manager, it works similarly to
-    :func:`asyncio.gather()` with ``return_exceptions=True`` option.  It exits the
-    context scope when all tasks finish, just like :class:`asyncio.TaskGroup`, but
-    it does NOT abort when there are unhandled exceptions from child tasks; just
-    keeps sibling tasks running and reporting errors as they occur (see below).
-
-    When *not* used as an async context maanger (e.g., used as attributes of
-    long-lived objects), it persists running until :method:`shutdown()` is called
-    explicitly.  Note that it is the user's responsibility to call
-    :method:`shutdown()` because ``PersistentTaskGroup`` does not provide the
-    ``__del__()`` method.
-
-    Regardless how it is executed, it lets all spawned tasks run to their completion
-    and calls the exception handler to report any unhandled exceptions immediately.
-    If there are exceptions occurred again in the exception handlers, then it uses
-    :method:`AbstractEventLoop.call_exception_handler()` as the last resort.
-
-    Since the exception handling and reporting takes places immediately, it
-    eliminates potential arbitrary report delay due to other tasks or the execution
-    method.  This resolves a critical debugging pain when only termination of the
-    application displays accumulated errors, as sometimes we don't want to terminate
-    but just inspect what is happening.
-    """
 
     _base_error: Optional[BaseException]
     _exc_handler: AsyncExceptionHandler
