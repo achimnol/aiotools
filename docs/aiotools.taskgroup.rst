@@ -16,6 +16,11 @@ Task Group
    A :class:`contextvars.ContextVar` that has the reference to the current innermost
    :class:`PersistentTaskGroup` instance.  Available only in Python 3.7 or later.
 
+   .. warning::
+
+      This is set only when :class:`PersistentTaskGroup` is used with the ``async
+      with`` statement.
+
 .. class:: TaskGroup(*, name=None)
 
    Provides a guard against a group of tasks spawend via its :meth:`create_task()`
