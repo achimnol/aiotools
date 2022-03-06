@@ -77,6 +77,13 @@ Task Group
    :meth:`loop.call_exception_handler() <asyncio.loop.call_exception_handler()>`
    as the last resort.
 
+   *exception_handler* should be an asynchronous function that accepts the
+   exception type, exception object, and the traceback, just like
+   ``__aexit__()`` dunder method.  The default handler just prints out the
+   exception log using :func:`traceback.print_exc()`.  Note that the
+   handler is invoked within the exception handling context and thus
+   :func:`sys.exc_info()` is also available.
+
    Since the exception handling and reporting takes places immediately, it
    eliminates potential arbitrary report delay due to other tasks or the execution
    method.  This resolves a critical debugging pain when only termination of the
