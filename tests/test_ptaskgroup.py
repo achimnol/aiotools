@@ -249,6 +249,10 @@ async def test_ptaskgroup_exc_handler_swallow():
         assert tg._unfinished_tasks == 0
 
 
+@pytest.mark.skipif(
+    sys.version_info <= (3, 8, 0),
+    reason='Requires Python 3.8 or higher',
+)
 @pytest.mark.asyncio
 async def test_ptaskgroup_error_in_exc_handlers():
 
