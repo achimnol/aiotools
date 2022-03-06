@@ -4,7 +4,7 @@ import logging
 import sys
 import traceback
 try:
-    from contextvars import ContextVar
+    from contextvars import ContextVar, Token
     has_contextvars = True
 except ImportError:
     has_contextvars = False
@@ -47,6 +47,7 @@ class PersistentTaskGroup:
     _errors: Optional[List[BaseException]]
     _tasks: "weakref.WeakSet[asyncio.Task]"
     _on_completed_fut: Optional[asyncio.Future]
+    _current_taskgroup_token: Optional["Token[PersistentTaskGroup]"]
 
     def __init__(
         self,

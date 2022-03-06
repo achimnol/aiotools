@@ -3,7 +3,7 @@ import itertools
 import logging
 import sys
 import traceback
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from types import TracebackType
 from typing import (
     Any,
@@ -41,6 +41,7 @@ class PersistentTaskGroup:
     _errors: Optional[List[BaseException]]
     _tasks: "weakref.WeakSet[asyncio.Task]"
     _on_completed_fut: Optional[asyncio.Future]
+    _current_taskgroup_token: Optional[Token["PersistentTaskGroup"]]
 
     def __init__(
         self,
