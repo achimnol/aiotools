@@ -16,6 +16,14 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.5.2 (2022-03-06)
+------------------
+
+### Fixes
+* Restore the default export of `MultiError` for backward compatibility ([#40](https://github.com/achimnol/aiotools/issues/40))
+* Set `current_ptaskgroup` only when `PersistentTaskGroup` is used via the `async with` statement. ([#41](https://github.com/achimnol/aiotools/issues/41))
+
+
 1.5.1 (2022-03-06)
 ------------------
 
