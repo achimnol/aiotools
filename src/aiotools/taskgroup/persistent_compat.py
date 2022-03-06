@@ -240,7 +240,7 @@ class PersistentTaskGroup:
         if has_contextvars:
             if self._current_taskgroup_token:
                 current_ptaskgroup.reset(self._current_taskgroup_token)
-            self._current_taskgroup_token = None
+                self._current_taskgroup_token = None
 
         if propagate_cancelation:
             # The wrapping task was cancelled; since we're done with
