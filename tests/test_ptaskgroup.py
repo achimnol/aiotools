@@ -14,7 +14,7 @@ import aiotools
 
 
 @pytest.mark.skipif(
-    sys.version_info <= (3, 8, 0),
+    sys.version_info < (3, 8, 0),
     reason='Requires Python 3.8 or higher',
 )
 @pytest.mark.asyncio
@@ -250,7 +250,7 @@ async def test_ptaskgroup_exc_handler_swallow():
 
 
 @pytest.mark.skipif(
-    sys.version_info <= (3, 8, 0),
+    sys.version_info < (3, 8, 0),
     reason='Requires Python 3.8 or higher',
 )
 @pytest.mark.asyncio
@@ -364,6 +364,10 @@ async def test_ptaskgroup_cancel_with_await():
         assert tg._unfinished_tasks == 0
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 7, 0),
+    reason='Requires Python 3.7 or higher',
+)
 @pytest.mark.asyncio
 async def test_ptaskgroup_current():
 
