@@ -1,7 +1,11 @@
 import sys
 import textwrap
 import traceback
-from typing import Protocol, Type
+from typing import Type
+try:
+    from typing import Protocol
+except ImportError:
+    from typing_extensions import Protocol  # type: ignore  # noqa
 from types import TracebackType
 
 

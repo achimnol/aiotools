@@ -1,9 +1,10 @@
-import aiotools
 import asyncio
 import sys
 from unittest import mock
 
 import pytest
+
+import aiotools
 
 
 # NOTE: Until pytest-asyncio support ExceptionGroup,
@@ -150,7 +151,7 @@ async def test_ptaskgroup_shutdown_from_different_task():
             await asyncio.sleep(0.49)
             await tg.shutdown()
 
-        async with asyncio.TaskGroup() as outer_tg:
+        async with aiotools.TaskGroup() as outer_tg:
             outer_tg.create_task(_main_task())
             outer_tg.create_task(_stop_task())
 
