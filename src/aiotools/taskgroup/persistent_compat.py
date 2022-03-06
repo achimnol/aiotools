@@ -3,6 +3,11 @@ import itertools
 import logging
 import sys
 import traceback
+try:
+    from contextvars import ContextVar
+    has_contextvars = True
+except ImportError:
+    has_contextvars = False
 from types import TracebackType
 from typing import (
     Any,
@@ -18,9 +23,14 @@ from .. import compat
 from .common import create_task_with_name, patch_task
 from .types import AsyncExceptionHandler, TaskGroupError
 
-__all__ = (
+__all__ = [
     'PersistentTaskGroup',
-)
+]
+
+if has_contextvars:
+    current_ptaskgroup: ContextVar['PersistentTaskGroup'] = \
+        ContextVar('current_ptaskgroup')
+    __all__.append('current_ptaskgroup')
 
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
@@ -55,6 +65,7 @@ class PersistentTaskGroup:
         self._on_completed_fut = None
         self._parent_task = compat.current_task()
         self._tasks = weakref.WeakSet()
+        self._current_taskgroup_token = None
         if exception_handler is None:
             self._exc_handler = _default_exc_handler
         else:
@@ -74,6 +85,8 @@ class PersistentTaskGroup:
     ) -> "asyncio.Task":
         if not self._entered:
             # When used as object attribute, auto-enter.
+            if has_contextvars:
+                self._current_taskgroup_token = current_ptaskgroup.set(self)
             self._entered = True
         if self._exiting and self._unfinished_tasks == 0:
             raise RuntimeError(f"{self!r} has already finished")
@@ -112,6 +125,10 @@ class PersistentTaskGroup:
             self._on_completed_fut = None
 
         assert self._unfinished_tasks == 0
+        if has_contextvars:
+            if self._current_taskgroup_token:
+                current_ptaskgroup.reset(self._current_taskgroup_token)
+            self._current_taskgroup_token = None
         self._on_completed_fut = None
         return propagate_cancellation_error
 
@@ -181,6 +198,8 @@ class PersistentTaskGroup:
     async def __aenter__(self) -> "PersistentTaskGroup":
         self._parent_task = compat.current_task()
         patch_task(self._parent_task)
+        if has_contextvars:
+            self._current_taskgroup_token = current_ptaskgroup.set(self)
         self._entered = True
         return self
 

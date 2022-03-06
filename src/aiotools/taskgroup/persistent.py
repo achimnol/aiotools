@@ -3,6 +3,7 @@ import itertools
 import logging
 import sys
 import traceback
+from contextvars import ContextVar
 from types import TracebackType
 from typing import (
     Any,
@@ -21,6 +22,9 @@ from .types import AsyncExceptionHandler
 __all__ = (
     'PersistentTaskGroup',
 )
+
+current_ptaskgroup: ContextVar['PersistentTaskGroup'] = \
+    ContextVar('current_ptaskgroup')
 
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
@@ -55,6 +59,7 @@ class PersistentTaskGroup:
         self._on_completed_fut = None
         self._parent_task = compat.current_task()
         self._tasks = weakref.WeakSet()
+        self._current_taskgroup_token = None
         if exception_handler is None:
             self._exc_handler = _default_exc_handler
         else:
@@ -74,6 +79,7 @@ class PersistentTaskGroup:
     ) -> "asyncio.Task":
         if not self._entered:
             # When used as object attribute, auto-enter.
+            self._current_taskgroup_token = current_ptaskgroup.set(self)
             self._entered = True
         if self._exiting and self._unfinished_tasks == 0:
             raise RuntimeError(f"{self!r} has already finished")
@@ -113,6 +119,9 @@ class PersistentTaskGroup:
             self._on_completed_fut = None
 
         assert self._unfinished_tasks == 0
+        if self._current_taskgroup_token:
+            current_ptaskgroup.reset(self._current_taskgroup_token)
+        self._current_taskgroup_token = None
         self._on_completed_fut = None
         return propagate_cancellation_error
 
@@ -181,6 +190,7 @@ class PersistentTaskGroup:
 
     async def __aenter__(self) -> "PersistentTaskGroup":
         self._parent_task = compat.current_task()
+        self._current_taskgroup_token = current_ptaskgroup.set(self)
         self._entered = True
         return self
 

@@ -11,6 +11,11 @@ Task Group
    A :class:`contextvars.ContextVar` that has the reference to the current innermost
    :class:`TaskGroup` instance.  Available only in Python 3.7 or later.
 
+.. attribute:: current_ptaskgroup
+
+   A :class:`contextvars.ContextVar` that has the reference to the current innermost
+   :class:`PersistentTaskGroup` instance.  Available only in Python 3.7 or later.
+
 .. class:: TaskGroup(*, name=None)
 
    Provides a guard against a group of tasks spawend via its :meth:`create_task()`
@@ -41,6 +46,8 @@ Task Group
       cancellation before all nested spawned tasks start without context
       switches and propagation of the source exception when the context
       manager (parent task) is getting cancelled but continued.
+      All existing codes should run without any issues, but it is
+      recommended to test thoroughly.
 
 .. class:: PersistentTaskGroup(*, name=None, exception_handler=None)
 
@@ -67,7 +74,7 @@ Task Group
    Regardless how it is executed, it lets all spawned tasks run to their completion
    and calls the exception handler to report any unhandled exceptions immediately.
    If there are exceptions occurred again in the exception handlers, then it uses
-   :meth:`AbstractEventLoop.call_exception_handler() <asyncio.loop.call_exception_handler()>`
+   :meth:`loop.call_exception_handler() <asyncio.loop.call_exception_handler()>`
    as the last resort.
 
    Since the exception handling and reporting takes places immediately, it
@@ -99,6 +106,8 @@ Task Group
       Rewrote the overall implementation referring the Python 3.11 stdlib's
       :class:`asyncio.TaskGroup` implementation and adapting it to the
       semantics for "persistency".
+      All existing codes should run without any issues, but it is
+      recommended to test thoroughly.
 
 
 .. exception:: TaskGroupError
