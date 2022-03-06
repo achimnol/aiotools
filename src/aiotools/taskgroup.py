@@ -211,7 +211,7 @@ class TaskGroup:
 
     def _is_base_error(self, exc):
         assert isinstance(exc, BaseException)
-        return not isinstance(exc, Exception)
+        return isinstance(exc, (SystemExit, KeyboardInterrupt))
 
     def _patch_task(self, task):
         # In Python 3.8 we'll need proper API on asyncio.Task to
