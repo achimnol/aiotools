@@ -24,7 +24,7 @@ class AsyncExceptionHandler(Protocol):
         ...
 
 
-if sys.version_info < (3, 11):
+if sys.version_info < (3, 11, 0, 'alpha', 6):
 
     class MultiError(Exception):
         """
