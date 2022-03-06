@@ -127,13 +127,13 @@ async def test_ptaskgroup_shutdown_from_different_task():
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
 
-        outer_myself = asyncio.current_task()
+        outer_myself = aiotools.compat.current_task()
         tg = aiotools.PersistentTaskGroup()
         assert tg._parent_task is outer_myself
 
         async def _main_task():
             nonlocal exec_after_termination
-            myself = asyncio.current_task()
+            myself = aiotools.compat.current_task()
             async with tg:
                 # The parent task is overriden when
                 # using "async with", to keep consistency with
