@@ -12,6 +12,19 @@ from aiotools import (
 
 
 @pytest.mark.asyncio
+async def test_taskgroup_naming():
+
+    async def subtask():
+        pass
+
+    async with TaskGroup(name="XYZ") as tg:
+        t = tg.create_task(subtask(), name="ABC")
+        assert tg.get_name() == "XYZ"
+        if hasattr(t, 'get_name'):
+            assert t.get_name() == "ABC"
+
+
+@pytest.mark.asyncio
 async def test_delayed_subtasks():
     with VirtualClock().patch_loop():
         async with TaskGroup() as tg:

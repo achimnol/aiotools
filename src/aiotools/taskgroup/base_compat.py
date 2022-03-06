@@ -50,7 +50,7 @@ class TaskGroup:
 
     def __init__(self, *, name=None):
         if name is None:
-            self._name = f'tg-{_name_counter()}'
+            self._name = f"tg-{_name_counter()}"
         else:
             self._name = str(name)
 

@@ -1,5 +1,6 @@
 import asyncio
 from contextvars import ContextVar
+import itertools
 
 from .types import TaskGroupError
 
@@ -12,6 +13,16 @@ current_taskgroup: ContextVar['TaskGroup'] = ContextVar('current_taskgroup')
 
 
 class TaskGroup(asyncio.TaskGroup):
+
+    def __init__(self, *, name=None):
+        super().__init__()
+        if name is None:
+            self._name = f"tg-{_name_counter()}"
+        else:
+            self._name = str(name)
+
+    def get_name(self):
+        return self._name
 
     async def __aenter__(self):
         self._current_taskgroup_token = current_taskgroup.set(self)
@@ -29,3 +40,6 @@ class TaskGroup(asyncio.TaskGroup):
             raise TaskGroupError(eg.message, eg.exceptions) from None
         finally:
             current_taskgroup.reset(self._current_taskgroup_token)
+
+
+_name_counter = itertools.count(1).__next__
