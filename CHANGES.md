@@ -14,7 +14,17 @@ Changelog
     WARNING: Don't drop the last line!
 -->
 
-.. towncrier release notes start
+<!-- towncrier release notes start -->
+
+1.5.0 (2022-03-06)
+------------------
+
+### Features
+* Add support for Python 3.9's `msg` argument to `Task.cancel()`. ([#32](https://github.com/achimnol/aiotools/issues/32))
+* Fix "unexpected cancel" bug in `TaskGroup`. ([#35](https://github.com/achimnol/aiotools/issues/35))
+* Rewrite PersistentTaskGroup to use Python 3.11's latest additions such as `Task.uncancel()` and `Task.cancelling()` while still supporting older Python versions ([#36](https://github.com/achimnol/aiotools/issues/36))
+* Add `PersistentTaskGroup.all()` to enumerate all non-terminated persistent task groups ([#38](https://github.com/achimnol/aiotools/issues/38))
+
 
 1.4.0 (2022-01-10)
 ------------------
