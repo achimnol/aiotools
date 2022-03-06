@@ -106,6 +106,12 @@ Task Group
       Triggers immediate shutdown of this taskgroup, cancelling all
       unfinished tasks and waiting for their completion.
 
+   .. classmethod:: all_ptaskgroups()
+
+      Returns a sequence of all currently existing non-exited persistent task groups.
+
+      .. versionadded:: 1.5.0
+
    .. versionadded:: 1.4.0
 
    .. versionchanged:: 1.5.0
