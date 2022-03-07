@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.5.3 (2022-03-07)
+------------------
+
+### Fixes
+* Fix feature detection for `ExceptionGroup` and let `MultiError` inherit `ExceptionGroup` instead of `BaseExceptionGroup` ([#42](https://github.com/achimnol/aiotools/issues/42))
+
+
 1.5.2 (2022-03-06)
 ------------------
 
