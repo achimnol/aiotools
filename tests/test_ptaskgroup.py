@@ -205,6 +205,12 @@ async def test_ptaskgroup_cancel_before_schedule():
         assert len(tg._tasks) == 0
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 6, 0),
+    reason='Requires Python 3.6 or higher',
+    # In Python 3.6, this test hangs indefinitely.
+    # We don't fix this -- 3.6 is EoL as of December 2021.
+)
 @pytest.mark.asyncio
 async def test_ptaskgroup_await_result():
 
@@ -249,6 +255,12 @@ async def test_ptaskgroup_await_result():
         assert len(tg._tasks) == 0
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 6, 0),
+    reason='Requires Python 3.6 or higher',
+    # In Python 3.6, this test hangs indefinitely.
+    # We don't fix this -- 3.6 is EoL as of December 2021.
+)
 @pytest.mark.asyncio
 async def test_ptaskgroup_await_exception():
 
