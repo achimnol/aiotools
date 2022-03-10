@@ -104,7 +104,7 @@ class PersistentTaskGroup:
         loop = compat.get_running_loop()
         result_future = loop.create_future()
         child_task = loop.create_task(
-            self._task_wrapper(coro, result_future),
+            self._task_wrapper(coro, weakref.ref(result_future)),
             name=name,
         )
         _log.debug("%r is spawned in %r.", child_task, self)
@@ -149,16 +149,20 @@ class PersistentTaskGroup:
     async def _task_wrapper(
         self,
         coro: Coroutine,
-        result_future: asyncio.Future,
+        result_future: weakref.ref[asyncio.Future],
     ) -> Any:
         loop = compat.get_running_loop()
         task = compat.current_task()
         try:
             ret = await coro
-            result_future.set_result(ret)
+            fut = result_future()
+            if fut is not None:
+                fut.set_result(ret)
             return ret
         except asyncio.CancelledError:
-            result_future.cancel()
+            fut = result_future()
+            if fut is not None:
+                fut.cancel()
             raise
         except Exception as e:
             # Swallow unhandled exceptions by our own and
@@ -169,7 +173,9 @@ class PersistentTaskGroup:
             # mechanism to wait for exception handler tasks.
             try:
                 await self._exc_handler(*sys.exc_info())
-                result_future.set_exception(e)
+                fut = result_future()
+                if fut is not None:
+                    fut.set_exception(e)
             except Exception as exc:
                 # If there are exceptions inside the exception handler
                 # we report it as soon as possible using the event loop's
@@ -181,8 +187,6 @@ class PersistentTaskGroup:
                     'exception': exc,
                     'task': task,
                 })
-        finally:
-            del result_future
 
     def _on_task_done(self, task: asyncio.Task) -> None:
         self._unfinished_tasks -= 1

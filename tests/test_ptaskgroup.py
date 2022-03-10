@@ -42,12 +42,11 @@ async def test_ptaskgroup_all_done():
         async with aiotools.PersistentTaskGroup() as tg:
             for idx in range(10):
                 tg.create_task(subtask())
-            # assert len(tg._tasks) == 10
             assert tg._unfinished_tasks == 10
             # wait until all is done
             await asyncio.sleep(0.2)
             assert done_count == 10
-            # assert len(tg._tasks) == 0
+            assert len(tg._tasks) == 0
             assert tg._unfinished_tasks == 0
 
         assert done_count == 10
@@ -84,7 +83,6 @@ async def test_ptaskgroup_as_obj_attr():
         obj = LongLivedObject()
         for idx in range(10):
             await obj.work()
-        # assert len(obj.tg._tasks) == 10
         assert obj.tg._unfinished_tasks == 10
 
         # shutdown after all done
@@ -92,21 +90,20 @@ async def test_ptaskgroup_as_obj_attr():
         await obj.aclose()
 
         assert done_count == 10
-        #  assert len(obj.tg._tasks) == 0
+        assert len(obj.tg._tasks) == 0
         assert obj.tg._unfinished_tasks == 0
 
         done_count = 0
         obj = LongLivedObject()
         for idx in range(10):
             await obj.work()
-        #  assert len(obj.tg._tasks) == 10
         assert obj.tg._unfinished_tasks == 10
 
         # shutdown immediately
         await obj.aclose()
 
         assert done_count == 0
-        #  assert len(obj.tg._tasks) == 0
+        assert len(obj.tg._tasks) == 0
         assert obj.tg._unfinished_tasks == 0
 
 
@@ -175,14 +172,13 @@ async def test_ptaskgroup_cancel_after_schedule():
             for _ in range(10):
                 tg.create_task(subtask())
             await asyncio.sleep(0)
-            #  assert len(tg._tasks) == 10
 
         # shutdown after exit (all done) is no-op.
         assert done_count == 10
-        # assert len(tg._tasks) == 0
+        assert len(tg._tasks) == 0
         assert tg._unfinished_tasks == 0
         await tg.shutdown()
-        #  assert len(tg._tasks) == 0
+        assert len(tg._tasks) == 0
         assert tg._unfinished_tasks == 0
 
 
@@ -202,12 +198,11 @@ async def test_ptaskgroup_cancel_before_schedule():
         async with aiotools.PersistentTaskGroup() as tg:
             for _ in range(10):
                 tg.create_task(subtask())
-            # assert len(tg._tasks) == 10
             # let's abort immediately.
             await tg.shutdown()
 
         assert done_count == 0
-        # assert len(tg._tasks) == 0
+        assert len(tg._tasks) == 0
 
 
 @pytest.mark.asyncio
@@ -239,7 +234,7 @@ async def test_ptaskgroup_await_exception():
 
         assert done_count == 0
         assert error_count == 2
-        # assert len(tg._tasks) == 0
+        assert len(tg._tasks) == 0
         assert tg._unfinished_tasks == 0
 
 
@@ -267,7 +262,6 @@ async def test_ptaskgroup_exc_handler_swallow():
             async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
                 for _ in range(10):
                     tg.create_task(subtask())
-                # assert len(tg._tasks) == 10
         except ExceptionGroup as eg:
             # All non-base exceptions must be swallowed by
             # our exception handler.
@@ -275,7 +269,7 @@ async def test_ptaskgroup_exc_handler_swallow():
 
         assert done_count == 0
         assert error_count == 10
-        # assert len(tg._tasks) == 0
+        assert len(tg._tasks) == 0
         assert tg._unfinished_tasks == 0
 
 
@@ -336,7 +330,7 @@ async def test_ptaskgroup_error_in_exc_handlers():
         del calls  # to clean up task refs
         assert done_count == 0
         assert error_count == 10
-        # assert len(tg._tasks) == 0
+        assert len(tg._tasks) == 0
         assert tg._unfinished_tasks == 0
 
         done_count = 0
@@ -357,7 +351,7 @@ async def test_ptaskgroup_error_in_exc_handlers():
         del calls  # to clean up task refs
         assert done_count == 0
         assert error_count == 10
-        # assert len(tg._tasks) == 0
+        assert len(tg._tasks) == 0
         assert tg._unfinished_tasks == 0
 
 
@@ -381,7 +375,6 @@ async def test_ptaskgroup_cancel_with_await():
         async with aiotools.PersistentTaskGroup() as tg:
             for _ in range(10):
                 tg.create_task(subtask())
-            # assert len(tg._tasks) == 10
             # Shutdown just after starting child tasks.
             # Even in this case, awaits in the tasks' cancellation blocks
             # should be executed until their completion.
@@ -390,7 +383,7 @@ async def test_ptaskgroup_cancel_with_await():
 
         # ensure that awaits in all cancellation handling blocks have been executed
         assert done_count == 100
-        # assert len(tg._tasks) == 0
+        assert len(tg._tasks) == 0
         assert tg._unfinished_tasks == 0
 
 
