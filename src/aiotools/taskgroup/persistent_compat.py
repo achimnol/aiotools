@@ -158,15 +158,14 @@ class PersistentTaskGroup:
     ) -> Any:
         loop = compat.get_running_loop()
         task = compat.current_task()
+        fut = result_future()
         try:
             ret = await coro
-            fut = result_future()
             if fut is not None:
                 fut.set_result(ret)
                 del fut
             return ret
         except asyncio.CancelledError:
-            fut = result_future()
             if fut is not None:
                 fut.cancel()
                 del fut
@@ -179,7 +178,6 @@ class PersistentTaskGroup:
             # and there is no need to implement separate
             # mechanism to wait for exception handler tasks.
             try:
-                fut = result_future()
                 if fut is not None:
                     fut.set_exception(e)
                     del fut
