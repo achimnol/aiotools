@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.5.4 (2022-03-10)
+------------------
+
+### Features
+* Propagate task results and exceptions via separate future instances if they are `await`-ed by the caller of `create_task()` in `PersistentTaskGroup`, in addition to invocation of task group exception handler.  Note that `await`-ing those futures hangs indefinitely in Python 3.6 but we don't fix it since Python 3.6 is EoL as of December 2021. ([#44](https://github.com/achimnol/aiotools/issues/44))
+
+
 1.5.3 (2022-03-07)
 ------------------
 
