@@ -160,7 +160,7 @@ class PersistentTaskGroup:
         except asyncio.CancelledError:
             result_future.cancel()
             raise
-        except Exception:
+        except Exception as e:
             # Swallow unhandled exceptions by our own and
             # prevent abortion of the task group bu them.
             # Wrapping corotuines directly has advantage for
@@ -169,7 +169,7 @@ class PersistentTaskGroup:
             # mechanism to wait for exception handler tasks.
             try:
                 await self._exc_handler(*sys.exc_info())
-                result_future.set_exception(ret)
+                result_future.set_exception(e)
             except Exception as exc:
                 # If there are exceptions inside the exception handler
                 # we report it as soon as possible using the event loop's
