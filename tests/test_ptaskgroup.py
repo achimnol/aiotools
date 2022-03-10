@@ -206,8 +206,8 @@ async def test_ptaskgroup_cancel_before_schedule():
 
 
 @pytest.mark.skipif(
-    sys.version_info < (3, 6, 0),
-    reason='Requires Python 3.6 or higher',
+    sys.version_info < (3, 7, 0),
+    reason='Requires Python 3.7 or higher',
     # In Python 3.6, this test hangs indefinitely.
     # We don't fix this -- 3.6 is EoL as of December 2021.
 )
@@ -256,8 +256,8 @@ async def test_ptaskgroup_await_result():
 
 
 @pytest.mark.skipif(
-    sys.version_info < (3, 6, 0),
-    reason='Requires Python 3.6 or higher',
+    sys.version_info < (3, 7, 0),
+    reason='Requires Python 3.7 or higher',
     # In Python 3.6, this test hangs indefinitely.
     # We don't fix this -- 3.6 is EoL as of December 2021.
 )
