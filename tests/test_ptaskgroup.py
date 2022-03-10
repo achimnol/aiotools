@@ -42,7 +42,6 @@ async def test_ptaskgroup_all_done():
         async with aiotools.PersistentTaskGroup() as tg:
             for idx in range(10):
                 tg.create_task(subtask())
-            assert len(tg._tasks) == 10
             assert tg._unfinished_tasks == 10
             # wait until all is done
             await asyncio.sleep(0.2)
@@ -84,7 +83,6 @@ async def test_ptaskgroup_as_obj_attr():
         obj = LongLivedObject()
         for idx in range(10):
             await obj.work()
-        assert len(obj.tg._tasks) == 10
         assert obj.tg._unfinished_tasks == 10
 
         # shutdown after all done
@@ -99,7 +97,6 @@ async def test_ptaskgroup_as_obj_attr():
         obj = LongLivedObject()
         for idx in range(10):
             await obj.work()
-        assert len(obj.tg._tasks) == 10
         assert obj.tg._unfinished_tasks == 10
 
         # shutdown immediately
@@ -175,7 +172,6 @@ async def test_ptaskgroup_cancel_after_schedule():
             for _ in range(10):
                 tg.create_task(subtask())
             await asyncio.sleep(0)
-            assert len(tg._tasks) == 10
 
         # shutdown after exit (all done) is no-op.
         assert done_count == 10
@@ -202,12 +198,116 @@ async def test_ptaskgroup_cancel_before_schedule():
         async with aiotools.PersistentTaskGroup() as tg:
             for _ in range(10):
                 tg.create_task(subtask())
-            assert len(tg._tasks) == 10
             # let's abort immediately.
             await tg.shutdown()
 
         assert done_count == 0
         assert len(tg._tasks) == 0
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 7, 0),
+    reason='Requires Python 3.7 or higher',
+    # In Python 3.6, this test hangs indefinitely.
+    # We don't fix this -- 3.6 is EoL as of December 2021.
+)
+@pytest.mark.asyncio
+async def test_ptaskgroup_await_result():
+
+    done_count = 0
+
+    async def subtask():
+        nonlocal done_count
+        await asyncio.sleep(0.1)
+        done_count += 1
+        return "a"
+
+    vclock = aiotools.VirtualClock()
+    with vclock.patch_loop():
+
+        results = []
+
+        async with aiotools.PersistentTaskGroup() as tg:
+
+            ret = await tg.create_task(subtask())
+            results.append(ret)
+
+            ret = await asyncio.shield(tg.create_task(subtask()))
+            results.append(ret)
+
+            a = tg.create_task(subtask())
+            try:
+                ret = await a
+                results.append(ret)
+            finally:
+                del a
+
+            a = asyncio.shield(tg.create_task(subtask()))
+            try:
+                ret = await a
+                results.append(ret)
+            finally:
+                del a
+
+        assert results == ["a", "a", "a", "a"]
+        assert done_count == 4
+        assert tg._unfinished_tasks == 0
+        assert len(tg._tasks) == 0
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 7, 0),
+    reason='Requires Python 3.7 or higher',
+    # In Python 3.6, this test hangs indefinitely.
+    # We don't fix this -- 3.6 is EoL as of December 2021.
+)
+@pytest.mark.asyncio
+async def test_ptaskgroup_await_exception():
+
+    done_count = 0
+    error_count = 0
+
+    async def subtask():
+        nonlocal done_count
+        await asyncio.sleep(0.1)
+        1 / 0
+        done_count += 1
+
+    async def handler(exc_type, exc_obj, exc_tb):
+        nonlocal error_count
+        assert issubclass(exc_type, ZeroDivisionError)
+        error_count += 1
+
+    vclock = aiotools.VirtualClock()
+    with vclock.patch_loop():
+
+        async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
+
+            with pytest.raises(ZeroDivisionError):
+                await tg.create_task(subtask())
+
+            with pytest.raises(ZeroDivisionError):
+                await asyncio.shield(tg.create_task(subtask()))
+
+            with pytest.raises(ZeroDivisionError):
+                a = tg.create_task(subtask())
+                try:
+                    await a
+                finally:
+                    del a
+
+            with pytest.raises(ZeroDivisionError):
+                # WARNING: This pattern leaks the reference to the task.
+                a = asyncio.shield(tg.create_task(subtask()))
+                try:
+                    await a
+                finally:
+                    del a
+
+        assert done_count == 0
+        assert error_count == 4
+        assert tg._unfinished_tasks == 0
+        assert len(tg._tasks) == 1
 
 
 @pytest.mark.asyncio
@@ -234,7 +334,6 @@ async def test_ptaskgroup_exc_handler_swallow():
             async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
                 for _ in range(10):
                     tg.create_task(subtask())
-                assert len(tg._tasks) == 10
         except ExceptionGroup as eg:
             # All non-base exceptions must be swallowed by
             # our exception handler.
@@ -348,7 +447,6 @@ async def test_ptaskgroup_cancel_with_await():
         async with aiotools.PersistentTaskGroup() as tg:
             for _ in range(10):
                 tg.create_task(subtask())
-            assert len(tg._tasks) == 10
             # Shutdown just after starting child tasks.
             # Even in this case, awaits in the tasks' cancellation blocks
             # should be executed until their completion.

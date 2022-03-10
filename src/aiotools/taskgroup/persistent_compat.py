@@ -11,6 +11,7 @@ except ImportError:
 from types import TracebackType
 from typing import (
     Any,
+    Awaitable,
     Callable,
     Coroutine,
     List,
@@ -90,7 +91,7 @@ class PersistentTaskGroup:
         coro: Coroutine[Any, Any, Any],
         *,
         name: str = None,
-    ) -> "asyncio.Task":
+    ) -> Awaitable[Any]:
         if not self._entered:
             # When used as object attribute, auto-enter.
             self._entered = True
@@ -104,13 +105,18 @@ class PersistentTaskGroup:
         *,
         name: str = None,
         cb: Callable[[asyncio.Task], Any],
-    ) -> "asyncio.Task":
-        child_task = create_task_with_name(self._task_wrapper(coro), name=name)
+    ) -> Awaitable[Any]:
+        loop = compat.get_running_loop()
+        result_future = loop.create_future()
+        child_task = create_task_with_name(
+            self._task_wrapper(coro, weakref.ref(result_future)),
+            name=name,
+        )
         _log.debug("%r is spawned in %r.", child_task, self)
         self._unfinished_tasks += 1
         child_task.add_done_callback(cb)
         self._tasks.add(child_task)
-        return child_task
+        return result_future
 
     def _is_base_error(self, exc: BaseException) -> bool:
         assert isinstance(exc, BaseException)
@@ -145,12 +151,24 @@ class PersistentTaskGroup:
         self._trigger_shutdown()
         await self._wait_completion()
 
-    async def _task_wrapper(self, coro: Coroutine) -> Any:
+    async def _task_wrapper(
+        self,
+        coro: Coroutine,
+        result_future: "weakref.ref[asyncio.Future]",
+    ) -> Any:
         loop = compat.get_running_loop()
         task = compat.current_task()
+        fut = result_future()
         try:
-            return await coro
-        except Exception:
+            ret = await coro
+            if fut is not None:
+                fut.set_result(ret)
+            return ret
+        except asyncio.CancelledError:
+            if fut is not None:
+                fut.cancel()
+            raise
+        except Exception as e:
             # Swallow unhandled exceptions by our own and
             # prevent abortion of the task group bu them.
             # Wrapping corotuines directly has advantage for
@@ -158,6 +176,8 @@ class PersistentTaskGroup:
             # and there is no need to implement separate
             # mechanism to wait for exception handler tasks.
             try:
+                if fut is not None:
+                    fut.set_exception(e)
                 await self._exc_handler(*sys.exc_info())
             except Exception as exc:
                 # If there are exceptions inside the exception handler
@@ -170,6 +190,8 @@ class PersistentTaskGroup:
                     'exception': exc,
                     'task': task,
                 })
+        finally:
+            del fut
 
     def _on_task_done(self, task: asyncio.Task) -> None:
         self._unfinished_tasks -= 1
