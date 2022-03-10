@@ -234,8 +234,11 @@ async def test_ptaskgroup_await_exception():
             with pytest.raises(ZeroDivisionError):
                 await tg.create_task(subtask())
 
+            with pytest.raises(ZeroDivisionError):
+                await asyncio.shield(tg.create_task(subtask()))
+
         assert done_count == 0
-        assert error_count == 1
+        assert error_count == 2
         # assert len(tg._tasks) == 0
         assert tg._unfinished_tasks == 0
 

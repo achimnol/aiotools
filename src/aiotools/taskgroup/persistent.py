@@ -181,6 +181,8 @@ class PersistentTaskGroup:
                     'exception': exc,
                     'task': task,
                 })
+        finally:
+            del result_future
 
     def _on_task_done(self, task: asyncio.Task) -> None:
         self._unfinished_tasks -= 1
