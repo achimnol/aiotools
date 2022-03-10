@@ -164,6 +164,7 @@ class PersistentTaskGroup:
             return ret
         except asyncio.CancelledError:
             result_future.cancel()
+            raise
         except Exception as e:
             # Swallow unhandled exceptions by our own and
             # prevent abortion of the task group bu them.
