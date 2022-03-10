@@ -206,6 +206,50 @@ async def test_ptaskgroup_cancel_before_schedule():
 
 
 @pytest.mark.asyncio
+async def test_ptaskgroup_await_result():
+
+    done_count = 0
+
+    async def subtask():
+        nonlocal done_count
+        await asyncio.sleep(0.1)
+        done_count += 1
+        return "a"
+
+    vclock = aiotools.VirtualClock()
+    with vclock.patch_loop():
+
+        results = []
+
+        async with aiotools.PersistentTaskGroup() as tg:
+
+            ret = await tg.create_task(subtask())
+            results.append(ret)
+
+            ret = await asyncio.shield(tg.create_task(subtask()))
+            results.append(ret)
+
+            a = tg.create_task(subtask())
+            try:
+                ret = await a
+                results.append(ret)
+            finally:
+                del a
+
+            a = asyncio.shield(tg.create_task(subtask()))
+            try:
+                ret = await a
+                results.append(ret)
+            finally:
+                del a
+
+        assert results == ["a", "a", "a", "a"]
+        assert done_count == 4
+        assert tg._unfinished_tasks == 0
+        assert len(tg._tasks) == 0
+
+
+@pytest.mark.asyncio
 async def test_ptaskgroup_await_exception():
 
     done_count = 0
@@ -226,16 +270,32 @@ async def test_ptaskgroup_await_exception():
     with vclock.patch_loop():
 
         async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
+
             with pytest.raises(ZeroDivisionError):
                 await tg.create_task(subtask())
 
             with pytest.raises(ZeroDivisionError):
                 await asyncio.shield(tg.create_task(subtask()))
 
+            with pytest.raises(ZeroDivisionError):
+                a = tg.create_task(subtask())
+                try:
+                    await a
+                finally:
+                    del a
+
+            with pytest.raises(ZeroDivisionError):
+                # WARNING: This pattern leaks the reference to the task.
+                a = asyncio.shield(tg.create_task(subtask()))
+                try:
+                    await a
+                finally:
+                    del a
+
         assert done_count == 0
-        assert error_count == 2
-        assert len(tg._tasks) == 0
+        assert error_count == 4
         assert tg._unfinished_tasks == 0
+        assert len(tg._tasks) == 1
 
 
 @pytest.mark.asyncio

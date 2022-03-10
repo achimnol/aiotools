@@ -158,11 +158,13 @@ class PersistentTaskGroup:
             fut = result_future()
             if fut is not None:
                 fut.set_result(ret)
+                del fut
             return ret
         except asyncio.CancelledError:
             fut = result_future()
             if fut is not None:
                 fut.cancel()
+                del fut
             raise
         except Exception as e:
             # Swallow unhandled exceptions by our own and
@@ -172,10 +174,11 @@ class PersistentTaskGroup:
             # and there is no need to implement separate
             # mechanism to wait for exception handler tasks.
             try:
-                await self._exc_handler(*sys.exc_info())
                 fut = result_future()
                 if fut is not None:
                     fut.set_exception(e)
+                    del fut
+                await self._exc_handler(*sys.exc_info())
             except Exception as exc:
                 # If there are exceptions inside the exception handler
                 # we report it as soon as possible using the event loop's
