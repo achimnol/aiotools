@@ -98,8 +98,21 @@ Task Group
    .. method:: create_task(coro, *, name=None)
 
       Spawns a new task inside the taskgroup and returns the reference to
-      the task.  Setting the name of tasks is supported in Python 3.8 or
-      later only and ignored in older versions.
+      a :class:`future <asyncio.Future>` describing the task result.
+      Setting the name of tasks is supported in Python 3.8 or later only
+      and ignored in older versions.
+
+      You may ``await`` the retuned future to take the task's return value
+      or get notified with the exception from it, while the exception
+      handler is still invoked.  Since it is just a *secondary* future,
+      you cannot cancel the task explicitly using it.  To cancel the
+      task(s), use :meth:`shutdown()` or exit the task group context.
+
+      .. warning::
+
+         In Python 3.6, ``await``-ing the returned future hangs
+         indefinitely.  We do not fix this issue because Python 3.6 is now
+         EoL (end-of-life) as of December 2021.
 
    .. method:: get_name()
 
