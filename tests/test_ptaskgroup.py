@@ -249,6 +249,9 @@ async def test_ptaskgroup_await_result():
             finally:
                 del a
 
+        # task callbacks has an extra ref, and they need to finish before
+        # we task objetcs get garbage-collected.
+        await asyncio.sleep(0)
         assert results == ["a", "a", "a", "a"]
         assert done_count == 4
         assert tg._unfinished_tasks == 0
@@ -304,10 +307,13 @@ async def test_ptaskgroup_await_exception():
                 finally:
                     del a
 
+        # task callbacks has an extra ref, and they need to finish before
+        # we task objetcs get garbage-collected.
+        await asyncio.sleep(0)
         assert done_count == 0
         assert error_count == 4
         assert tg._unfinished_tasks == 0
-        assert len(tg._tasks) == 1
+        assert len(tg._tasks) == 0
 
 
 @pytest.mark.asyncio
