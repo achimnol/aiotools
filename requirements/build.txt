@@ -1,0 +1,2 @@
+towncrier~=21.9
+wheel>=0.37.1
