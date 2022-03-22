@@ -16,6 +16,19 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.5.5 (2022-03-22)
+------------------
+
+### Features
+* Add `wait_timeout` option to `start_server()` ([#46](https://github.com/achimnol/aiotools/issues/46))
+
+### Fixes
+* Resolve singal races by minimizing expose of event loop in `afork()`-ed child processes ([#46](https://github.com/achimnol/aiotools/issues/46))
+
+### Miscellaneous
+* Now the CI runs with Python 3.11a6 or later, with stdlib support of `asyncio.TaskGroup` ([#45](https://github.com/achimnol/aiotools/issues/45))
+
+
 1.5.4 (2022-03-10)
 ------------------
 
