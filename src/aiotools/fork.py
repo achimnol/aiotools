@@ -89,13 +89,16 @@ class PosixChildProcess(AbstractChildProcess):
 
     def send_signal(self, signum: int) -> None:
         if self._terminated:
-            logger.warning(
-                "PosixChildProcess(%d).send_signal(%d): "
-                "The process has already terminated.",
-                self._pid,
-                signum,
-            )
+            if signum != signal.SIGKILL:
+                logger.warning(
+                    "PosixChildProcess(%d).send_signal(%d): "
+                    "The process has already terminated.",
+                    self._pid,
+                    signum,
+                )
             return
+        if signum == signal.SIGKILL:
+            logger.warning("Force-killed hanging child: %d", self._pid)
         os.kill(self._pid, signum)
 
     async def wait(self) -> int:
@@ -108,7 +111,7 @@ class PosixChildProcess(AbstractChildProcess):
             self._returncode = 255
             logger.warning(
                 "child process pid %d exit status already read: "
-                " will report returncode 255",
+                "it will report returncode 255",
                 self._pid)
         else:
             if os.WIFSIGNALED(status):
@@ -138,14 +141,17 @@ class PidfdChildProcess(AbstractChildProcess):
 
     def send_signal(self, signum: int) -> None:
         if self._terminated:
-            logger.warning(
-                "PidfdChildProcess(%d, %d).send_signal(%d): "
-                "The process has already terminated.",
-                self._pid,
-                self._pidfd,
-                signum,
-            )
+            if signum != signal.SIGKILL:
+                logger.warning(
+                    "PidfdChildProcess(%d, %d).send_signal(%d): "
+                    "The process has already terminated.",
+                    self._pid,
+                    self._pidfd,
+                    signum,
+                )
             return
+        if signum == signal.SIGKILL:
+            logger.warning("Force-killed hanging child: %d", self._pid)
         signal.pidfd_send_signal(self._pidfd, signum)  # type: ignore
 
     def _do_wait(self):
@@ -164,7 +170,7 @@ class PidfdChildProcess(AbstractChildProcess):
             self._returncode = 255
             logger.warning(
                 "child process %d exit status already read: "
-                " will report returncode 255",
+                "it will report returncode 255",
                 self._pid)
         else:
             if status_info.si_code == os.CLD_KILLED:
@@ -202,11 +208,10 @@ def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
 async def _fork_posix(child_func: Callable[[], int]) -> int:
     loop = get_running_loop()
     init_pipe = os.pipe()
-    init_event = asyncio.Event()
-    loop.add_reader(init_pipe[0], init_event.set)
 
     pid = os.fork()
     if pid == 0:
+        os.close(init_pipe[0])
         ret = 0
         try:
             ret = _child_main(None, init_pipe[1], child_func)
@@ -214,8 +219,12 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
             ret = -signal.SIGINT
         finally:
             os._exit(ret)
+        return ret
+    os.close(init_pipe[1])
 
     # Wait for the child's readiness notification
+    init_event = asyncio.Event()
+    loop.add_reader(init_pipe[0], init_event.set)
     await init_event.wait()
     loop.remove_reader(init_pipe[0])
     os.read(init_pipe[0], 1)
@@ -226,11 +235,10 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
 async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     loop = get_running_loop()
     init_pipe = os.pipe()
-    init_event = asyncio.Event()
-    loop.add_reader(init_pipe[0], init_event.set)
 
     pid = os.fork()
     if pid == 0:
+        os.close(init_pipe[0])
         ret = 0
         try:
             ret = _child_main(None, init_pipe[1], child_func)
@@ -238,11 +246,15 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
             ret = -signal.SIGINT
         finally:
             os._exit(ret)
+        return ret
+    os.close(init_pipe[1])
 
     # Get the pidfd.
     fd = os.pidfd_open(pid, 0)  # type: ignore
 
     # Wait for the child's readiness notification
+    init_event = asyncio.Event()
+    loop.add_reader(init_pipe[0], init_event.set)
     await init_event.wait()
     loop.remove_reader(init_pipe[0])
     os.read(init_pipe[0], 1)
