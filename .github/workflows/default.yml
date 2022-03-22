@@ -7,24 +7,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11.0-alpha.5 - 3.11.0"]
+        python-version: ["3.11.0-alpha.6 - 3.11"]
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Cache pip packages
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache/pip
-        key: lint-flake8-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.cfg') }}
-        restore-keys: |
-          lint-flake8-${{ runner.os }}-pip-${{ matrix.python-version }}
-          lint-flake8-${{ runner.os }}-pip-
+        cache: "pip"
+        cache-dependency-path: |
+          setup.cfg
+          requirements/lint.txt
     - name: Install dependencies
       run: |
-        python -m pip install -U pip setuptools
+        python -m pip install -U pip setuptools wheel
         python -m pip install -U -r requirements/lint.txt
     - name: Lint with flake8
       run: |
@@ -39,24 +35,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11.0-alpha.5 - 3.11.0"]
+        python-version: ["3.11.0-alpha.6 - 3.11"]
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Cache pip packages
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache/pip
-        key: typecheck-mypy-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.cfg') }}
-        restore-keys: |
-          typecheck-mypy-${{ runner.os }}-pip-${{ matrix.python-version }}
-          typecheck-mypy-${{ runner.os }}-pip-
+        cache: "pip"
+        cache-dependency-path: |
+          setup.cfg
+          requirements/typecheck.txt
     - name: Install dependencies
       run: |
-        python -m pip install -U pip setuptools
+        python -m pip install -U pip setuptools wheel
         python -m pip install -U -r requirements/typecheck.txt
     - name: Type check with mypy
       continue-on-error: true
@@ -76,24 +68,20 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11.0-alpha.5 - 3.11.0"]
+        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11.0-alpha.6 - 3.11"]
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Cache pip packages
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache/pip
-        key: typecheck-mypy-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.cfg') }}
-        restore-keys: |
-          typecheck-mypy-${{ runner.os }}-pip-${{ matrix.python-version }}
-          typecheck-mypy-${{ runner.os }}-pip-
+        cache: "pip"
+        cache-dependency-path: |
+          setup.cfg
+          requirements/test.txt
     - name: Install dependencies
       run: |
-        python -m pip install -U pip setuptools
+        python -m pip install -U pip setuptools wheel
         python -m pip install -U -r requirements/test.txt
     - name: Prepare testing
       run: |
@@ -129,15 +117,18 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: "3.10"
+        cache: "pip"
+        cache-dependency-path: |
+          requirements/build.txt
     - name: Install dependencies
       env:
         REQUIREMENTS_FILE: build
       run: |
-        python -m pip install -U pip setuptools
-        pip install -U wheel twine
+        python -m pip install -U pip setuptools wheel
+        pip install -U -r requirements/build.txt
     - name: Build and publish
       env:
         TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
