@@ -202,8 +202,6 @@ def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
 async def _fork_posix(child_func: Callable[[], int]) -> int:
     loop = get_running_loop()
     init_pipe = os.pipe()
-    init_event = asyncio.Event()
-    loop.add_reader(init_pipe[0], init_event.set)
 
     pid = os.fork()
     if pid == 0:
@@ -216,6 +214,8 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
             os._exit(ret)
 
     # Wait for the child's readiness notification
+    init_event = asyncio.Event()
+    loop.add_reader(init_pipe[0], init_event.set)
     await init_event.wait()
     loop.remove_reader(init_pipe[0])
     os.read(init_pipe[0], 1)
@@ -226,8 +226,6 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
 async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     loop = get_running_loop()
     init_pipe = os.pipe()
-    init_event = asyncio.Event()
-    loop.add_reader(init_pipe[0], init_event.set)
 
     pid = os.fork()
     if pid == 0:
@@ -243,6 +241,8 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     fd = os.pidfd_open(pid, 0)  # type: ignore
 
     # Wait for the child's readiness notification
+    init_event = asyncio.Event()
+    loop.add_reader(init_pipe[0], init_event.set)
     await init_event.wait()
     loop.remove_reader(init_pipe[0])
     os.read(init_pipe[0], 1)
