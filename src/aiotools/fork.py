@@ -205,6 +205,7 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
 
     pid = os.fork()
     if pid == 0:
+        os.close(init_pipe[0])
         ret = 0
         try:
             ret = _child_main(None, init_pipe[1], child_func)
@@ -212,6 +213,8 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
             ret = -signal.SIGINT
         finally:
             os._exit(ret)
+        return ret
+    os.close(init_pipe[1])
 
     # Wait for the child's readiness notification
     init_event = asyncio.Event()
@@ -229,6 +232,7 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
 
     pid = os.fork()
     if pid == 0:
+        os.close(init_pipe[0])
         ret = 0
         try:
             ret = _child_main(None, init_pipe[1], child_func)
@@ -236,6 +240,8 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
             ret = -signal.SIGINT
         finally:
             os._exit(ret)
+        return ret
+    os.close(init_pipe[1])
 
     # Get the pidfd.
     fd = os.pidfd_open(pid, 0)  # type: ignore
