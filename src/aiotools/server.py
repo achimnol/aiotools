@@ -401,7 +401,8 @@ def start_server(
         signal.SIGTERM
     ),
     num_workers: int = 1,
-    args: Iterable[Any] = tuple()
+    args: Iterable[Any] = tuple(),
+    wait_timeout: float = None,
 ) -> None:
     """
     Starts a multi-process server where each process has their own individual
@@ -456,6 +457,10 @@ def start_server(
               they are *prepended* to this user arguments when passed to
               workers and extra processes.
 
+        wait_timeout: The timeout in seconds before forcibly killing all
+                      remaining child processes after sending initial stop
+                      signals.
+
     Returns:
         None
 
@@ -506,6 +511,10 @@ def start_server(
 
        The **extra_procs** will be always separate processes since **use_threading**
        is deprecated and thus **intr_event** arguments are now always ``None``.
+
+    .. versionadded:: 1.5.5
+
+       The **wait_timeout** argument.
     """
 
     @_main_ctxmgr
@@ -633,11 +642,22 @@ def start_server(
                 main_loop.run_until_complete(main_future)
             except asyncio.CancelledError:
                 pass
-
-            # if interrupted, wait for workers to finish.
-            main_loop.run_until_complete(
-                asyncio.gather(*[child.wait() for child in children])
-            )
+            finally:
+                # if interrupted, wait for workers to finish.
+                try:
+                    main_loop.run_until_complete(
+                        asyncio.wait_for(asyncio.gather(
+                            *[child.wait() for child in children],
+                            return_exceptions=True,
+                        ), wait_timeout)
+                    )
+                except asyncio.TimeoutError:
+                    log.warning(
+                        "Timeout during waiting for child processes; "
+                        "killing all",
+                    )
+                    for child in children:
+                        child.send_signal(signal.SIGKILL)
         finally:
             try:
                 main_loop.run_until_complete(cancel_all_tasks())

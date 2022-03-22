@@ -89,13 +89,16 @@ class PosixChildProcess(AbstractChildProcess):
 
     def send_signal(self, signum: int) -> None:
         if self._terminated:
-            logger.warning(
-                "PosixChildProcess(%d).send_signal(%d): "
-                "The process has already terminated.",
-                self._pid,
-                signum,
-            )
+            if signum != signal.SIGKILL:
+                logger.warning(
+                    "PosixChildProcess(%d).send_signal(%d): "
+                    "The process has already terminated.",
+                    self._pid,
+                    signum,
+                )
             return
+        if signum == signal.SIGKILL:
+            logger.warning("Force-killed hanging child: %d", self._pid)
         os.kill(self._pid, signum)
 
     async def wait(self) -> int:
@@ -108,7 +111,7 @@ class PosixChildProcess(AbstractChildProcess):
             self._returncode = 255
             logger.warning(
                 "child process pid %d exit status already read: "
-                " will report returncode 255",
+                "it will report returncode 255",
                 self._pid)
         else:
             if os.WIFSIGNALED(status):
@@ -138,14 +141,17 @@ class PidfdChildProcess(AbstractChildProcess):
 
     def send_signal(self, signum: int) -> None:
         if self._terminated:
-            logger.warning(
-                "PidfdChildProcess(%d, %d).send_signal(%d): "
-                "The process has already terminated.",
-                self._pid,
-                self._pidfd,
-                signum,
-            )
+            if signum != signal.SIGKILL:
+                logger.warning(
+                    "PidfdChildProcess(%d, %d).send_signal(%d): "
+                    "The process has already terminated.",
+                    self._pid,
+                    self._pidfd,
+                    signum,
+                )
             return
+        if signum == signal.SIGKILL:
+            logger.warning("Force-killed hanging child: %d", self._pid)
         signal.pidfd_send_signal(self._pidfd, signum)  # type: ignore
 
     def _do_wait(self):
@@ -164,7 +170,7 @@ class PidfdChildProcess(AbstractChildProcess):
             self._returncode = 255
             logger.warning(
                 "child process %d exit status already read: "
-                " will report returncode 255",
+                "it will report returncode 255",
                 self._pid)
         else:
             if status_info.si_code == os.CLD_KILLED:
