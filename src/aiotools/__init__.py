@@ -1,4 +1,5 @@
 import sys
+import pkgutil
 
 # Import submodules only when installed properly
 from . import (
@@ -17,13 +18,6 @@ if _is_linux:
         fork as _fork,
         server,
     )
-
-import pkgutil
-_version_data = pkgutil.get_data("aiotools", "VERSION")
-if _version_data is None:
-    __version__ = '0.0.dev'
-else:
-    __version__ = _version_data.decode('utf8').strip()
 
 __all__ = (
     *context.__all__,
@@ -51,3 +45,10 @@ if _is_linux:
 
     from .fork import *        # noqa
     from .server import *      # noqa
+
+
+_version_data = pkgutil.get_data("aiotools", "VERSION")
+if _version_data is None:
+    __version__ = '0.0.dev'
+else:
+    __version__ = _version_data.decode('utf8').strip()
