@@ -16,7 +16,8 @@ import inspect
 from typing import Any, Callable, Iterable, Optional, List
 
 __all__ = [
-    'AsyncContextManager', 'async_ctx_manager', 'actxmgr', 'aclosing',
+    'AsyncContextManager', 'async_ctx_manager', 'actxmgr',
+    'aclosing', 'closing_async',
     'AsyncContextGroup', 'actxgroup',
 ]
 
@@ -169,6 +170,22 @@ in-a-post-asyncawait-world/#cleanup-in-generators-and-async-generators
 
     async def __aexit__(self, *args):
         await self.thing.aclose()
+
+
+class closing_async:
+    """
+    An analogy to :func:`contextlib.closing` for objects with ``close()``
+    methods as async functions.
+    """
+
+    def __init__(self, thing):
+        self.thing = thing
+
+    async def __aenter__(self):
+        return self.thing
+
+    async def __aexit__(self, *args):
+        await self.thing.close()
 
 
 class AsyncContextGroup:
