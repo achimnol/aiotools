@@ -176,6 +176,8 @@ class closing_async:
     """
     An analogy to :func:`contextlib.closing` for objects with ``close()``
     methods as async functions.
+
+    .. versionadded:: 1.5.6
     """
 
     def __init__(self, thing):

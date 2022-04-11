@@ -21,6 +21,8 @@ Async Context Manager
 
 .. autoclass:: aiotools.context.aclosing
 
+.. autoclass:: aiotools.context.closing_async
+
 .. autoclass:: aiotools.context.AsyncContextGroup
    :members:
 
