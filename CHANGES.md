@@ -16,6 +16,15 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.5.6 (2022-04-11)
+------------------
+
+### Features
+* Add the `closing_async()` async context manager, in addition to `aclosing()` ([#48](https://github.com/achimnol/aiotools/issues/48))
+### Fixes
+* Allow importing aiotools on Windows platforms, removing incompatible modules from the default `__all__` import list ([#47](https://github.com/achimnol/aiotools/issues/47))
+
+
 1.5.5 (2022-03-22)
 ------------------
 
