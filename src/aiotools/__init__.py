@@ -29,9 +29,9 @@ from .defer import *       # noqa
 from .fork import *        # noqa
 from .func import *        # noqa
 from .iter import *        # noqa
+from .server import *      # noqa
 from .taskgroup import *   # noqa
 from .timer import *       # noqa
-from .server import *      # noqa
 
 
 _version_data = pkgutil.get_data("aiotools", "VERSION")
