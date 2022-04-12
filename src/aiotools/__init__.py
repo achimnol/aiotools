@@ -5,6 +5,7 @@ import pkgutil
 from . import (
     context,
     defer as _defer,
+    fork as _fork,
     func,
     iter as _iter,
     taskgroup,
@@ -15,13 +16,13 @@ _is_win32 = sys.platform.startswith('win32')
 
 if not _is_win32:
     from . import (
-        fork as _fork,
         server,
     )
 
 __all__ = (
     *context.__all__,
     *_defer.__all__,
+    *_fork.__all__,
     *func.__all__,
     *_iter.__all__,
     *taskgroup.__all__,
@@ -39,7 +40,6 @@ from .timer import *       # noqa
 if not _is_win32:
     __all__ = (
         *__all__,
-        *_fork.__all__,
         *server.__all__,
     )
 
