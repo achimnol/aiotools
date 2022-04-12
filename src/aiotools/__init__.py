@@ -11,9 +11,9 @@ from . import (
     timer,
 )
 
-_is_linux = sys.platform.startswith('linux')
+_is_win32 = sys.platform.startswith('win32')
 
-if _is_linux:
+if not _is_win32:
     from . import (
         fork as _fork,
         server,
@@ -36,7 +36,7 @@ from .iter import *        # noqa
 from .taskgroup import *   # noqa
 from .timer import *       # noqa
 
-if _is_linux:
+if not _is_win32:
     __all__ = (
         *__all__,
         *_fork.__all__,
