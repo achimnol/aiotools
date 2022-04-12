@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.5.7 (2022-04-12)
+------------------
+
+### Fixes
+* Fix regression of the default imports in macOS by removing the unused code that caused the misleading fix in #47 ([#49](https://github.com/achimnol/aiotools/issues/49))
+
+
 1.5.6 (2022-04-11)
 ------------------
 
