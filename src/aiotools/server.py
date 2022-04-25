@@ -249,18 +249,18 @@ def _main_ctxmgr(func):
 main = _main_ctxmgr
 
 
-def setup_child_watcher():
+def setup_child_watcher(loop: asyncio.AbstractEventLoop) -> None:
     try:
         asyncio.get_child_watcher()
         if hasattr(asyncio, 'PidfdChildWatcher'):
             watcher = asyncio.PidfdChildWatcher()
             asyncio.set_child_watcher(watcher)
-            watcher.attach_loop(get_running_loop())
+            watcher.attach_loop(loop)
     except NotImplementedError:
         pass  # for uvloop
 
 
-async def cancel_all_tasks():
+async def cancel_all_tasks() -> None:
     loop = get_running_loop()
     cancelled_tasks = []
     for task in all_tasks():
@@ -291,7 +291,7 @@ def _worker_main(
 ) -> int:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    setup_child_watcher()
+    setup_child_watcher(loop)
     interrupted = asyncio.Event()
     ctx = worker_actxmgr(loop, proc_idx, args)
     if _cv_available:
