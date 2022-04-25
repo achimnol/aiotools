@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.5.8 (2022-04-25)
+------------------
+
+### Fixes
+* Explicitly attach the event loop to the `PidfdChildWatcher` when first initialized ([#50](https://github.com/achimnol/aiotools/issues/50))
+
+
 1.5.7 (2022-04-12)
 ------------------
 
