@@ -253,7 +253,9 @@ def setup_child_watcher():
     try:
         asyncio.get_child_watcher()
         if hasattr(asyncio, 'PidfdChildWatcher'):
-            asyncio.set_child_watcher(asyncio.PidfdChildWatcher())
+            watcher = asyncio.PidfdChildWatcher()
+            asyncio.set_child_watcher(watcher)
+            watcher.attach_loop(get_running_loop())
     except NotImplementedError:
         pass  # for uvloop
 
