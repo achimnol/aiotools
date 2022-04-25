@@ -553,7 +553,7 @@ def start_server(
     main_future = main_loop.create_future()
 
     # to make subprocess working in child threads
-    setup_child_watcher()
+    setup_child_watcher(main_loop)
 
     # build a main-to-worker interrupt channel using signals
     def handle_stop_signal(signum: signal.Signals) -> None:
