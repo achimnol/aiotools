@@ -252,8 +252,9 @@ main = _main_ctxmgr
 def setup_child_watcher(loop: asyncio.AbstractEventLoop) -> None:
     try:
         asyncio.get_child_watcher()
-        if hasattr(asyncio, 'PidfdChildWatcher'):
-            watcher = asyncio.PidfdChildWatcher()
+        watcher_cls = getattr(asyncio, 'PidfdChildWatcher', None)
+        if watcher_cls is not None:
+            watcher = watcher_cls()
             asyncio.set_child_watcher(watcher)
             watcher.attach_loop(loop)
     except NotImplementedError:
