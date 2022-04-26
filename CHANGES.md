@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.5.9 (2022-04-26)
+------------------
+
+### Fixes
+* Improve checks for pidfd availability to avoid corner cases that may fail on Linux kernel 5.1 and 5.2 where `signal.pidfd_send_signal()` is available but `os.pidfd_open()` is not ([#51](https://github.com/achimnol/aiotools/issues/51))
+
+
 1.5.8 (2022-04-25)
 ------------------
 
