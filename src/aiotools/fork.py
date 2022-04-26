@@ -28,11 +28,14 @@ __all__ = (
 logger = logging.getLogger(__name__)
 
 _has_pidfd = False
-if hasattr(signal, 'pidfd_send_signal'):
+if hasattr(os, 'pidfd_open'):
+    # signal.pidfd_send_signal() is available in Linux kernel 5.1+
+    # and os.pidfd_open() is available in Linux kernel 5.3+.
+    # So let's check with os.pidfd_open() which requires higher version.
     try:
-        signal.pidfd_send_signal(0, 0)  # type: ignore
+        os.pidfd_open(0, 0)  # type: ignore
     except OSError as e:
-        if e.errno == errno.EBADF:
+        if e.errno in (errno.EBADF, errno.EINVAL):
             _has_pidfd = True
         # if the kernel does not support this,
         # it will say errno.ENOSYS or errno.EPERM
