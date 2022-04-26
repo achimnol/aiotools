@@ -53,7 +53,7 @@ from typing import (
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
-from .fork import AbstractChildProcess, afork
+from .fork import AbstractChildProcess, afork, _has_pidfd
 
 try:
     from typing import Literal
@@ -251,11 +251,14 @@ main = _main_ctxmgr
 
 def setup_child_watcher(loop: asyncio.AbstractEventLoop) -> None:
     try:
-        asyncio.get_child_watcher()
         watcher_cls = getattr(asyncio, 'PidfdChildWatcher', None)
-        if watcher_cls is not None:
+        if _has_pidfd and watcher_cls:
             watcher = watcher_cls()
             asyncio.set_child_watcher(watcher)
+        else:
+            # Just get the default child watcher.
+            watcher = asyncio.get_child_watcher()
+        if not watcher.is_active():
             watcher.attach_loop(loop)
     except NotImplementedError:
         pass  # for uvloop
