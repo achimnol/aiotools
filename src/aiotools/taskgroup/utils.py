@@ -4,6 +4,7 @@ A set of helper utilities to utilize taskgroups in better ways.
 
 import asyncio
 
+from ..compat import get_running_loop
 from . import PersistentTaskGroup
 
 __all__ = ("as_completed_safe", )
@@ -24,4 +25,5 @@ async def as_completed_safe(coros, timeout=None):
             for result in asyncio.as_completed(tasks, timeout=timeout):
                 yield result
         except GeneratorExit:
-            return
+            # This happens when as_completed() is timeout.
+            raise asyncio.TimeoutError()

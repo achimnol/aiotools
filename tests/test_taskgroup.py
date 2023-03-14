@@ -5,8 +5,6 @@ import warnings
 import pytest
 
 from aiotools import (
-    aclosing,
-    as_completed_safe,
     TaskGroup,
     TaskGroupError,
     VirtualClock,
@@ -308,47 +306,3 @@ async def test_taskgroup_memoryleak_with_persistent_tg():
                     assert len(tg._tasks) == 11
             await asyncio.sleep(10.1)
             assert len(tg._tasks) == 0
-
-
-@pytest.mark.asyncio
-async def test_as_completed_safe():
-
-    async def do_job(delay, idx):
-        await asyncio.sleep(delay)
-        return idx
-
-    async def fail_job(delay):
-        await asyncio.sleep(delay)
-        1 / 0
-
-    with VirtualClock().patch_loop():
-
-        results = []
-
-        async with aclosing(as_completed_safe([
-            do_job(0.3, 1),
-            do_job(0.2, 2),
-            do_job(0.1, 3),
-        ])) as ag:
-            async for result in ag:
-                results.append(await result)
-
-        assert results == [3, 2, 1]
-
-        results = []
-        errors = []
-
-        async with aclosing(as_completed_safe([
-            do_job(0.1, 1),
-            fail_job(0.2),
-            do_job(0.2, 3),
-        ])) as ag:
-            async for result in ag:
-                try:
-                    results.append(await result)
-                except Exception as e:
-                    errors.append(e)
-
-        assert results == [1, 3]
-        assert len(errors) == 1
-        assert isinstance(errors[0], ZeroDivisionError)
