@@ -16,6 +16,10 @@ async def as_completed_safe(coros, timeout=None):
 
     Upon a timeout, it raises :class:`asyncio.TimeoutError` immediately
     and cancels all remaining tasks or coroutines.
+
+    This requires Python 3.11 or higher to work properly without timeouts.
+
+    .. versionadded:: 1.6
     """
     async with PersistentTaskGroup() as tg:
         tasks = []

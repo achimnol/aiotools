@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import async_timeout
 import pytest
@@ -58,6 +59,10 @@ async def test_as_completed_safe():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    sys.version_info < (3, 11),
+    reason='timeout supoport requires Python 3.11 or higher',
+)
 async def test_as_completed_safe_timeout_intrinsic():
 
     executed = 0
@@ -99,6 +104,10 @@ async def test_as_completed_safe_timeout_intrinsic():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    sys.version_info < (3, 11),
+    reason='timeout supoport requires Python 3.11 or higher',
+)
 async def test_as_completed_safe_timeout_extlib():
 
     executed = 0
