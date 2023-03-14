@@ -13,6 +13,9 @@ async def as_completed_safe(coros, timeout=None):
     """
     This is a safer version of :func:`asyncio.as_completed()` which uses
     :class:`PersistentTaskGroup` as an underlying coroutine lifecycle keeper.
+
+    Upon a timeout, it raises :class:`asyncio.TimeoutError` immediately
+    and cancels all remaining tasks or coroutines.
     """
     async with PersistentTaskGroup() as tg:
         tasks = []
