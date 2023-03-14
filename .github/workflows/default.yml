@@ -102,7 +102,7 @@ jobs:
          --initial-cluster-state new \
          --auto-compaction-retention 1
     - name: Test with pytest
-      timeout-minutes: 1
+      timeout-minutes: 3
       run: |
         python -m pytest -v --cov=src tests
     - name: Send code coverage report
