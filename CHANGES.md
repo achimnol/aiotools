@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.6.0 (2023-03-14)
+------------------
+
+### Features
+* Add `as_completed_safe()` which enhances `asyncio.as_completed()` using `PersistentTaskGroup` ([#52](https://github.com/achimnol/aiotools/issues/52))
+
+
 1.5.9 (2022-04-26)
 ------------------
 
