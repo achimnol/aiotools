@@ -238,13 +238,19 @@ class PersistentTaskGroup:
                 self._base_error is None):
             self._base_error = exc_val
 
-        if exc_type is asyncio.CancelledError:
+        if (
+            exc_type is asyncio.CancelledError or
+            exc_type is asyncio.TimeoutError
+        ):
             if self._parent_cancel_requested:
                 self._parent_task.uncancel()
             else:
                 propagate_cancellation_error = exc_type
         if exc_type is not None and not self._aborting:
-            if exc_type is asyncio.CancelledError:
+            if (
+                exc_type is asyncio.CancelledError or
+                exc_type is asyncio.TimeoutError
+            ):
                 propagate_cancellation_error = exc_type
             self._trigger_shutdown()
 
