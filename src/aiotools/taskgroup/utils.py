@@ -9,7 +9,7 @@ from . import PersistentTaskGroup
 __all__ = ("as_completed_safe", )
 
 
-async def as_completed_safe(coros):
+async def as_completed_safe(coros, timeout=None):
     """
     This is a safer version of :func:`asyncio.as_completed()` which uses
     :class:`PersistentTaskGroup` as an underlying coroutine lifecycle keeper.
@@ -20,5 +20,8 @@ async def as_completed_safe(coros):
             t = tg.create_task(coro)
             tasks.append(t)
         await asyncio.sleep(0)
-        for result in asyncio.as_completed(tasks):
-            yield result
+        try:
+            for result in asyncio.as_completed(tasks, timeout=timeout):
+                yield result
+        except GeneratorExit:
+            return
