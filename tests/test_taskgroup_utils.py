@@ -61,15 +61,19 @@ async def test_as_completed_safe():
 async def test_as_completed_safe_timeout_intrinsic():
 
     executed = 0
+    cancelled = 0
     loop_count = 0
 
     with VirtualClock().patch_loop():
 
         async def do_job(delay, idx):
-            nonlocal executed
-            await asyncio.sleep(delay)
-            executed += 1
-            return idx
+            nonlocal cancelled, executed
+            try:
+                await asyncio.sleep(delay)
+                executed += 1
+                return idx
+            except asyncio.CancelledError:
+                cancelled += 1
 
         results = []
         timeouts = 0
@@ -89,6 +93,7 @@ async def test_as_completed_safe_timeout_intrinsic():
 
         assert loop_count == 1
         assert executed == 1
+        assert cancelled == 2
         assert results == [1]
         assert timeouts == 1
 
@@ -97,15 +102,19 @@ async def test_as_completed_safe_timeout_intrinsic():
 async def test_as_completed_safe_timeout_extlib():
 
     executed = 0
+    cancelled = 0
     loop_count = 0
 
     with VirtualClock().patch_loop():
 
         async def do_job(delay, idx):
-            nonlocal executed
-            await asyncio.sleep(delay)
-            executed += 1
-            return idx
+            nonlocal cancelled, executed
+            try:
+                await asyncio.sleep(delay)
+                executed += 1
+                return idx
+            except asyncio.CancelledError:
+                cancelled += 1
 
         results = []
         timeouts = 0
@@ -126,5 +135,6 @@ async def test_as_completed_safe_timeout_extlib():
 
         assert loop_count == 1
         assert executed == 1
+        assert cancelled == 2
         assert results == [1]
         assert timeouts == 1
