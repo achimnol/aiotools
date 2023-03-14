@@ -4,7 +4,6 @@ A set of helper utilities to utilize taskgroups in better ways.
 
 import asyncio
 
-from ..compat import get_running_loop
 from . import PersistentTaskGroup
 
 __all__ = ("as_completed_safe", )
