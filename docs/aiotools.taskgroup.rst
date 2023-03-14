@@ -153,5 +153,9 @@ Task Group
    3.11 or later.  Note that if none of the passed exceptions passed is a
    :exc:`BaseException`, it automatically becomes :exc:`ExceptionGroup`.
 
-.. automodule:: aiotools.utils
+
+Task Group Utilities
+====================
+
+.. automodule:: aiotools.taskgroup.utils
     :members:
