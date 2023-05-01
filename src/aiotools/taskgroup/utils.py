@@ -57,7 +57,7 @@ class GroupResult:
 
 
 async def gather_safe(coros, group_result: GroupResult) -> GroupResult:
-    errors = []
+    errors: list[BaseException] = []
     ongoing_cancelled_count = 0
 
     def result_callback(t: asyncio.Task) -> None:
@@ -81,3 +81,4 @@ async def gather_safe(coros, group_result: GroupResult) -> GroupResult:
         group_result.cancelled = ongoing_cancelled_count
         if errors:
             raise BaseExceptionGroup("unhandled exceptions in gather_safe()", errors)
+    raise RuntimeError("should not reach here")

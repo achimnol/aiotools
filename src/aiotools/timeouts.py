@@ -90,6 +90,7 @@ class Timeout:
     async def __aenter__(self) -> "Timeout":
         self._state = _State.ENTERED
         self._task = tasks.current_task()
+        assert self._task is not None
         self._cancelling = self._task.cancelling()
         if self._task is None:
             raise RuntimeError("Timeout should be used inside a task")
@@ -103,6 +104,7 @@ class Timeout:
         exc_tb: Optional[TracebackType],
     ) -> Optional[bool]:
         assert self._state in (_State.ENTERED, _State.EXPIRING)
+        assert self._task is not None
 
         if self._timeout_handler is not None:
             self._timeout_handler.cancel()
@@ -141,6 +143,7 @@ class Timeout:
 
     def _on_timeout(self) -> None:
         assert self._state is _State.ENTERED
+        assert self._task is not None
         self._task.cancel()
         self._state = _State.EXPIRING
         # drop the reference early

@@ -60,6 +60,7 @@ class Supervisor:
         propagate_cancellation_error = \
             exc if et is exceptions.CancelledError else None
         if self._parent_cancel_requested:
+            assert self._parent_task is not None
             # If this flag is set we *must* call uncancel().
             if self._parent_task.uncancel() == 0:
                 # If there are no pending cancellations left,
@@ -165,6 +166,7 @@ class Supervisor:
         if _is_base_error and self._base_error is None:
             self._base_error = exc
 
+        assert self._parent_task is not None
         if self._parent_task.done():
             # Not sure if this case is possible, but we want to handle
             # it anyways.
