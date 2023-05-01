@@ -15,7 +15,6 @@ class Supervisor:
         self._parent_task = None
         self._parent_cancel_requested = False
         self._tasks = set()
-        self._errors = []
         self._base_error = None
         self._on_completed_fut = None
 
@@ -23,8 +22,6 @@ class Supervisor:
         info = ['']
         if self._tasks:
             info.append(f'tasks={len(self._tasks)}')
-        if self._errors:
-            info.append(f'errors={len(self._errors)}')
         if self._aborting:
             info.append('cancelling')
         elif self._entered:
@@ -81,21 +78,13 @@ class Supervisor:
 
         # Propagate CancelledError if there is one, except if there
         # are other errors -- those have priority.
-        if propagate_cancellation_error and not self._errors:
+        if propagate_cancellation_error:
             raise propagate_cancellation_error
 
-        # if et is not None and et is not exceptions.CancelledError:
-        #     self._errors.append(exc)
-
-        # if self._errors:
-        #     # Exceptions are heavy objects that can have object
-        #     # cycles (bad for GC); let's not keep a reference to
-        #     # a bunch of them.
-        #     try:
-        #         me = BaseExceptionGroup('unhandled errors in a Supervisor', self._errors)
-        #         raise me from None
-        #     finally:
-        #         self._errors = None
+        # In the original version, it raises BaseExceptionGroup
+        # if there are collected errors in self._errors.
+        # This part is deliberately removed to prevent memory leak
+        # due to accumulating error objects for an indefinite length of time.
 
     def create_task(self, coro, *, name=None, context=None):
         if not self._entered:
@@ -176,7 +165,6 @@ class Supervisor:
         if exc is None:
             return
 
-        # self._errors.append(exc)
         _is_base_error = self._is_base_error(exc)
         if _is_base_error and self._base_error is None:
             self._base_error = exc
