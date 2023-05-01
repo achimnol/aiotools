@@ -25,6 +25,7 @@ else:
         *persistent_compat.__all__,
     ]
 
-from .utils import as_completed_safe  # noqa
+from .utils import as_completed_safe, gather_safe  # noqa
 
 __all__.append("as_completed_safe")
+__all__.append("gather_safe")
