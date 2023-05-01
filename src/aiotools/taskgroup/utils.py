@@ -42,9 +42,10 @@ async def as_completed_safe(coros):
             try:
                 yield await q.get()
             except (GeneratorExit, asyncio.CancelledError):
-                # GeneratorExit is raised when "async for" body raises an exception
-                # and calls aclose() to the async generator.
-                # CancelledError is injected when a timeout occurs.
+                # GeneratorExit: injected when aclose() is called.
+                #                (i.e., the async-for body raises an exception)
+                # CancelledError: injected when a timeout occurs
+                #                 (i.e., the outer scope cancels the inner)
                 await supervisor.shutdown()
                 raise
 

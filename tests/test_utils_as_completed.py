@@ -1,5 +1,4 @@
 import asyncio
-import sys
 from typing import TypeVar
 
 import pytest

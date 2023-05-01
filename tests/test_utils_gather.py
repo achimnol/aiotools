@@ -71,12 +71,12 @@ async def test_gather_safe_timeout_vanilla():
                     fail_job(0.5),   # cancelled
                     fail_job(0.6),   # cancelled
                 ], group_result)
-        except* asyncio.TimeoutError as e:
+        except* asyncio.TimeoutError:
             detected_exc_groups.add("timeout")
             # we should be able to access the partial results
             assert group_result.results == [1, 3]
             assert group_result.cancelled == 3
-        except* ZeroDivisionError as e:
+        except* ZeroDivisionError:
             detected_exc_groups.add("zerodiv")
             # we should be able to access the partial results
             assert group_result.results == [1, 3]
@@ -109,15 +109,13 @@ async def test_gather_safe_timeout_custom():
                     fail_job(0.5),   # cancelled
                     fail_job(0.6),   # cancelled
                 ], group_result)
-        except* asyncio.TimeoutError as e:
+        except* asyncio.TimeoutError:
             detected_exc_groups.add("timeout")
-            # assert len(e.exceptions) == 1
             # we should be able to access the partial results
             assert group_result.results == [1, 3]
             assert group_result.cancelled == 3
-        except* ZeroDivisionError as e:
+        except* ZeroDivisionError:
             detected_exc_groups.add("zerodiv")
-            # assert len(e.exceptions) == 2
             # we should be able to access the partial results
             assert group_result.results == [1, 3]
             assert group_result.cancelled == 3

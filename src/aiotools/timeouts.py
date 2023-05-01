@@ -1,7 +1,7 @@
 """
 This module is a modified version of :mod:`asyncio.timeouts` from Python 3.11 stdlib,
-which looks into :class:`BaseExceptionGroup` if raised from the inner block of the timeout
-context manager.
+which looks into :class:`BaseExceptionGroup` if raised from the inner block of the
+timeout context manager.
 """
 
 import enum
@@ -116,12 +116,21 @@ class Timeout:
                 matched, rest = exc_val.split(exceptions.CancelledError)
                 # Check and strip out the cancellation errors from inside.
                 contains_cancellation = (matched is not None)
-                if self._task.uncancel() <= self._cancelling and contains_cancellation:
+                if (
+                    self._task.uncancel() <= self._cancelling and
+                    contains_cancellation
+                ):
                     if rest is not None:
-                        raise BaseExceptionGroup("timeout with collected inner exceptions", [TimeoutError(), rest])
+                        raise BaseExceptionGroup(
+                            "timeout with collected inner exceptions",
+                            [TimeoutError(), rest],
+                        )
                     raise TimeoutError from exc_val
             else:
-                if self._task.uncancel() <= self._cancelling and exc_type is exceptions.CancelledError:
+                if (
+                    self._task.uncancel() <= self._cancelling and
+                    exc_type is exceptions.CancelledError
+                ):
                     # Since there are no new cancel requests, we're
                     # handling this.
                     raise TimeoutError from exc_val

@@ -48,14 +48,12 @@ class Supervisor:
 
     async def __aexit__(self, et, exc, tb):
         self._exiting = True
-        ## print(f"supervisor.__aexit__(): {exc=}")
 
         if (exc is not None and
                 self._is_base_error(exc) and
                 self._base_error is None):
             # SystemExit or KeyboardInterrupt in "async with"
             # so we cancel other tasks.
-            ## print(f"supervisor.__aexit__(): aborting")
             self._base_error = exc
             self._abort()
 
@@ -128,7 +126,6 @@ class Supervisor:
                 self._on_completed_fut = self._loop.create_future()
 
             try:
-                ## print("supervisor._wait_completion(): begin")
                 await self._on_completed_fut
             except exceptions.CancelledError as ex:
                 if not self._aborting:
@@ -144,7 +141,6 @@ class Supervisor:
                     self._abort()
             self._on_completed_fut = None
 
-        ## print("supervisor._wait_completion(): returning", propagate_cancellation_error)
         return propagate_cancellation_error
 
     async def shutdown(self) -> None:
@@ -180,7 +176,11 @@ class Supervisor:
             })
             return
 
-        if _is_base_error and not self._aborting and not self._parent_cancel_requested:
+        if (
+            _is_base_error and
+            not self._aborting and
+            not self._parent_cancel_requested
+        ):
             # For base SystemExit and KeyboardInterrupt ONLY, if parent task
             # *is not* being cancelled, it means that we want to manually cancel
             # it to abort whatever is being run right now in the Supervisor.
