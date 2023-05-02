@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.6.1 (2023-05-02)
+------------------
+
+### Fixes
+* PersistentTaskGroup no longer stores the history of unhandled exceptions and raises them as an exception group to prevent memory leaks ([#54](https://github.com/achimnol/aiotools/issues/54))
+
+
 1.6.0 (2023-03-14)
 ------------------
 
