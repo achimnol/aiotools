@@ -17,12 +17,16 @@ else:
     from . import persistent_compat
     from .base_compat import *        # type: ignore  # noqa
     from .persistent_compat import *  # type: ignore  # noqa
-    __all__ = [  # type: ignore
+    from .base_compat import has_contextvars
+    __all__ = [  # type: ignore  # noqa
         "MultiError",
         "TaskGroup",
         "TaskGroupError",
         *persistent_compat.__all__,
     ]
+    if has_contextvars:
+        __all__.append("current_taskgroup")
+
 
 from .utils import as_completed_safe  # noqa
 
