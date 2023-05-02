@@ -11,6 +11,7 @@ from . import (
     taskgroup,
     timeouts,
     timer,
+    utils,
 )
 
 __all__ = (
@@ -23,6 +24,7 @@ __all__ = (
     *taskgroup.__all__,
     *timeouts.__all__,
     *timer.__all__,
+    *utils.__all__,
     '__version__',
 )
 
@@ -35,6 +37,7 @@ from .server import *      # noqa
 from .taskgroup import *   # noqa
 from .timeouts import *    # noqa
 from .timer import *       # noqa
+from .utils import *       # noqa
 
 
 _version_data = pkgutil.get_data("aiotools", "VERSION")

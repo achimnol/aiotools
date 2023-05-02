@@ -3,14 +3,16 @@ A set of helper utilities to utilize taskgroups in better ways.
 """
 
 import asyncio
+from contextlib import aclosing
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..supervisor import Supervisor
+from .supervisor import Supervisor
 
 __all__ = (
     "as_completed_safe",
     "gather_safe",
+    "race",
     "GroupResult",
 )
 
@@ -82,3 +84,15 @@ async def gather_safe(coros, group_result: GroupResult) -> GroupResult:
         if errors:
             raise BaseExceptionGroup("unhandled exceptions in gather_safe()", errors)
     raise RuntimeError("should not reach here")
+
+
+async def race(coros):
+    async with aclosing(as_completed_safe(coros)) as ag:
+        async for aresult in ag:
+            try:
+                result = await aresult
+                return result
+            except Exception:
+                raise
+        else:
+            raise RuntimeError("No coroutines were given to race()")
