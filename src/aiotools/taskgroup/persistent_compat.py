@@ -14,7 +14,6 @@ from typing import (
     Awaitable,
     Callable,
     Coroutine,
-    List,
     Optional,
     Sequence,
     Type,
@@ -23,7 +22,7 @@ import weakref
 
 from .. import compat
 from .common import create_task_with_name, patch_task
-from .types import AsyncExceptionHandler, TaskGroupError
+from .types import AsyncExceptionHandler
 
 __all__ = [
     'PersistentTaskGroup',

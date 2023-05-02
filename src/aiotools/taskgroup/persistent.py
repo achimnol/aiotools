@@ -10,7 +10,6 @@ from typing import (
     Awaitable,
     Callable,
     Coroutine,
-    List,
     Optional,
     Sequence,
     Type,
