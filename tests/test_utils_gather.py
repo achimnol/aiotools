@@ -1,126 +1,100 @@
 import asyncio
+from contextvars import ContextVar, copy_context
 from typing import TypeVar
 
 import pytest
 
 from aiotools import (
     gather_safe,
-    timeout,
-    GroupResult,
     VirtualClock,
 )
 
 T = TypeVar("T")
+cancelled = ContextVar("cancelled", default=0)
 
 
 async def do_job(delay: float, result: T) -> T:
-    await asyncio.sleep(delay)
-    return result
+    try:
+        await asyncio.sleep(delay)
+        return result
+    except asyncio.CancelledError:
+        await asyncio.sleep(0.1)
+        cancelled.set(cancelled.get() + 1)
+        raise
 
 
 async def fail_job(delay: float) -> None:
-    await asyncio.sleep(delay)
-    1 / 0
+    try:
+        await asyncio.sleep(delay)
+        1 / 0
+    except asyncio.CancelledError:
+        await asyncio.sleep(0.1)
+        cancelled.set(cancelled.get() + 1)
+        raise
 
 
 @pytest.mark.asyncio
-async def test_gather_safe():
+async def test_gather_safe() -> None:
+    context = copy_context()
+    cancelled.set(0)
     with VirtualClock().patch_loop():
-        group_result = GroupResult()
-        await gather_safe([
-            do_job(0.3, 3),
-            do_job(0.2, 2),
-            do_job(0.1, 1),
-        ], group_result)
-        assert group_result.results == [1, 2, 3]
-        assert group_result.cancelled == 0
+
+        async def _inner() -> None:
+            results = await gather_safe([
+                do_job(0.3, 3),
+                do_job(0.2, 2),
+                do_job(0.1, 1),
+            ], context=context)
+            assert results == [3, 2, 1]
+
+        await asyncio.create_task(_inner(), context=context)
 
 
 @pytest.mark.asyncio
-async def test_gather_safe_partial_failure():
+async def test_gather_safe_partial_failure() -> None:
+    context = copy_context()
+    cancelled.set(0)
     with VirtualClock().patch_loop():
-        group_result = GroupResult()
-        try:
-            await gather_safe([
+
+        async def _inner() -> None:
+            results = await gather_safe([
                 do_job(0.3, 3),
                 fail_job(0.2),
                 do_job(0.1, 1),
-            ], group_result)
-        except* ZeroDivisionError:
-            assert group_result.results == [1, 3]
-            assert group_result.cancelled == 0
-        else:
-            pytest.fail("inner-exception was not re-raised")
+            ], context=context)
+            assert results[0] == 3
+            assert isinstance(results[1], ZeroDivisionError)
+            assert results[2] == 1
+            assert cancelled.get() == 0
 
-
-@pytest.mark.xfail
-@pytest.mark.asyncio
-async def test_gather_safe_timeout_vanilla():
-    detected_exc_groups = set()
-    with VirtualClock().patch_loop():
-        group_result = GroupResult()
-        try:
-            async with asyncio.timeout(0.35):
-                await gather_safe([
-                    do_job(0.1, 1),
-                    fail_job(0.2),
-                    fail_job(0.25),
-                    do_job(0.3, 3),
-                    # timeout occurs here
-                    do_job(0.4, 4),  # cancelled
-                    fail_job(0.5),   # cancelled
-                    fail_job(0.6),   # cancelled
-                ], group_result)
-        except* asyncio.TimeoutError:
-            detected_exc_groups.add("timeout")
-            # we should be able to access the partial results
-            assert group_result.results == [1, 3]
-            assert group_result.cancelled == 3
-        except* ZeroDivisionError:
-            detected_exc_groups.add("zerodiv")
-            # we should be able to access the partial results
-            assert group_result.results == [1, 3]
-            assert group_result.cancelled == 3
-        else:
-            pytest.fail("inner exception was not re-raised")
-        # This will fail because the vanilla asyncio.timeout()
-        # does not look into BaseExceptionGroup to check whether it contains
-        # CancelledError or not, and thus does not raise TimeoutError
-        # while still cancelling at the moment when the timerout expires.
-        assert detected_exc_groups == {"timeout", "zerodiv"}
-        assert group_result.results == [1, 3]
-        assert group_result.cancelled == 3
+        await asyncio.create_task(_inner(), context=context)
 
 
 @pytest.mark.asyncio
-async def test_gather_safe_timeout_custom():
-    detected_exc_groups = set()
+async def test_gather_safe_timeout():
+    context = copy_context()
+    cancelled.set(0)
     with VirtualClock().patch_loop():
-        group_result = GroupResult()
-        try:
-            async with timeout(0.35):  # our custom timeout
-                await gather_safe([
-                    do_job(0.1, 1),
-                    fail_job(0.2),
-                    fail_job(0.25),
-                    do_job(0.3, 3),
-                    # timeout occurs here
-                    do_job(0.4, 4),  # cancelled
-                    fail_job(0.5),   # cancelled
-                    fail_job(0.6),   # cancelled
-                ], group_result)
-        except* asyncio.TimeoutError:
-            detected_exc_groups.add("timeout")
-            # we should be able to access the partial results
-            assert group_result.results == [1, 3]
-            assert group_result.cancelled == 3
-        except* ZeroDivisionError:
-            detected_exc_groups.add("zerodiv")
-            # we should be able to access the partial results
-            assert group_result.results == [1, 3]
-            assert group_result.cancelled == 3
-        else:
-            pytest.fail("inner exception was not re-raised")
-        assert detected_exc_groups == {"timeout", "zerodiv"}
-        assert group_result.results == [1, 3]
-        assert group_result.cancelled == 3
+
+        async def _inner() -> None:
+            with pytest.raises(asyncio.TimeoutError):
+                async with asyncio.timeout(0.35):
+                    await gather_safe([
+                        do_job(0.1, 1),
+                        fail_job(0.2),
+                        fail_job(0.25),
+                        do_job(0.3, 3),
+                        # timeout occurs here
+                        do_job(0.4, 4),  # cancelled
+                        fail_job(0.5),   # cancelled
+                        fail_job(0.6),   # cancelled
+                    ], context=context)
+            # There is no way to retrieve partial result in this case.
+            # If you want to combine gather_safe() and timeouts, your
+            # tasks should take care of any potential exceptions and results
+            # by on their own, instead of relying on the return value of
+            # the gather_safe() call.
+            # We track how many were cancelled indirectly using a contextvar.
+            assert cancelled.get() == 3
+
+        await asyncio.create_task(_inner(), context=context)

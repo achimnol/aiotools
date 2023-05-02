@@ -2,10 +2,22 @@
 A set of helper utilities to utilize taskgroups in better ways.
 """
 
+from __future__ import annotations
+
 import asyncio
 from contextlib import aclosing
-from dataclasses import dataclass, field
-from typing import Any
+from contextvars import Context
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Sequence,
+)
 
 from .supervisor import Supervisor
 
@@ -13,11 +25,16 @@ __all__ = (
     "as_completed_safe",
     "gather_safe",
     "race",
-    "GroupResult",
 )
 
+T = TypeVar("T")
 
-async def as_completed_safe(coros):
+
+async def as_completed_safe(
+    coros: Iterable[Awaitable[Any]],
+    *,
+    context: Optional[Context] = None,
+) -> AsyncGenerator[Any, None]:
     """
     This is a safer version of :func:`asyncio.as_completed()` which uses
     :class:`Supervisor` as an underlying coroutine lifecycle keeper.
@@ -26,16 +43,16 @@ async def as_completed_safe(coros):
 
     .. versionadded:: 1.6
     """
-    q = asyncio.Queue()
-    tasks = set()
+    q: asyncio.Queue[asyncio.Task[Any]] = asyncio.Queue()
+    tasks: set[asyncio.Task[Any]] = set()
 
-    def result_callback(t: asyncio.Task) -> None:
+    def result_callback(t: asyncio.Task[Any]) -> None:
         tasks.discard(t)
         q.put_nowait(t)
 
     async with Supervisor() as supervisor:
         for coro in coros:
-            t = supervisor.create_task(coro)
+            t = supervisor.create_task(coro, context=context)
             t.add_done_callback(result_callback)
             tasks.add(t)
         while True:
@@ -43,56 +60,68 @@ async def as_completed_safe(coros):
                 return
             try:
                 yield await q.get()
-            except (GeneratorExit, asyncio.CancelledError):
+            except (GeneratorExit, BaseException):
                 # GeneratorExit: injected when aclose() is called.
                 #                (i.e., the async-for body raises an exception)
                 # CancelledError: injected when a timeout occurs
                 #                 (i.e., the outer scope cancels the inner)
+                # BaseException: injected when the process is going to terminate
                 await supervisor.shutdown()
                 raise
 
 
-@dataclass
-class GroupResult:
-    results: list[Any] = field(default_factory=list)
-    cancelled: int = 0
+async def gather_safe(
+    coros: Iterable[Awaitable[Any]],
+    *,
+    context: Optional[Context] = None,
+) -> List[Any | Exception]:
+    """
+    A safer version of :func:`asyncio.gather()`.  It wraps the passed coroutines
+    with a :class:`Supervisor` to ensure the termination of them when returned.
+
+    Additionally, it supports manually setting the context of each subtask.
+    """
+    tasks = []
+    async with Supervisor() as supervisor:
+        for coro in coros:
+            t = supervisor.create_task(coro, context=context)
+            tasks.append(t)
+        # To ensure safety, the Python version must be 3.7 or higher.
+        return await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def gather_safe(coros, group_result: GroupResult) -> GroupResult:
-    errors: list[BaseException] = []
-    ongoing_cancelled_count = 0
+async def race(
+    coros: Iterable[Awaitable[T]],
+    *,
+    continue_on_error: bool = False,
+    context: Optional[Context] = None,
+) -> Tuple[T, Sequence[Exception]]:
+    """
+    Returns the first result and cancelling all remaining coroutines safely.
+    Passing an empty iterable of coroutines is not allowed.
 
-    def result_callback(t: asyncio.Task) -> None:
-        nonlocal errors, ongoing_cancelled_count
-        try:
-            group_result.results.append(t.result())
-        except asyncio.CancelledError:
-            ongoing_cancelled_count += 1
-        except Exception as e:
-            errors.append(e)
+    If ``continue_on_error`` is set False (default), it will raise the first
+    exception immediately, cancelling all remaining coroutines.  This behavior is
+    same to Javascript's ``Promise.race()``.  The second item of the returned tuple
+    is always empty.
 
-    try:
-        async with Supervisor() as supervisor:
-            for coro in coros:
-                t = supervisor.create_task(coro)
-                t.add_done_callback(result_callback)
-        return group_result
-    except asyncio.CancelledError as e:
-        errors.append(e)
-    finally:
-        group_result.cancelled = ongoing_cancelled_count
-        if errors:
-            raise BaseExceptionGroup("unhandled exceptions in gather_safe()", errors)
-    raise RuntimeError("should not reach here")
-
-
-async def race(coros):
-    async with aclosing(as_completed_safe(coros)) as ag:
+    If ``continue_on_error`` is set True, it will keep running until it encounters
+    the first successful result.  Then it returns the exceptions as a list in the
+    second item of the returned tuple.  If all coroutines fail, it will raise an
+    exc:`ExceptionGroup` to indicate the explicit failure of the entire operation.
+    """
+    async with aclosing(as_completed_safe(coros, context=context)) as ag:
+        errors: list[Exception] = []
         async for aresult in ag:
             try:
                 result = await aresult
-                return result
-            except Exception:
+                return result, errors
+            except Exception as e:
+                if continue_on_error:
+                    errors.append(e)
+                    continue
                 raise
         else:
-            raise RuntimeError("No coroutines were given to race()")
+            if errors:
+                raise ExceptionGroup("All coroutines have failed in race()", errors)
+            raise ValueError("No coroutines were given to race()")

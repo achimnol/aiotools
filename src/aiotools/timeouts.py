@@ -71,7 +71,9 @@ class Timeout:
         else:
             loop = events.get_running_loop()
             if when <= loop.time():
-                self._timeout_handler = loop.call_soon(self._on_timeout)
+                self._timeout_handler = (
+                    loop.call_soon(self._on_timeout)  # type: ignore
+                )
             else:
                 self._timeout_handler = loop.call_at(when, self._on_timeout)
 
@@ -144,7 +146,7 @@ class Timeout:
     def _on_timeout(self) -> None:
         assert self._state is _State.ENTERED
         assert self._task is not None
-        self._task.cancel()
+        self._task.cancel("timeout")
         self._state = _State.EXPIRING
         # drop the reference early
         self._timeout_handler = None

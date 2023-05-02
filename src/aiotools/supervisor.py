@@ -3,6 +3,7 @@ __all__ = ["Supervisor"]
 from asyncio import events
 from asyncio import exceptions
 from asyncio import tasks
+from typing import Optional
 
 
 class Supervisor:
@@ -109,12 +110,12 @@ class Supervisor:
         assert isinstance(exc, BaseException)
         return isinstance(exc, (SystemExit, KeyboardInterrupt))
 
-    def _abort(self):
+    def _abort(self, msg: Optional[str] = None):
         self._aborting = True
 
         for t in self._tasks:
             if not t.done():
-                t.cancel()
+                t.cancel(msg=msg)
 
     async def _wait_completion(self):
         # We use while-loop here because "self._on_completed_fut"
@@ -139,13 +140,13 @@ class Supervisor:
                     # "wrapper" is being cancelled while "foo" is
                     # still running.
                     propagate_cancellation_error = ex
-                    self._abort()
+                    self._abort(msg=ex.args[0] if ex.args else None)
             self._on_completed_fut = None
 
         return propagate_cancellation_error
 
     async def shutdown(self) -> None:
-        self._abort()
+        self._abort(msg="supervisor.shutdown")
         await self._wait_completion()
 
     def _on_task_done(self, task):
