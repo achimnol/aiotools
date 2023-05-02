@@ -42,7 +42,6 @@ class PersistentTaskGroup:
 
     _base_error: Optional[BaseException]
     _exc_handler: AsyncExceptionHandler
-    _errors: Optional[List[BaseException]]
     _tasks: "weakref.WeakSet[asyncio.Task]"
     _on_completed_fut: Optional[asyncio.Future]
     _current_taskgroup_token: Optional[Token["PersistentTaskGroup"]]
@@ -60,7 +59,6 @@ class PersistentTaskGroup:
         self._entered = False
         self._exiting = False
         self._aborting = False
-        self._errors = []
         self._base_error = None
         self._name = name or f"{next(_ptaskgroup_idx)}"
         self._parent_cancel_requested = False
@@ -192,7 +190,6 @@ class PersistentTaskGroup:
         self._unfinished_tasks -= 1
         assert self._unfinished_tasks >= 0
         assert self._parent_task is not None
-        assert self._errors is not None
 
         if self._on_completed_fut is not None and not self._unfinished_tasks:
             if not self._on_completed_fut.done():
@@ -207,7 +204,6 @@ class PersistentTaskGroup:
             return
 
         # Now the exception is BaseException.
-        self._errors.append(exc)
         if self._base_error is None:
             self._base_error = exc
 
@@ -228,7 +224,6 @@ class PersistentTaskGroup:
         exc_tb: Optional[TracebackType],
     ) -> Optional[bool]:
         self._exiting = True
-        assert self._errors is not None
         propagate_cancellation_error: Optional[
             Union[Type[BaseException], BaseException]
         ] = None
@@ -263,23 +258,6 @@ class PersistentTaskGroup:
         if propagate_cancellation_error is not None:
             raise propagate_cancellation_error
 
-        if exc_val is not None and exc_type is not asyncio.CancelledError:
-            # If there are any unhandled errors, let's add them to
-            # the bubbled up exception group.
-            # Normally, they should have been swallowed and logged
-            # by the fallback exception handler.
-            self._errors.append(exc_val)
-
-        if self._errors:
-            # Bubble up errors
-            errors = self._errors
-            self._errors = None
-            me = BaseExceptionGroup(
-                'unhandled errors in a PersistentTaskGroup',
-                errors,
-            )
-            raise me from None
-
         return None
 
     def __repr__(self) -> str:
@@ -290,8 +268,6 @@ class PersistentTaskGroup:
             info.append(f'tasks={len(self._tasks)}')
         if self._unfinished_tasks:
             info.append(f'unfinished={self._unfinished_tasks}')
-        if self._errors:
-            info.append(f'errors={len(self._errors)}')
         if self._aborting:
             info.append('cancelling')
         elif self._entered:
