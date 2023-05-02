@@ -33,7 +33,6 @@ async def fail_job(delay: float) -> None:
 @pytest.mark.asyncio
 async def test_race_partial_failure():
     context = copy_context()
-    cancelled.set(0)
     with VirtualClock().patch_loop():
 
         async def _inner1() -> None:
@@ -65,8 +64,8 @@ async def test_race_partial_failure():
 @pytest.mark.asyncio
 async def test_race_continue_on_error():
     context = copy_context()
-    cancelled.set(0)
     with VirtualClock().patch_loop():
+
         async def _inner() -> None:
             result, errors = await race([
                 fail_job(0.3),   # collected
@@ -93,7 +92,6 @@ async def test_race_empty_coro_list():
 @pytest.mark.asyncio
 async def test_race_all_failure():
     context = Context()
-    cancelled.set(0)
     with VirtualClock().patch_loop():
         async def _inner() -> None:
             with pytest.raises(ZeroDivisionError):
@@ -110,7 +108,6 @@ async def test_race_all_failure():
 @pytest.mark.asyncio
 async def test_race_all_failure_with_continue_on_error():
     context = Context()
-    cancelled.set(0)
     with VirtualClock().patch_loop():
         async def _inner() -> None:
             try:

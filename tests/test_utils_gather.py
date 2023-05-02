@@ -36,7 +36,6 @@ async def fail_job(delay: float) -> None:
 @pytest.mark.asyncio
 async def test_gather_safe() -> None:
     context = copy_context()
-    cancelled.set(0)
     with VirtualClock().patch_loop():
 
         async def _inner() -> None:
@@ -53,7 +52,6 @@ async def test_gather_safe() -> None:
 @pytest.mark.asyncio
 async def test_gather_safe_partial_failure() -> None:
     context = copy_context()
-    cancelled.set(0)
     with VirtualClock().patch_loop():
 
         async def _inner() -> None:
@@ -73,7 +71,6 @@ async def test_gather_safe_partial_failure() -> None:
 @pytest.mark.asyncio
 async def test_gather_safe_timeout():
     context = copy_context()
-    cancelled.set(0)
     with VirtualClock().patch_loop():
 
         async def _inner() -> None:
