@@ -70,6 +70,7 @@ async def test_as_completed_safe_timeout_vanilla():
             executed += 1
             return idx
         except asyncio.CancelledError:
+            await asyncio.sleep(0.1)  # should await cancellation
             cancelled += 1
             raise
 
@@ -113,6 +114,7 @@ async def test_as_completed_safe_timeout_custom():
             executed += 1
             return idx
         except asyncio.CancelledError:
+            await asyncio.sleep(0.1)  # should await cancellation
             cancelled += 1
             raise
 
@@ -155,6 +157,7 @@ async def test_as_completed_safe_cancel_from_body():
             executed += 1
             return idx
         except asyncio.CancelledError:
+            await asyncio.sleep(0.1)  # should await cancellation
             cancelled += 1
             raise
 
@@ -192,6 +195,7 @@ async def test_as_completed_safe_error_from_body():
             executed += 1
             return idx
         except asyncio.CancelledError:
+            await asyncio.sleep(0.1)  # should await cancellation
             cancelled += 1
             raise
 
@@ -229,6 +233,7 @@ async def test_as_completed_safe_error_from_body_without_aclosing():
             executed += 1
             return idx
         except asyncio.CancelledError:
+            await asyncio.sleep(0.1)  # not awaited without aclose()
             cancelled += 1
             raise
 
@@ -252,7 +257,6 @@ async def test_as_completed_safe_error_from_body_without_aclosing():
     assert executed == 2
     assert cancelled == 0  # should be one but without aclosing() it isn't.
     assert results == [1, 2]
-
     # Expected: "Task was destroyed but it is pending!" is observed here.
 
 
@@ -269,6 +273,7 @@ async def test_as_completed_safe_error_from_body_aclose_afterwards():
             executed += 1
             return idx
         except asyncio.CancelledError:
+            await asyncio.sleep(0.1)  # should await cancellation
             cancelled += 1
             raise
 
