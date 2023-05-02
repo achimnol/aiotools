@@ -408,7 +408,7 @@ def start_server(
     ),
     num_workers: int = 1,
     args: Iterable[Any] = tuple(),
-    wait_timeout: float = None,
+    wait_timeout: Optional[float] = None,
 ) -> None:
     """
     Starts a multi-process server where each process has their own individual

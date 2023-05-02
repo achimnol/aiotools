@@ -9,7 +9,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v3
       with:
@@ -37,7 +37,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v3
       with:
@@ -51,7 +51,6 @@ jobs:
         python -m pip install -U pip setuptools wheel
         python -m pip install -U -r requirements/typecheck.txt
     - name: Type check with mypy
-      continue-on-error: true
       run: |
         if [ "$GITHUB_EVENT_NAME" == "pull_request" -a -n "$GITHUB_HEAD_REF" ]; then
           echo "(skipping matchers for pull request from local branches)"
@@ -59,8 +58,6 @@ jobs:
           echo "::add-matcher::.github/workflows/mypy-matcher.json"
         fi
         python -m mypy --no-color-output src/aiotools tests
-    - name: Allow failures
-      run: true
 
   test:
     runs-on: ubuntu-latest
@@ -70,7 +67,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v3
       with:
@@ -106,7 +103,7 @@ jobs:
       run: |
         python -m pytest -v --cov=src tests
     - name: Send code coverage report
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v3
       with:
         env_vars: GHA_OS,GHA_PYTHON
 
@@ -115,7 +112,7 @@ jobs:
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v3
       with:
