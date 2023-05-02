@@ -31,10 +31,10 @@ T = TypeVar("T")
 
 
 async def as_completed_safe(
-    coros: Iterable[Awaitable[Any]],
+    coros: Iterable[Awaitable[T]],
     *,
     context: Optional[Context] = None,
-) -> AsyncGenerator[Any, None]:
+) -> AsyncGenerator[Awaitable[T], None]:
     """
     This is a safer version of :func:`asyncio.as_completed()` which uses
     :class:`Supervisor` as an underlying coroutine lifecycle keeper.
@@ -73,10 +73,10 @@ async def as_completed_safe(
 
 
 async def gather_safe(
-    coros: Iterable[Awaitable[Any]],
+    coros: Iterable[Awaitable[T]],
     *,
     context: Optional[Context] = None,
-) -> List[Any | Exception]:
+) -> List[T | Exception]:
     """
     A safer version of :func:`asyncio.gather()`.  It wraps the passed coroutines
     with a :class:`Supervisor` to ensure the termination of them when returned.
