@@ -44,22 +44,24 @@ async def as_completed_safe(
     .. versionadded:: 1.6
     """
     q: asyncio.Queue[asyncio.Task[Any]] = asyncio.Queue()
-    tasks: set[asyncio.Task[Any]] = set()
+    remaining = 0
 
     def result_callback(t: asyncio.Task[Any]) -> None:
-        tasks.discard(t)
         q.put_nowait(t)
 
     async with Supervisor() as supervisor:
         for coro in coros:
             t = supervisor.create_task(coro, context=context)
             t.add_done_callback(result_callback)
-            tasks.add(t)
-        while True:
-            if not tasks:
-                return
+            remaining += 1
+        while remaining:
             try:
-                yield await q.get()
+                t = await q.get()
+                remaining -= 1
+                try:
+                    yield t
+                finally:
+                    q.task_done()
             except (GeneratorExit, BaseException):
                 # GeneratorExit: injected when aclose() is called.
                 #                (i.e., the async-for body raises an exception)

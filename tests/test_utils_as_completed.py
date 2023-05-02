@@ -1,4 +1,5 @@
 import asyncio
+from contextvars import ContextVar, copy_context
 from typing import TypeVar
 
 import pytest
@@ -11,16 +12,27 @@ from aiotools import (
 )
 
 T = TypeVar("T")
+cancelled = ContextVar("cancelled", default=0)
 
 
 async def do_job(delay: float, result: T) -> T:
-    await asyncio.sleep(delay)
-    return result
+    try:
+        await asyncio.sleep(delay)
+        return result
+    except asyncio.CancelledError:
+        await asyncio.sleep(0.1)
+        cancelled.set(cancelled.get() + 1)
+        raise
 
 
 async def fail_job(delay: float) -> None:
-    await asyncio.sleep(delay)
-    1 / 0
+    try:
+        await asyncio.sleep(delay)
+        1 / 0
+    except asyncio.CancelledError:
+        await asyncio.sleep(0.1)
+        cancelled.set(cancelled.get() + 1)
+        raise
 
 
 @pytest.mark.asyncio
@@ -46,6 +58,7 @@ async def test_as_completed_safe_partial_failure():
             do_job(0.1, 1),
             fail_job(0.2),
             do_job(0.3, 3),
+            fail_job(0.4),
         ])) as ag:
             async for result in ag:
                 try:
@@ -53,8 +66,40 @@ async def test_as_completed_safe_partial_failure():
                 except Exception as e:
                     errors.append(e)
     assert results == [1, 3]
-    assert len(errors) == 1
+    assert len(errors) == 2
     assert isinstance(errors[0], ZeroDivisionError)
+    assert isinstance(errors[1], ZeroDivisionError)
+
+
+@pytest.mark.asyncio
+async def test_as_completed_safe_immediate_failures():
+    context = copy_context()
+    cancelled.set(0)
+    with VirtualClock().patch_loop():
+
+        async def _inner() -> None:
+            results = []
+            errors = []
+            async with aclosing(as_completed_safe([
+                # All these jobs fail at the same tick.
+                # Still, we should be able to retrieve all errors.
+                fail_job(0),
+                fail_job(0),
+                fail_job(0),
+            ], context=context)) as ag:
+                async for result in ag:
+                    try:
+                        results.append(await result)
+                    except Exception as e:
+                        errors.append(e)
+            assert results == []
+            assert cancelled.get() == 0
+            assert len(errors) == 3
+            assert isinstance(errors[0], ZeroDivisionError)
+            assert isinstance(errors[1], ZeroDivisionError)
+            assert isinstance(errors[2], ZeroDivisionError)
+
+        await asyncio.create_task(_inner(), context=context)
 
 
 @pytest.mark.asyncio
@@ -94,6 +139,50 @@ async def test_as_completed_safe_timeout_vanilla():
             timeouts += 1
 
     assert loop_count == 1
+    assert executed == 1
+    assert cancelled == 2
+    assert results == [1]
+    assert timeouts == 1
+
+
+@pytest.mark.asyncio
+async def test_as_completed_safe_timeout_in_middle():
+    executed = 0
+    cancelled = 0
+    loop_count = 0
+
+    async def do_job(delay, idx):
+        nonlocal cancelled, executed
+        try:
+            await asyncio.sleep(delay)
+            executed += 1
+            return idx
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.1)  # should await cancellation
+            cancelled += 1
+            raise
+
+    with VirtualClock().patch_loop():
+        results = []
+        timeouts = 0
+        try:
+            async with (
+                asyncio.timeout(0.15),
+                aclosing(as_completed_safe([
+                    do_job(0.1, 1),
+                    # timeout occurs here
+                    do_job(0.2, 2),
+                    do_job(0.3, 3),
+                ])) as ag,
+            ):
+                async for result in ag:
+                    results.append(await result)
+                    await asyncio.sleep(0.1)  # timeout occurs here
+                    loop_count += 1
+        except asyncio.TimeoutError:
+            timeouts += 1
+
+    assert loop_count == 0
     assert executed == 1
     assert cancelled == 2
     assert results == [1]
