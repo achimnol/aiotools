@@ -57,8 +57,8 @@ class PersistentTaskGroup:
     def __init__(
         self,
         *,
-        name: str = None,
-        exception_handler: AsyncExceptionHandler = None,
+        name: Optional[str] = None,
+        exception_handler: Optional[AsyncExceptionHandler] = None,
     ) -> None:
         self._entered = False
         self._exiting = False
@@ -87,7 +87,7 @@ class PersistentTaskGroup:
         self,
         coro: Coroutine[Any, Any, Any],
         *,
-        name: str = None,
+        name: Optional[str] = None,
     ) -> Awaitable[Any]:
         if not self._entered:
             # When used as object attribute, auto-enter.
@@ -100,7 +100,7 @@ class PersistentTaskGroup:
         self,
         coro: Coroutine[Any, Any, Any],
         *,
-        name: str = None,
+        name: Optional[str] = None,
         cb: Callable[[asyncio.Task], Any],
     ) -> Awaitable[Any]:
         loop = compat.get_running_loop()

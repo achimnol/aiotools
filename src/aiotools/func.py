@@ -1,5 +1,6 @@
 import collections
 import functools
+from typing import Optional
 
 from .compat import get_running_loop
 
@@ -26,7 +27,7 @@ def apartial(coro, *args, **kwargs):
 
 def lru_cache(maxsize: int = 128,
               typed: bool = False,
-              expire_after: float = None):
+              expire_after: Optional[float] = None):
     """
     A simple LRU cache just like :func:`functools.lru_cache`, but it works for
     coroutines.  This is not as heavily optimized as :func:`functools.lru_cache`
