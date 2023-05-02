@@ -222,6 +222,7 @@ class PersistentTaskGroup:
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
     ) -> Optional[bool]:
+        assert self._parent_task is not None
         self._exiting = True
         propagate_cancellation_error: Optional[
             Union[Type[BaseException], BaseException]

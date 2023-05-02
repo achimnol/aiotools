@@ -26,7 +26,7 @@ class AsyncExceptionHandler(Protocol):
 
 if not hasattr(builtins, 'ExceptionGroup'):
 
-    class MultiError(Exception):
+    class MultiError(Exception):  # type: ignore[no-redef]
 
         def __init__(self, msg, errors=()):
             if errors:
@@ -47,7 +47,7 @@ if not hasattr(builtins, 'ExceptionGroup'):
         def __reduce__(self):
             return (type(self), (self.args,), {'__errors__': self.__errors__})
 
-    class TaskGroupError(MultiError):
+    class TaskGroupError(MultiError):  # type: ignore[no-redef]
         """
         An alias to :exc:`MultiError`.
         """
@@ -55,7 +55,7 @@ if not hasattr(builtins, 'ExceptionGroup'):
 
 else:
 
-    class MultiError(ExceptionGroup):
+    class MultiError(ExceptionGroup):  # type: ignore[no-redef]
 
         def __init__(self, msg, errors=()):
             super().__init__(msg, errors)
@@ -64,5 +64,5 @@ else:
         def get_error_types(self):
             return {type(e) for e in self.exceptions}
 
-    class TaskGroupError(MultiError):
+    class TaskGroupError(MultiError):  # type: ignore[no-redef]
         pass

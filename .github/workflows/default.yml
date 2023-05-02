@@ -51,7 +51,6 @@ jobs:
         python -m pip install -U pip setuptools wheel
         python -m pip install -U -r requirements/typecheck.txt
     - name: Type check with mypy
-      continue-on-error: true
       run: |
         if [ "$GITHUB_EVENT_NAME" == "pull_request" -a -n "$GITHUB_HEAD_REF" ]; then
           echo "(skipping matchers for pull request from local branches)"
@@ -59,8 +58,6 @@ jobs:
           echo "::add-matcher::.github/workflows/mypy-matcher.json"
         fi
         python -m mypy --no-color-output src/aiotools tests
-    - name: Allow failures
-      run: true
 
   test:
     runs-on: ubuntu-latest
