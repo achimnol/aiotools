@@ -1,5 +1,5 @@
 """
-A set of helper utilities to utilize taskgroups in better ways.
+A set of higher-level coroutine aggregation utilities based on :class:`Supervisor`.
 """
 
 from __future__ import annotations
@@ -82,6 +82,8 @@ async def gather_safe(
     with a :class:`Supervisor` to ensure the termination of them when returned.
 
     Additionally, it supports manually setting the context of each subtask.
+
+    .. versionadded:: 1.7
     """
     tasks = []
     async with Supervisor() as supervisor:
@@ -111,6 +113,8 @@ async def race(
     the first successful result.  Then it returns the exceptions as a list in the
     second item of the returned tuple.  If all coroutines fail, it will raise an
     exc:`ExceptionGroup` to indicate the explicit failure of the entire operation.
+
+    .. versionadded:: 1.7
     """
     async with aclosing(as_completed_safe(coros, context=context)) as ag:
         errors: list[Exception] = []
