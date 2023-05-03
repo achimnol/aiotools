@@ -31,7 +31,7 @@ class Supervisor:
     (https://github.com/achimnol/cpython/pull/31) and :class:`PersistentTaskGroup`,
     but it is modified *not* to store unhandled subtask exceptions.
 
-    .. versionadded:: 1.7
+    .. versionadded:: 2.0
     """
 
     def __init__(self):

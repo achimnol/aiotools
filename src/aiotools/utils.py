@@ -83,7 +83,7 @@ async def gather_safe(
 
     Additionally, it supports manually setting the context of each subtask.
 
-    .. versionadded:: 1.7
+    .. versionadded:: 2.0
     """
     tasks = []
     async with Supervisor() as supervisor:
@@ -114,7 +114,7 @@ async def race(
     second item of the returned tuple.  If all coroutines fail, it will raise an
     exc:`ExceptionGroup` to indicate the explicit failure of the entire operation.
 
-    .. versionadded:: 1.7
+    .. versionadded:: 2.0
     """
     async with aclosing(as_completed_safe(coros, context=context)) as ag:
         errors: list[Exception] = []
