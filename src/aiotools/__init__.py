@@ -1,4 +1,4 @@
-import pkgutil
+from importlib.metadata import version
 
 # Import submodules only when installed properly
 from . import (
@@ -25,7 +25,7 @@ __all__ = (
     *timeouts.__all__,
     *timer.__all__,
     *utils.__all__,
-    '__version__',
+    "__version__",
 )
 
 from .context import *     # noqa
@@ -39,9 +39,4 @@ from .timeouts import *    # noqa
 from .timer import *       # noqa
 from .utils import *       # noqa
 
-
-_version_data = pkgutil.get_data("aiotools", "VERSION")
-if _version_data is None:
-    __version__ = '0.0.dev'
-else:
-    __version__ = _version_data.decode('utf8').strip()
+__version__ = version("aiotools")
