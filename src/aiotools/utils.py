@@ -88,6 +88,12 @@ async def gather_safe(
 
     Additionally, it supports manually setting the context of each subtask.
 
+    Note that if it is cancelled from an outer scope (e.g., timeout), there
+    is no way to retrieve partially completed or failed results.
+    If you need to process them anyway, you must store the results in a 
+    separate place in the passed coroutines or use :func:`as_completed_safe()`
+    instead.
+
     .. versionadded:: 2.0
     """
     tasks = []
@@ -118,6 +124,8 @@ async def race(
     the first successful result.  Then it returns the exceptions as a list in the
     second item of the returned tuple.  If all coroutines fail, it will raise an
     :exc:`ExceptionGroup` to indicate the explicit failure of the entire operation.
+
+    You may use this function to implement a "happy eyeball" algorithm.
 
     .. versionadded:: 2.0
     """
