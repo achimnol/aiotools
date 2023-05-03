@@ -19,12 +19,13 @@ Modules
 * [Async Functools](http://aiotools.readthedocs.io/en/latest/aiotools.func.html)
 * [Async Itertools](http://aiotools.readthedocs.io/en/latest/aiotools.iter.html)
 * [Async Server](http://aiotools.readthedocs.io/en/latest/aiotools.server.html)
-* [Async TaskGroup](http://aiotools.readthedocs.io/en/latest/aiotools.taskgroup.html)
+* [Supervisor](http://aiotools.readthedocs.io/en/latest/aiotools.supervisor.html)
+* [(Persistent)TaskGroup](http://aiotools.readthedocs.io/en/latest/aiotools.taskgroup.html)
 * [Async Timer](http://aiotools.readthedocs.io/en/latest/aiotools.timer.html)
+* [High-level Coroutine Utilities](http://aiotools.readthedocs.io/en/latest/aiotools.utils.html)
 
 I also recommend to try the following asyncio libraries for your happier life.
 
-* [async_timeout](https://github.com/aio-libs/async-timeout): Provides a light-weight timeout wrapper that does not spawn subtasks.
 * [aiojobs](https://github.com/aio-libs/aiojobs): Provides a concurrency-limited scheduler for asyncio tasks with graceful shutdown.
 * [trio](https://github.com/python-trio/trio): An alternative implementation of asynchronous IO stack for Python, with focus on cancellation scopes and task groups called "nursery".
 

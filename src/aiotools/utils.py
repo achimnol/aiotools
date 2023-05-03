@@ -37,11 +37,16 @@ async def as_completed_safe(
 ) -> AsyncGenerator[Awaitable[T], None]:
     """
     This is a safer version of :func:`asyncio.as_completed()` which uses
-    :class:`Supervisor` as an underlying coroutine lifecycle keeper.
+    :class:`aiotools.Supervisor` as an underlying coroutine lifecycle keeper.
 
     This requires Python 3.11 or higher to work properly with timeouts.
 
     .. versionadded:: 1.6
+
+    .. versionchanged:: 2.0
+
+       It now uses :class:`aiotools.Supervisor` internally and handles
+       timeouts in a bettery way.
     """
     q: asyncio.Queue[asyncio.Task[Any]] = asyncio.Queue()
     remaining = 0
@@ -112,7 +117,7 @@ async def race(
     If ``continue_on_error`` is set True, it will keep running until it encounters
     the first successful result.  Then it returns the exceptions as a list in the
     second item of the returned tuple.  If all coroutines fail, it will raise an
-    exc:`ExceptionGroup` to indicate the explicit failure of the entire operation.
+    :exc:`ExceptionGroup` to indicate the explicit failure of the entire operation.
 
     .. versionadded:: 2.0
     """
