@@ -9,7 +9,9 @@ from . import (
     iter as _iter,
     server,
     taskgroup,
+    timeouts,
     timer,
+    utils,
 )
 
 __all__ = (
@@ -20,7 +22,9 @@ __all__ = (
     *_iter.__all__,
     *server.__all__,
     *taskgroup.__all__,
+    *timeouts.__all__,
     *timer.__all__,
+    *utils.__all__,
     '__version__',
 )
 
@@ -31,7 +35,9 @@ from .func import *        # noqa
 from .iter import *        # noqa
 from .server import *      # noqa
 from .taskgroup import *   # noqa
+from .timeouts import *    # noqa
 from .timer import *       # noqa
+from .utils import *       # noqa
 
 
 _version_data = pkgutil.get_data("aiotools", "VERSION")

@@ -26,8 +26,3 @@ else:
     ]
     if has_contextvars:
         __all__.append("current_taskgroup")
-
-
-from .utils import as_completed_safe  # noqa
-
-__all__.append("as_completed_safe")
