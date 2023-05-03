@@ -143,7 +143,7 @@ Task Group
 
    .. versionchanged:: 1.6.1
 
-      It no longer raises :exc:`BaseExceptionGroup` or exc:`ExceptionGroup`
+      It no longer raises :exc:`BaseExceptionGroup` or :exc:`ExceptionGroup`
       upon exit or :meth:`shutdown()`, because it no longer stores the history
       of unhnadled exceptions from subtasks to prevent memory leaks for
       long-running persistent task groups.  The users must register explicit
