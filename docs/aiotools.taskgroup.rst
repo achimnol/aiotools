@@ -54,6 +54,7 @@ Task Group
       All existing codes should run without any issues, but it is
       recommended to test thoroughly.
 
+
 .. class:: PersistentTaskGroup(*, name=None, exception_handler=None)
 
    Provides an abstraction of long-running task groups for server applications.
@@ -140,6 +141,14 @@ Task Group
       All existing codes should run without any issues, but it is
       recommended to test thoroughly.
 
+   .. versionchanged:: 1.6.1
+
+      It no longer raises :exc:`BaseExceptionGroup` or exc:`ExceptionGroup`
+      upon exit or :meth:`shutdown()`, because it no longer stores the history
+      of unhnadled exceptions from subtasks to prevent memory leaks for
+      long-running persistent task groups.  The users must register explicit
+      exception handlers or task done callbacks to report or process such
+      unhandled exceptions.
 
 .. exception:: TaskGroupError
 
