@@ -161,10 +161,3 @@ Task Group
    ``except*`` syntax and :exc:`ExceptionGroup` methods if they use Python
    3.11 or later.  Note that if none of the passed exceptions passed is a
    :exc:`BaseException`, it automatically becomes :exc:`ExceptionGroup`.
-
-
-Task Group Utilities
-====================
-
-.. automodule:: aiotools.taskgroup.utils
-    :members:
