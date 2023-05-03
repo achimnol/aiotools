@@ -1,6 +1,6 @@
 import asyncio
 from contextvars import ContextVar, copy_context
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import pytest
 
@@ -79,8 +79,8 @@ async def test_as_completed_safe_immediate_failures() -> None:
     with VirtualClock().patch_loop():
 
         async def _inner() -> None:
-            results = []
-            errors = []
+            results: list[Any] = []
+            errors: list[Exception] = []
             async with aclosing(as_completed_safe([
                 # All these jobs fail at the same tick.
                 # Still, we should be able to retrieve all errors.
@@ -90,7 +90,7 @@ async def test_as_completed_safe_immediate_failures() -> None:
             ], context=context)) as ag:
                 async for result in ag:
                     try:
-                        results.append(await result)
+                        results.append(await result)  # type: ignore
                     except Exception as e:
                         errors.append(e)
             assert results == []

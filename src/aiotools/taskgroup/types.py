@@ -1,12 +1,5 @@
-import builtins
-import textwrap
-import traceback
-from typing import Type
-try:
-    from typing import Protocol
-except ImportError:
-    from typing_extensions import Protocol  # type: ignore  # noqa
 from types import TracebackType
+from typing import Protocol
 
 
 class AsyncExceptionHandler(Protocol):
@@ -17,52 +10,22 @@ class AsyncExceptionHandler(Protocol):
     """
     async def __call__(
         self,
-        exc_type: Type[Exception],
+        exc_type: type[Exception],
         exc_obj: Exception,
         exc_tb: TracebackType,
     ) -> None:
         ...
 
 
-if not hasattr(builtins, 'ExceptionGroup'):
+class MultiError(ExceptionGroup):
 
-    class MultiError(Exception):  # type: ignore[no-redef]
+    def __init__(self, msg: str, errors=()) -> None:
+        super().__init__(msg, errors)
+        self.__errors__ = errors
 
-        def __init__(self, msg, errors=()):
-            if errors:
-                types = set(type(e).__name__ for e in errors)
-                msg = f'{msg}; {len(errors)} sub errors: ({", ".join(types)})'
-                for er in errors:
-                    msg += f'\n + {type(er).__name__}: {er}'
-                    if er.__traceback__:
-                        er_tb = ''.join(traceback.format_tb(er.__traceback__))
-                        er_tb = textwrap.indent(er_tb, ' | ')
-                        msg += f'\n{er_tb}\n'
-            super().__init__(msg)
-            self.__errors__ = tuple(errors)
+    def get_error_types(self) -> set[type[Exception]]:
+        return {type(e) for e in self.exceptions}
 
-        def get_error_types(self):
-            return {type(e) for e in self.__errors__}
 
-        def __reduce__(self):
-            return (type(self), (self.args,), {'__errors__': self.__errors__})
-
-    class TaskGroupError(MultiError):  # type: ignore[no-redef]
-        """
-        An alias to :exc:`MultiError`.
-        """
-        pass
-
-else:
-
-    class MultiError(ExceptionGroup):  # type: ignore[no-redef]
-
-        def __init__(self, msg, errors=()):
-            super().__init__(msg, errors)
-            self.__errors__ = errors
-
-        def get_error_types(self):
-            return {type(e) for e in self.exceptions}
-
-    class TaskGroupError(MultiError):  # type: ignore[no-redef]
-        pass
+class TaskGroupError(MultiError):
+    pass

@@ -24,14 +24,6 @@ graceful shutdown steps.
 """
 
 import asyncio
-from contextlib import (
-    AbstractContextManager, ContextDecorator,
-)
-try:
-    import contextvars
-    _cv_available = True
-except ImportError:
-    _cv_available = False
 import functools
 import inspect
 import logging
@@ -40,6 +32,10 @@ import signal
 import struct
 import sys
 import threading
+from contextlib import (
+    AbstractContextManager, ContextDecorator,
+)
+from contextvars import ContextVar
 from typing import (
     Any,
     Callable,
@@ -55,11 +51,6 @@ from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
 from .fork import AbstractChildProcess, afork, _has_pidfd
 
-try:
-    from typing import Literal
-except ImportError:
-    from typing_extensions import Literal  # type: ignore  # noqa
-
 __all__ = (
     'main',
     'start_server',
@@ -71,12 +62,7 @@ __all__ = (
 
 log = logging.getLogger(__name__)
 
-if _cv_available:
-    process_index: 'contextvars.ContextVar[int]'
-    process_index = contextvars.ContextVar('process_index')
-else:
-    # Unsupported in Python 3.6
-    process_index = None  # type: ignore  # noqa
+process_index: ContextVar[int] = ContextVar('process_index')
 
 
 class InterruptedBySignal(BaseException):
@@ -298,8 +284,7 @@ def _worker_main(
     setup_child_watcher(loop)
     interrupted = asyncio.Event()
     ctx = worker_actxmgr(loop, proc_idx, args)
-    if _cv_available:
-        process_index.set(proc_idx)
+    process_index.set(proc_idx)
     forever_future = loop.create_future()
 
     def handle_stop_signal(signum):
@@ -360,8 +345,7 @@ def _extra_main(
     args: Sequence[Any],
 ) -> int:
     interrupted = threading.Event()
-    if _cv_available:
-        process_index.set(proc_idx)
+    process_index.set(proc_idx)
 
     # Since signals only work for the main thread in Python,
     # extra processes in use_threading=True mode should check

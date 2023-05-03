@@ -3,6 +3,7 @@ import itertools
 import logging
 import sys
 import traceback
+import weakref
 from contextvars import ContextVar, Token
 from types import TracebackType
 from typing import (
@@ -15,7 +16,6 @@ from typing import (
     Type,
     Union,
 )
-import weakref
 
 from .. import compat
 from .types import AsyncExceptionHandler
@@ -38,7 +38,6 @@ async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
 
 
 class PersistentTaskGroup:
-
     _base_error: Optional[BaseException]
     _exc_handler: AsyncExceptionHandler
     _tasks: "weakref.WeakSet[asyncio.Task]"
