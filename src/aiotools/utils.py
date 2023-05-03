@@ -90,7 +90,7 @@ async def gather_safe(
 
     Note that if it is cancelled from an outer scope (e.g., timeout), there
     is no way to retrieve partially completed or failed results.
-    If you need to process them anyway, you must store the results in a 
+    If you need to process them anyway, you must store the results in a
     separate place in the passed coroutines or use :func:`as_completed_safe()`
     instead.
 
