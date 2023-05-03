@@ -17,8 +17,10 @@ aiotools Documentation
    aiotools.func
    aiotools.iter
    aiotools.server
+   aiotools.supervisor
    aiotools.taskgroup
    aiotools.timer
+   aiotools.utils
 
 
 Indices and tables
