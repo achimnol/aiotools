@@ -63,7 +63,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'aiotools'
-copyright = '2018-2021, Joongi Kim and contributors'
+copyright = '2018-2023, Joongi Kim and contributors'
 author = 'Joongi Kim and contributors'
 
 # The version info for the project you're documenting, acts as replacement for
