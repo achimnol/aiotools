@@ -3,7 +3,7 @@ aiotools
 
 [![PyPI release version](https://badge.fury.io/py/aiotools.svg)](https://pypi.org/project/aiotools/)
 ![Supported Python versions](https://img.shields.io/pypi/pyversions/aiotools.svg)
-![Test Status](https://github.com/achimnol/aiotools/workflows/Test%20with%20pytest/badge.svg)
+[![CI Status](https://github.com/achimnol/aiotools/actions/workflows/default.yml/badge.svg)](https://github.com/achimnol/aiotools/actions/workflows/default.yml)
 [![Code Coverage](https://codecov.io/gh/achimnol/aiotools/branch/master/graph/badge.svg)](https://codecov.io/gh/achimnol/aiotools)
 
 Idiomatic asyncio utilties
