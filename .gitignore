@@ -93,3 +93,7 @@ ENV/
 
 # Vim swaps
 .*.swp
+.swp
+
+# macOS extras
+.DS_Store
