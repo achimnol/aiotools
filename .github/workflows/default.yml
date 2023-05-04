@@ -131,17 +131,5 @@ jobs:
     - name: Build sdist and wheel
       run: |
         python -m build -s -w
-    - name: Mint API token
-      id: mint-token
-      run: |
-        resp=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=pypi")
-        oidc_token=$(jq '.value' <<< "${resp}")
-        resp=$(curl -X POST https://pypi.org/_/oidc/github/mint-token -d "{\"token\": \"${oidc_token}\"}")
-        api_token=$(jq '.token' <<< "${resp}")
-        echo "::add-mask::${api_token}"
-        echo "api-token=${api_token}" >> "${GITHUB_OUTPUT}"
     - name: Publish
       uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ steps.mint-token.outputs.api-token }}
