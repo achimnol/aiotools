@@ -111,6 +111,7 @@ jobs:
     needs: [lint, typecheck, test]
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    environment: deploy-to-pypi
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -127,9 +128,6 @@ jobs:
         python -m pip install -U pip setuptools wheel
         pip install -U -r requirements/build.txt
     - name: Build and publish
-      env:
-        TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
       run: |
         python -m build -s -w
         twine upload dist/*
