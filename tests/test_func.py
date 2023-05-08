@@ -6,7 +6,7 @@ from aiotools.func import apartial, lru_cache
 
 
 async def do(a, b, *, c=1, d=2):
-    '''hello world'''
+    """hello world"""
     return (a, b, c, d)
 
 
@@ -41,27 +41,26 @@ async def test_apartial_args_kwargs():
 @pytest.mark.asyncio
 async def test_apartial_wraps():
     do2 = apartial(do)
-    assert do2.__doc__.strip() == 'hello world'
+    assert do2.__doc__.strip() == "hello world"
     assert do2.__doc__ == do.__doc__
-    assert do.__name__ == 'do'
-    assert do2.__name__ == 'do'
+    assert do.__name__ == "do"
+    assert do2.__name__ == "do"
 
 
 @pytest.mark.asyncio
 async def test_lru_cache():
-
     calc_count = 0
 
     @lru_cache(maxsize=2)
     async def calc(n):
-        '''testing'''
+        """testing"""
         nonlocal calc_count
         await asyncio.sleep(0)
         calc_count += 1
         return n * n
 
-    assert calc.__name__ == 'calc'
-    assert calc.__doc__ == 'testing'
+    assert calc.__name__ == "calc"
+    assert calc.__doc__ == "testing"
 
     assert (await calc(1)) == 1
     assert calc_count == 1
@@ -89,7 +88,6 @@ async def test_lru_cache():
 
 @pytest.mark.asyncio
 async def test_lru_cache_with_expiration():
-
     calc_count = 0
 
     @lru_cache(maxsize=2)

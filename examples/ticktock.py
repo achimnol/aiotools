@@ -1,9 +1,10 @@
-import aiotools
 import asyncio
+
+import aiotools
 
 
 async def mytick(interval):
-    print('tick')
+    print("tick")
 
 
 async def run():
@@ -13,7 +14,7 @@ async def run():
     await t
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:

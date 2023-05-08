@@ -7,7 +7,7 @@ import functools
 
 from .. import compat
 
-_has_task_name = hasattr(asyncio.Task, 'get_name')
+_has_task_name = hasattr(asyncio.Task, "get_name")
 
 
 def create_task_with_name(coro, *, name=None):
@@ -33,7 +33,7 @@ def patch_task(task) -> None:
         else:
             return orig_cancel()
 
-    if hasattr(task, '__cancel_requested__'):
+    if hasattr(task, "__cancel_requested__"):
         return
 
     task.__cancel_requested__ = False

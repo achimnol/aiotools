@@ -5,11 +5,11 @@ from typing import Optional
 from .compat import get_running_loop
 
 __all__ = (
-    'apartial',
-    'lru_cache',
+    "apartial",
+    "lru_cache",
 )
 
-_CacheEntry = collections.namedtuple('_CacheEntry', 'value expire_at')
+_CacheEntry = collections.namedtuple("_CacheEntry", "value expire_at")
 
 
 def apartial(coro, *args, **kwargs):
@@ -25,9 +25,9 @@ def apartial(coro, *args, **kwargs):
     return wrapped
 
 
-def lru_cache(maxsize: int = 128,
-              typed: bool = False,
-              expire_after: Optional[float] = None):
+def lru_cache(
+    maxsize: int = 128, typed: bool = False, expire_after: Optional[float] = None
+):
     """
     A simple LRU cache just like :func:`functools.lru_cache`, but it works for
     coroutines.  This is not as heavily optimized as :func:`functools.lru_cache`
@@ -55,10 +55,9 @@ def lru_cache(maxsize: int = 128,
     """
 
     if maxsize is not None and not isinstance(maxsize, int):
-        raise TypeError('Expected maxsize to be an integer or None')
+        raise TypeError("Expected maxsize to be an integer or None")
 
     def wrapper(coro):
-
         sentinel = object()  # unique object to distinguish None as result
         cache = collections.OrderedDict()
         cache_get = cache.get

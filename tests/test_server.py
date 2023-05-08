@@ -1,5 +1,3 @@
-import pytest
-
 import asyncio
 import functools
 import glob
@@ -12,12 +10,13 @@ import tempfile
 import time
 from typing import List, Sequence
 
+import pytest
+
 import aiotools
 
-
-if os.environ.get('CI', '') and sys.version_info < (3, 9, 0):
+if os.environ.get("CI", "") and sys.version_info < (3, 9, 0):
     pytest.skip(
-        'skipped to prevent kill CI agents due to signals on CI environments',
+        "skipped to prevent kill CI agents due to signals on CI environments",
         allow_module_level=True,
     )
 
@@ -39,7 +38,6 @@ def restore_signal():
 @pytest.fixture
 def set_timeout():
     def make_timeout(sec, callback):
-
         def _callback(signum, frame):
             signal.alarm(0)
             callback()
@@ -53,20 +51,21 @@ def set_timeout():
 @pytest.fixture
 def exec_recorder():
     f = tempfile.NamedTemporaryFile(
-        mode='w', encoding='utf8',
-        prefix='aiotools.tests.server.',
+        mode="w",
+        encoding="utf8",
+        prefix="aiotools.tests.server.",
     )
     f.close()
 
     def write(msg: str) -> None:
         path = f"{f.name}.{os.getpid()}"
-        with open(path, 'a', encoding='utf8') as writer:
-            writer.write(msg + '\n')
+        with open(path, "a", encoding="utf8") as writer:
+            writer.write(msg + "\n")
 
     def read() -> Sequence[str]:
         lines: List[str] = []
         for path in glob.glob(f"{f.name}.*"):
-            with open(path, 'r', encoding='utf8') as reader:
+            with open(path, "r", encoding="utf8") as reader:
                 lines.extend(line.strip() for line in reader.readlines())
         return lines
 
@@ -84,16 +83,16 @@ def interrupt_usr1():
     os.kill(os.getpid(), signal.SIGUSR1)
 
 
-@aiotools.server   # type: ignore
+@aiotools.server  # type: ignore
 async def myserver_simple(loop, proc_idx, args):
     write = args[0]
     await asyncio.sleep(0)
-    write(f'started:{proc_idx}')
+    write(f"started:{proc_idx}")
 
     yield
 
     await asyncio.sleep(0)
-    write(f'terminated:{proc_idx}')
+    write(f"terminated:{proc_idx}")
 
 
 def test_server_singleproc(set_timeout, restore_signal, exec_recorder):
@@ -104,8 +103,8 @@ def test_server_singleproc(set_timeout, restore_signal, exec_recorder):
         args=(write,),
     )
     lines = set(read())
-    assert 'started:0' in lines
-    assert 'terminated:0' in lines
+    assert "started:0" in lines
+    assert "terminated:0" in lines
 
 
 def test_server_multiproc(set_timeout, restore_signal, exec_recorder):
@@ -118,8 +117,12 @@ def test_server_multiproc(set_timeout, restore_signal, exec_recorder):
     )
     lines = set(read())
     assert lines == {
-        'started:0', 'started:1', 'started:2',
-        'terminated:0', 'terminated:1', 'terminated:2',
+        "started:0",
+        "started:1",
+        "started:2",
+        "terminated:0",
+        "terminated:1",
+        "terminated:2",
     }
 
 
@@ -127,12 +130,12 @@ def test_server_multiproc(set_timeout, restore_signal, exec_recorder):
 async def myserver_signal(loop, proc_idx, args):
     write = args[0]
     await asyncio.sleep(0)
-    write(f'started:{proc_idx}')
+    write(f"started:{proc_idx}")
 
     received_signum = yield
 
     await asyncio.sleep(0)
-    write(f'terminated:{proc_idx}:{received_signum}')
+    write(f"terminated:{proc_idx}:{received_signum}")
 
 
 def test_server_multiproc_custom_stop_signals(
@@ -149,10 +152,10 @@ def test_server_multiproc_custom_stop_signals(
         args=(write,),
     )
     lines = set(read())
-    assert {'started:0', 'started:1'} < lines
+    assert {"started:0", "started:1"} < lines
     assert {
-        f'terminated:0:{int(signal.SIGUSR1)}',
-        f'terminated:1:{int(signal.SIGUSR1)}',
+        f"terminated:0:{int(signal.SIGUSR1)}",
+        f"terminated:1:{int(signal.SIGUSR1)}",
     } < lines
 
 
@@ -165,39 +168,41 @@ async def myserver_worker_init_error(loop, proc_idx, args):
             self.writer = writer
 
         def write(self, msg):
-            msg = msg.strip().replace('\n', ' ')
-            self.writer(f'log:{proc_idx}:{msg}')
+            msg = msg.strip().replace("\n", " ")
+            self.writer(f"log:{proc_idx}:{msg}")
 
     log_stream = _LogAdaptor(write)
-    logging.config.dictConfig({
-        'version': 1,
-        'handlers': {
-            'console': {
-                'class': 'logging.StreamHandler',
-                'stream': log_stream,
-                'level': 'DEBUG',
+    logging.config.dictConfig(
+        {
+            "version": 1,
+            "handlers": {
+                "console": {
+                    "class": "logging.StreamHandler",
+                    "stream": log_stream,
+                    "level": "DEBUG",
+                },
             },
-        },
-        'loggers': {
-            'aiotools': {
-                'handlers': ['console'],
-                'level': 'DEBUG',
+            "loggers": {
+                "aiotools": {
+                    "handlers": ["console"],
+                    "level": "DEBUG",
+                },
             },
-        },
-    })
-    log = logging.getLogger('aiotools')
-    write(f'started:{proc_idx}')
-    log.debug('hello')
+        }
+    )
+    log = logging.getLogger("aiotools")
+    write(f"started:{proc_idx}")
+    log.debug("hello")
     if proc_idx in (0, 2):
         # delay until other workers start normally.
         await asyncio.sleep(0.1 * proc_idx)
-        raise ZeroDivisionError('oops')
+        raise ZeroDivisionError("oops")
 
     yield
 
     # should not be reached if errored.
     await asyncio.sleep(0)
-    write(f'terminated:{proc_idx}')
+    write(f"terminated:{proc_idx}")
 
 
 def test_server_worker_init_error(restore_signal, exec_recorder):
@@ -208,17 +213,16 @@ def test_server_worker_init_error(restore_signal, exec_recorder):
         args=(write,),
     )
     lines = set(read())
-    assert sum(1 if line.startswith('started:') else 0 for line in lines) == 4
+    assert sum(1 if line.startswith("started:") else 0 for line in lines) == 4
     # workers who did not raise errors have already started,
     # and they should have terminated normally
     # when the errorneous worker interrupted the main loop.
-    assert sum(1 if line.startswith('terminated:') else 0 for line in lines) == 2
-    assert sum(1 if 'hello' in line else 0 for line in lines) == 4
-    assert sum(1 if 'ZeroDivisionError: oops' in line else 0 for line in lines) == 2
+    assert sum(1 if line.startswith("terminated:") else 0 for line in lines) == 2
+    assert sum(1 if "hello" in line else 0 for line in lines) == 4
+    assert sum(1 if "ZeroDivisionError: oops" in line else 0 for line in lines) == 2
 
 
 def test_server_user_main(set_timeout, restore_signal):
-
     main_enter = False
     main_exit = False
 
@@ -251,7 +255,7 @@ def test_server_user_main_custom_stop_signals(set_timeout, restore_signal):
     main_enter = False
     main_exit = False
     main_signal = None
-    worker_signals = mp.Array('i', 3)
+    worker_signals = mp.Array("i", 3)
 
     @aiotools.main
     def mymain():
@@ -314,8 +318,7 @@ def test_server_user_main_tuple(set_timeout, restore_signal):
 
 
 def test_server_extra_proc(set_timeout, restore_signal):
-
-    extras = mp.Array('i', [0, 0])
+    extras = mp.Array("i", [0, 0])
 
     def extra_proc(key, _, pidx, args):
         assert _ is None
@@ -324,11 +327,11 @@ def test_server_extra_proc(set_timeout, restore_signal):
             while True:
                 time.sleep(0.1)
         except KeyboardInterrupt:
-            print(f'extra[{key}] interrupted', file=sys.stderr)
+            print(f"extra[{key}] interrupted", file=sys.stderr)
         except Exception as e:
-            print(f'extra[{key}] exception', e, file=sys.stderr)
+            print(f"extra[{key}] exception", e, file=sys.stderr)
         finally:
-            print(f'extra[{key}] finish', file=sys.stderr)
+            print(f"extra[{key}] finish", file=sys.stderr)
             extras[key] = 990 + key
 
     @aiotools.server
@@ -336,18 +339,22 @@ def test_server_extra_proc(set_timeout, restore_signal):
         yield
 
     set_timeout(0.2, interrupt)
-    aiotools.start_server(myworker, extra_procs=[
-                              functools.partial(extra_proc, 0),
-                              functools.partial(extra_proc, 1)],
-                          num_workers=3, args=(123, ))
+    aiotools.start_server(
+        myworker,
+        extra_procs=[
+            functools.partial(extra_proc, 0),
+            functools.partial(extra_proc, 1),
+        ],
+        num_workers=3,
+        args=(123,),
+    )
 
     assert extras[0] == 990
     assert extras[1] == 991
 
 
 def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
-
-    received_signals = mp.Array('i', [0, 0])
+    received_signals = mp.Array("i", [0, 0])
 
     def extra_proc(key, _, pidx, args):
         received_signals = args[0]
@@ -362,12 +369,16 @@ def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
         yield
 
     set_timeout(0.3, interrupt_usr1)
-    aiotools.start_server(myworker, extra_procs=[
-                              functools.partial(extra_proc, 0),
-                              functools.partial(extra_proc, 1)],
-                          stop_signals={signal.SIGUSR1},
-                          args=(received_signals, ),
-                          num_workers=3)
+    aiotools.start_server(
+        myworker,
+        extra_procs=[
+            functools.partial(extra_proc, 0),
+            functools.partial(extra_proc, 1),
+        ],
+        stop_signals={signal.SIGUSR1},
+        args=(received_signals,),
+        num_workers=3,
+    )
 
     assert received_signals[0] == signal.SIGUSR1
     assert received_signals[1] == signal.SIGUSR1
