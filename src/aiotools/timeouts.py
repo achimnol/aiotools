@@ -5,14 +5,9 @@ timeout context manager.
 """
 
 import enum
-
+from asyncio import events, exceptions, tasks
 from types import TracebackType
-from typing import final, Optional, Type
-
-from asyncio import events
-from asyncio import exceptions
-from asyncio import tasks
-
+from typing import Optional, Type, final
 
 __all__ = (
     "Timeout",
@@ -71,9 +66,7 @@ class Timeout:
         else:
             loop = events.get_running_loop()
             if when <= loop.time():
-                self._timeout_handler = (
-                    loop.call_soon(self._on_timeout)  # type: ignore
-                )
+                self._timeout_handler = loop.call_soon(self._on_timeout)  # type: ignore
             else:
                 self._timeout_handler = loop.call_at(when, self._on_timeout)
 
@@ -82,11 +75,11 @@ class Timeout:
         return self._state in (_State.EXPIRING, _State.EXPIRED)
 
     def __repr__(self) -> str:
-        info = ['']
+        info = [""]
         if self._state is _State.ENTERED:
             when = round(self._when, 3) if self._when is not None else None
             info.append(f"when={when}")
-        info_str = ' '.join(info)
+        info_str = " ".join(info)
         return f"<Timeout [{self._state.value}]{info_str}>"
 
     async def __aenter__(self) -> "Timeout":
@@ -119,11 +112,8 @@ class Timeout:
             if isinstance(exc_val, BaseExceptionGroup):
                 matched, rest = exc_val.split(exceptions.CancelledError)
                 # Check and strip out the cancellation errors from inside.
-                contains_cancellation = (matched is not None)
-                if (
-                    self._task.uncancel() <= self._cancelling and
-                    contains_cancellation
-                ):
+                contains_cancellation = matched is not None
+                if self._task.uncancel() <= self._cancelling and contains_cancellation:
                     if rest is not None:
                         raise BaseExceptionGroup(
                             "timeout with collected inner exceptions",
@@ -132,8 +122,8 @@ class Timeout:
                     raise TimeoutError from exc_val
             else:
                 if (
-                    self._task.uncancel() <= self._cancelling and
-                    exc_type is exceptions.CancelledError
+                    self._task.uncancel() <= self._cancelling
+                    and exc_type is exceptions.CancelledError
                 ):
                     # Since there are no new cancel requests, we're
                     # handling this.

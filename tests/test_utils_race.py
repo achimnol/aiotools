@@ -36,11 +36,14 @@ async def test_race_partial_failure():
     with VirtualClock().patch_loop():
 
         async def _inner1() -> None:
-            result, errors = await race([
-                do_job(0.1, 1),  # returns here
-                fail_job(0.3),   # cancelled
-                do_job(0.5, 5),  # cancelled
-            ], context=context)
+            result, errors = await race(
+                [
+                    do_job(0.1, 1),  # returns here
+                    fail_job(0.3),  # cancelled
+                    do_job(0.5, 5),  # cancelled
+                ],
+                context=context,
+            )
             assert result == 1
             assert len(errors) == 0  # should be empty
             assert cancelled.get() == 2
@@ -50,11 +53,14 @@ async def test_race_partial_failure():
 
         async def _inner2() -> None:
             with pytest.raises(ZeroDivisionError):
-                await race([
-                    fail_job(0.3),   # raises here
-                    do_job(0.4, 1),  # cancelled
-                    do_job(0.5, 5),  # cancelled
-                ], context=context)
+                await race(
+                    [
+                        fail_job(0.3),  # raises here
+                        do_job(0.4, 1),  # cancelled
+                        do_job(0.5, 5),  # cancelled
+                    ],
+                    context=context,
+                )
                 assert cancelled.get() == 2
 
         # Fix the context used by all sub-tasks
@@ -67,13 +73,17 @@ async def test_race_continue_on_error():
     with VirtualClock().patch_loop():
 
         async def _inner() -> None:
-            result, errors = await race([
-                fail_job(0.3),   # collected
-                fail_job(0.35),  # collected
-                do_job(0.4, 4),  # returns here
-                fail_job(0.45),  # cancelled
-                do_job(0.5, 5),  # cancelled
-            ], continue_on_error=True, context=context)
+            result, errors = await race(
+                [
+                    fail_job(0.3),  # collected
+                    fail_job(0.35),  # collected
+                    do_job(0.4, 4),  # returns here
+                    fail_job(0.45),  # cancelled
+                    do_job(0.5, 5),  # cancelled
+                ],
+                continue_on_error=True,
+                context=context,
+            )
             assert result == 4
             assert len(errors) == 2
             assert isinstance(errors[0], ZeroDivisionError)
@@ -93,13 +103,17 @@ async def test_race_empty_coro_list():
 async def test_race_all_failure():
     context = Context()
     with VirtualClock().patch_loop():
+
         async def _inner() -> None:
             with pytest.raises(ZeroDivisionError):
-                await race([
-                    fail_job(0.1),  # raises here
-                    fail_job(0.3),  # cancelled
-                    fail_job(0.5),  # cancelled
-                ], context=context)
+                await race(
+                    [
+                        fail_job(0.1),  # raises here
+                        fail_job(0.3),  # cancelled
+                        fail_job(0.5),  # cancelled
+                    ],
+                    context=context,
+                )
             assert cancelled.get() == 2
 
         await asyncio.create_task(_inner(), context=context)
@@ -109,13 +123,18 @@ async def test_race_all_failure():
 async def test_race_all_failure_with_continue_on_error():
     context = Context()
     with VirtualClock().patch_loop():
+
         async def _inner() -> None:
             try:
-                await race([
-                    fail_job(0.1),  # collected
-                    fail_job(0.3),  # collected
-                    fail_job(0.5),  # collected
-                ], continue_on_error=True, context=context)
+                await race(
+                    [
+                        fail_job(0.1),  # collected
+                        fail_job(0.3),  # collected
+                        fail_job(0.5),  # collected
+                    ],
+                    continue_on_error=True,
+                    context=context,
+                )
             except* ZeroDivisionError as e:
                 assert len(e.exceptions) == 3
             else:

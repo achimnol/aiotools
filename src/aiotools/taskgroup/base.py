@@ -1,19 +1,18 @@
 import asyncio
-from contextvars import ContextVar
 import itertools
+from contextvars import ContextVar
 
 from .types import TaskGroupError
 
 __all__ = (
-    'TaskGroup',
-    'current_taskgroup',
+    "TaskGroup",
+    "current_taskgroup",
 )
 
-current_taskgroup: ContextVar['TaskGroup'] = ContextVar('current_taskgroup')
+current_taskgroup: ContextVar["TaskGroup"] = ContextVar("current_taskgroup")
 
 
 class TaskGroup(asyncio.TaskGroup):
-
     def __init__(self, *, name=None):
         super().__init__()
         if name is None:

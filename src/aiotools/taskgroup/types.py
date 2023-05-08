@@ -8,6 +8,7 @@ class AsyncExceptionHandler(Protocol):
     This is always called under exception context where
     :func:`sys.exc_info()` is available.
     """
+
     async def __call__(
         self,
         exc_type: type[Exception],
@@ -18,7 +19,6 @@ class AsyncExceptionHandler(Protocol):
 
 
 class MultiError(ExceptionGroup):
-
     def __init__(self, msg: str, errors=()) -> None:
         super().__init__(msg, errors)
         self.__errors__ = errors

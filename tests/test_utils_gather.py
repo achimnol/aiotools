@@ -4,10 +4,7 @@ from typing import TypeVar
 
 import pytest
 
-from aiotools import (
-    gather_safe,
-    VirtualClock,
-)
+from aiotools import VirtualClock, gather_safe
 
 T = TypeVar("T")
 cancelled = ContextVar("cancelled", default=0)
@@ -39,11 +36,14 @@ async def test_gather_safe() -> None:
     with VirtualClock().patch_loop():
 
         async def _inner() -> None:
-            results = await gather_safe([
-                do_job(0.3, 3),
-                do_job(0.2, 2),
-                do_job(0.1, 1),
-            ], context=context)
+            results = await gather_safe(
+                [
+                    do_job(0.3, 3),
+                    do_job(0.2, 2),
+                    do_job(0.1, 1),
+                ],
+                context=context,
+            )
             assert results == [3, 2, 1]
 
         await asyncio.create_task(_inner(), context=context)
@@ -55,11 +55,14 @@ async def test_gather_safe_partial_failure() -> None:
     with VirtualClock().patch_loop():
 
         async def _inner() -> None:
-            results = await gather_safe([
-                do_job(0.3, 3),
-                fail_job(0.2),
-                do_job(0.1, 1),
-            ], context=context)
+            results = await gather_safe(
+                [
+                    do_job(0.3, 3),
+                    fail_job(0.2),
+                    do_job(0.1, 1),
+                ],
+                context=context,
+            )
             assert results[0] == 3
             assert isinstance(results[1], ZeroDivisionError)
             assert results[2] == 1
@@ -76,16 +79,19 @@ async def test_gather_safe_timeout():
         async def _inner() -> None:
             with pytest.raises(asyncio.TimeoutError):
                 async with asyncio.timeout(0.35):
-                    await gather_safe([
-                        do_job(0.1, 1),
-                        fail_job(0.2),
-                        fail_job(0.25),
-                        do_job(0.3, 3),
-                        # timeout occurs here
-                        do_job(0.4, 4),  # cancelled
-                        fail_job(0.5),   # cancelled
-                        fail_job(0.6),   # cancelled
-                    ], context=context)
+                    await gather_safe(
+                        [
+                            do_job(0.1, 1),
+                            fail_job(0.2),
+                            fail_job(0.25),
+                            do_job(0.3, 3),
+                            # timeout occurs here
+                            do_job(0.4, 4),  # cancelled
+                            fail_job(0.5),  # cancelled
+                            fail_job(0.6),  # cancelled
+                        ],
+                        context=context,
+                    )
             # There is no way to retrieve partial result in this case.
             # If you want to combine gather_safe() and timeouts, your
             # tasks should take care of any potential exceptions and results

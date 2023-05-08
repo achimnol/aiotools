@@ -6,31 +6,21 @@ import traceback
 import weakref
 from contextvars import ContextVar, Token
 from types import TracebackType
-from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    Coroutine,
-    Optional,
-    Sequence,
-    Type,
-    Union,
-)
+from typing import Any, Awaitable, Callable, Coroutine, Optional, Sequence, Type, Union
 
 from .. import compat
 from .types import AsyncExceptionHandler
 
 __all__ = (
-    'PersistentTaskGroup',
-    'current_ptaskgroup',
+    "PersistentTaskGroup",
+    "current_ptaskgroup",
 )
 
-current_ptaskgroup: ContextVar['PersistentTaskGroup'] = \
-    ContextVar('current_ptaskgroup')
+current_ptaskgroup: ContextVar["PersistentTaskGroup"] = ContextVar("current_ptaskgroup")
 
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
-_all_ptaskgroups: weakref.WeakSet['PersistentTaskGroup'] = weakref.WeakSet()
+_all_ptaskgroups: weakref.WeakSet["PersistentTaskGroup"] = weakref.WeakSet()
 
 
 async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
@@ -45,7 +35,7 @@ class PersistentTaskGroup:
     _current_taskgroup_token: Optional[Token["PersistentTaskGroup"]]
 
     @classmethod
-    def all_ptaskgroups(cls) -> Sequence['PersistentTaskGroup']:
+    def all_ptaskgroups(cls) -> Sequence["PersistentTaskGroup"]:
         return list(_all_ptaskgroups)
 
     def __init__(
@@ -175,12 +165,14 @@ class PersistentTaskGroup:
                 # we report it as soon as possible using the event loop's
                 # exception handler, instead of postponing
                 # to the timing when PersistentTaskGroup terminates.
-                loop.call_exception_handler({
-                    'message': f"Got an unhandled exception "
-                               f"in the exception handler of Task {task!r}",
-                    'exception': exc,
-                    'task': task,
-                })
+                loop.call_exception_handler(
+                    {
+                        "message": f"Got an unhandled exception "
+                        f"in the exception handler of Task {task!r}",
+                        "exception": exc,
+                        "task": task,
+                    }
+                )
         finally:
             del fut
 
@@ -227,24 +219,20 @@ class PersistentTaskGroup:
             Union[Type[BaseException], BaseException]
         ] = None
 
-        if (exc_val is not None and
-                self._is_base_error(exc_val) and
-                self._base_error is None):
+        if (
+            exc_val is not None
+            and self._is_base_error(exc_val)
+            and self._base_error is None
+        ):
             self._base_error = exc_val
 
-        if (
-            exc_type is asyncio.CancelledError or
-            exc_type is asyncio.TimeoutError
-        ):
+        if exc_type is asyncio.CancelledError or exc_type is asyncio.TimeoutError:
             if self._parent_cancel_requested:
                 self._parent_task.uncancel()
             else:
                 propagate_cancellation_error = exc_type
         if exc_type is not None and not self._aborting:
-            if (
-                exc_type is asyncio.CancelledError or
-                exc_type is asyncio.TimeoutError
-            ):
+            if exc_type is asyncio.CancelledError or exc_type is asyncio.TimeoutError:
                 propagate_cancellation_error = exc_type
             self._trigger_shutdown()
 
@@ -260,16 +248,16 @@ class PersistentTaskGroup:
         return None
 
     def __repr__(self) -> str:
-        info = ['']
+        info = [""]
         if self._name:
-            info.append(f'name={self._name}')
+            info.append(f"name={self._name}")
         if self._tasks:
-            info.append(f'tasks={len(self._tasks)}')
+            info.append(f"tasks={len(self._tasks)}")
         if self._unfinished_tasks:
-            info.append(f'unfinished={self._unfinished_tasks}')
+            info.append(f"unfinished={self._unfinished_tasks}")
         if self._aborting:
-            info.append('cancelling')
+            info.append("cancelling")
         elif self._entered:
-            info.append('entered')
-        info_str = ' '.join(info)
-        return f'<PersistentTaskGroup({info_str})>'
+            info.append("entered")
+        info_str = " ".join(info)
+        return f"<PersistentTaskGroup({info_str})>"

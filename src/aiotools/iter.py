@@ -1,6 +1,4 @@
-__all__ = (
-    'aiter',
-)
+__all__ = ("aiter",)
 
 
 _sentinel = object()

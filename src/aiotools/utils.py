@@ -14,9 +14,9 @@ from typing import (
     Iterable,
     List,
     Optional,
+    Sequence,
     Tuple,
     TypeVar,
-    Sequence,
 )
 
 from .supervisor import Supervisor

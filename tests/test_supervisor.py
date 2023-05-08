@@ -3,9 +3,7 @@ from typing import TypeVar
 
 import pytest
 
-from aiotools import (
-    VirtualClock,
-)
+from aiotools import VirtualClock
 from aiotools.supervisor import Supervisor
 
 T = TypeVar("T")

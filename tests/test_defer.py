@@ -1,12 +1,12 @@
+import asyncio
+
 import pytest
 
-import asyncio
-from aiotools.defer import defer, adefer
+from aiotools.defer import adefer, defer
 from aiotools.func import apartial
 
 
 def test_defer():
-
     x = []
 
     @defer
@@ -23,7 +23,6 @@ def test_defer():
 
 
 def test_defer_inner_exception():
-
     x = []
 
     @defer
@@ -43,6 +42,7 @@ def test_defer_inner_exception():
 
 def test_defer_wrong_func():
     with pytest.raises(AssertionError):
+
         @defer
         async def myfunc(defer):
             pass
@@ -50,7 +50,6 @@ def test_defer_wrong_func():
 
 @pytest.mark.asyncio
 async def test_adefer():
-
     x = []
 
     @adefer
@@ -68,6 +67,7 @@ async def test_adefer():
 
 def test_adefer_wrong_func():
     with pytest.raises(AssertionError):
+
         @adefer
         def myfunc(defer):
             pass
@@ -75,7 +75,6 @@ def test_adefer_wrong_func():
 
 @pytest.mark.asyncio
 async def test_adefer_coro():
-
     x = []
 
     async def async_append(target, item):
@@ -97,7 +96,6 @@ async def test_adefer_coro():
 
 @pytest.mark.asyncio
 async def test_adefer_corofunc():
-
     x = []
 
     async def async_append(target, item):
@@ -119,7 +117,6 @@ async def test_adefer_corofunc():
 
 @pytest.mark.asyncio
 async def test_adefer_inner_exception():
-
     x = []
 
     async def async_append(target, item):

@@ -6,7 +6,6 @@ import pytest
 
 import aiotools
 
-
 # NOTE: Until pytest-asyncio support ExceptionGroup,
 #       assertion failures inside PersistentTaskGroup/TaskGroup blocks
 #       may be represented as sub-task errors instead of
@@ -15,20 +14,18 @@ import aiotools
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_naming():
-
     async def subtask():
         pass
 
     async with aiotools.PersistentTaskGroup(name="XYZ") as tg:
         t = tg.create_task(subtask(), name="ABC")
         assert tg.get_name() == "XYZ"
-        if hasattr(t, 'get_name'):
+        if hasattr(t, "get_name"):
             assert t.get_name() == "ABC"
 
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_all_done():
-
     done_count = 0
 
     async def subtask():
@@ -38,7 +35,6 @@ async def test_ptaskgroup_all_done():
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
         async with aiotools.PersistentTaskGroup() as tg:
             for idx in range(10):
                 tg.create_task(subtask())
@@ -56,7 +52,6 @@ async def test_ptaskgroup_all_done():
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_as_obj_attr():
-
     done_count = 0
 
     async def subtask():
@@ -65,7 +60,6 @@ async def test_ptaskgroup_as_obj_attr():
         done_count += 1
 
     class LongLivedObject:
-
         def __init__(self):
             self.tg = aiotools.PersistentTaskGroup()
             assert not self.tg._entered
@@ -79,7 +73,6 @@ async def test_ptaskgroup_as_obj_attr():
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
         obj = LongLivedObject()
         for idx in range(10):
             await obj.work()
@@ -109,7 +102,6 @@ async def test_ptaskgroup_as_obj_attr():
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_shutdown_from_different_task():
-
     done_count = 0
     exec_after_termination = False
 
@@ -120,7 +112,6 @@ async def test_ptaskgroup_shutdown_from_different_task():
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
         outer_myself = aiotools.compat.current_task()
         tg = aiotools.PersistentTaskGroup()
         assert tg._parent_task is outer_myself
@@ -157,7 +148,6 @@ async def test_ptaskgroup_shutdown_from_different_task():
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_cancel_after_schedule():
-
     done_count = 0
 
     vclock = aiotools.VirtualClock()
@@ -184,7 +174,6 @@ async def test_ptaskgroup_cancel_after_schedule():
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_cancel_before_schedule():
-
     done_count = 0
 
     async def subtask():
@@ -194,7 +183,6 @@ async def test_ptaskgroup_cancel_before_schedule():
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
         async with aiotools.PersistentTaskGroup() as tg:
             for _ in range(10):
                 tg.create_task(subtask())
@@ -207,13 +195,12 @@ async def test_ptaskgroup_cancel_before_schedule():
 
 @pytest.mark.skipif(
     sys.version_info < (3, 7, 0),
-    reason='Requires Python 3.7 or higher',
+    reason="Requires Python 3.7 or higher",
     # In Python 3.6, this test hangs indefinitely.
     # We don't fix this -- 3.6 is EoL as of December 2021.
 )
 @pytest.mark.asyncio
 async def test_ptaskgroup_await_result():
-
     done_count = 0
 
     async def subtask():
@@ -224,11 +211,9 @@ async def test_ptaskgroup_await_result():
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
         results = []
 
         async with aiotools.PersistentTaskGroup() as tg:
-
             ret = await tg.create_task(subtask())
             results.append(ret)
 
@@ -260,13 +245,12 @@ async def test_ptaskgroup_await_result():
 
 @pytest.mark.skipif(
     sys.version_info < (3, 7, 0),
-    reason='Requires Python 3.7 or higher',
+    reason="Requires Python 3.7 or higher",
     # In Python 3.6, this test hangs indefinitely.
     # We don't fix this -- 3.6 is EoL as of December 2021.
 )
 @pytest.mark.asyncio
 async def test_ptaskgroup_await_exception():
-
     done_count = 0
     error_count = 0
 
@@ -283,9 +267,7 @@ async def test_ptaskgroup_await_exception():
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
         async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
-
             with pytest.raises(ZeroDivisionError):
                 await tg.create_task(subtask())
 
@@ -318,7 +300,6 @@ async def test_ptaskgroup_await_exception():
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_exc_handler_swallow():
-
     done_count = 0
     error_count = 0
 
@@ -335,7 +316,6 @@ async def test_ptaskgroup_exc_handler_swallow():
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
         try:
             async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
                 for _ in range(10):
@@ -353,11 +333,10 @@ async def test_ptaskgroup_exc_handler_swallow():
 
 @pytest.mark.skipif(
     sys.version_info < (3, 8, 0),
-    reason='Requires Python 3.8 or higher',
+    reason="Requires Python 3.8 or higher",
 )
 @pytest.mark.asyncio
 async def test_ptaskgroup_error_in_exc_handlers():
-
     done_count = 0
     error_count = 0
 
@@ -375,12 +354,11 @@ async def test_ptaskgroup_error_in_exc_handlers():
 
     loop = aiotools.compat.get_running_loop()
     vclock = aiotools.VirtualClock()
-    with vclock.patch_loop(), \
-         mock.patch.object(
-             loop,
-             'call_exception_handler',
-             mock.MagicMock(),
-         ):
+    with vclock.patch_loop(), mock.patch.object(
+        loop,
+        "call_exception_handler",
+        mock.MagicMock(),
+    ):
         # Errors in exception handlers are covered by the event loop's exception
         # handler, so that they can be reported as soon as possible when they occur.
         #
@@ -403,7 +381,7 @@ async def test_ptaskgroup_error_in_exc_handlers():
         loop.call_exception_handler.assert_called()
         calls = loop.call_exception_handler.mock_calls
         for idx in range(10):
-            assert isinstance(calls[idx].args[0]['exception'], ValueError)
+            assert isinstance(calls[idx].args[0]["exception"], ValueError)
         loop.call_exception_handler.reset_mock()  # to clean up task refs
         del calls  # to clean up task refs
         assert done_count == 0
@@ -424,7 +402,7 @@ async def test_ptaskgroup_error_in_exc_handlers():
         loop.call_exception_handler.assert_called()
         calls = loop.call_exception_handler.mock_calls
         for idx in range(10):
-            assert isinstance(calls[idx].args[0]['exception'], ValueError)
+            assert isinstance(calls[idx].args[0]["exception"], ValueError)
         loop.call_exception_handler.reset_mock()  # to clean up task refs
         del calls  # to clean up task refs
         assert done_count == 0
@@ -435,21 +413,19 @@ async def test_ptaskgroup_error_in_exc_handlers():
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_cancel_with_await():
-
     done_count = 0
 
     async def subtask():
         nonlocal done_count
         try:
             await asyncio.sleep(0.1)
-            done_count += 1   # should not be executed
+            done_count += 1  # should not be executed
         except asyncio.CancelledError:
             await asyncio.sleep(0.1)
             done_count += 10  # should be executed
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
         async with aiotools.PersistentTaskGroup() as tg:
             for _ in range(10):
                 tg.create_task(subtask())
@@ -467,11 +443,10 @@ async def test_ptaskgroup_cancel_with_await():
 
 @pytest.mark.skipif(
     sys.version_info < (3, 7, 0),
-    reason='Requires Python 3.7 or higher',
+    reason="Requires Python 3.7 or higher",
 )
 @pytest.mark.asyncio
 async def test_ptaskgroup_current():
-
     names = []
 
     async def subtask():
@@ -486,7 +461,6 @@ async def test_ptaskgroup_current():
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
         async with aiotools.PersistentTaskGroup(name="outer") as tg:
             tg.create_task(job())
             tg.create_task(job())
@@ -497,7 +471,6 @@ async def test_ptaskgroup_current():
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_enumeration():
-
     async def subtask():
         await asyncio.sleep(1)
 
@@ -508,7 +481,6 @@ async def test_ptaskgroup_enumeration():
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-
         async with aiotools.PersistentTaskGroup() as tg:
             tg.create_task(job())
             tg.create_task(job())

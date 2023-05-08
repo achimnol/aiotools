@@ -46,3 +46,7 @@ underlines = ["-", "", ""]
     directory = "misc"
     name = "Miscellaneous"
     showcontent = true
+
+[tool.isort]
+profile = "black"
+split_on_trailing_comma = true

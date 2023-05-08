@@ -19,16 +19,16 @@ from typing import Callable, Tuple
 from .compat import get_running_loop
 
 __all__ = (
-    'AbstractChildProcess',
-    'PosixChildProcess',
-    'PidfdChildProcess',
-    'afork',
+    "AbstractChildProcess",
+    "PosixChildProcess",
+    "PidfdChildProcess",
+    "afork",
 )
 
 logger = logging.getLogger(__name__)
 
 _has_pidfd = False
-if hasattr(os, 'pidfd_open'):
+if hasattr(os, "pidfd_open"):
     # signal.pidfd_send_signal() is available in Linux kernel 5.1+
     # and os.pidfd_open() is available in Linux kernel 5.3+.
     # So let's check with os.pidfd_open() which requires higher version.
@@ -100,7 +100,8 @@ class PosixChildProcess(AbstractChildProcess):
             logger.warning(
                 "child process pid %d exit status already read: "
                 "it will report returncode 255",
-                self._pid)
+                self._pid,
+            )
         else:
             if os.WIFSIGNALED(status):
                 self._returncode = -os.WTERMSIG(status)
@@ -159,7 +160,8 @@ class PidfdChildProcess(AbstractChildProcess):
             logger.warning(
                 "child process %d exit status already read: "
                 "it will report returncode 255",
-                self._pid)
+                self._pid,
+            )
         else:
             if status_info.si_code == os.CLD_KILLED:
                 self._returncode = -status_info.si_status  # signal number
@@ -170,7 +172,10 @@ class PidfdChildProcess(AbstractChildProcess):
             else:
                 logger.warning(
                     "unexpected si_code %d and si_status %d for child process %d",
-                    status_info.si_code, status_info.si_status, self._pid)
+                    status_info.si_code,
+                    status_info.si_status,
+                    self._pid,
+                )
                 self._returncode = 255
         finally:
             loop.remove_reader(self._pidfd)
