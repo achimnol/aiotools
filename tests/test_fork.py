@@ -7,11 +7,10 @@ from unittest import mock
 import pytest
 
 from aiotools import fork as fork_mod
-from aiotools.fork import afork, _has_pidfd, PidfdChildProcess
+from aiotools.fork import PidfdChildProcess, _has_pidfd, afork
 
 
 async def _do_test_fork():
-
     def child():
         print("hello world")
         time.sleep(0.1)
@@ -26,7 +25,6 @@ async def _do_test_fork():
 
 
 async def _do_test_fork_already_terminated():
-
     def child():
         time.sleep(0.1)
         return 99
@@ -41,7 +39,6 @@ async def _do_test_fork_already_terminated():
 
 
 async def _do_test_fork_signal():
-
     def child():
         try:
             time.sleep(10)
@@ -62,10 +59,10 @@ async def _do_test_fork_signal():
 
 
 async def _do_test_fork_segfault():
-
     def child():
         time.sleep(0.1)
         import ctypes
+
         ctypes.string_at(0)  # segfault!
 
     os.setpgrp()
@@ -78,7 +75,6 @@ async def _do_test_fork_segfault():
 
 
 async def _do_test_fork_many():
-
     def child():
         try:
             time.sleep(10)
@@ -106,8 +102,7 @@ async def _do_test_fork_many():
 
 
 @pytest.mark.skipif(
-    not _has_pidfd,
-    reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
+    not _has_pidfd, reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
 @pytest.mark.asyncio
 async def test_fork():
@@ -115,8 +110,7 @@ async def test_fork():
 
 
 @pytest.mark.skipif(
-    not _has_pidfd,
-    reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
+    not _has_pidfd, reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
 @pytest.mark.asyncio
 async def test_fork_already_terminated():
@@ -124,8 +118,7 @@ async def test_fork_already_terminated():
 
 
 @pytest.mark.skipif(
-    not _has_pidfd,
-    reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
+    not _has_pidfd, reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
 @pytest.mark.asyncio
 async def test_fork_signal():
@@ -133,8 +126,7 @@ async def test_fork_signal():
 
 
 @pytest.mark.skipif(
-    not _has_pidfd,
-    reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
+    not _has_pidfd, reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
 @pytest.mark.asyncio
 async def test_fork_segfault():
@@ -142,8 +134,7 @@ async def test_fork_segfault():
 
 
 @pytest.mark.skipif(
-    not _has_pidfd,
-    reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
+    not _has_pidfd, reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
 @pytest.mark.asyncio
 async def test_fork_many():
@@ -153,7 +144,9 @@ async def test_fork_many():
 @pytest.mark.asyncio
 async def test_fork_fallback():
     with mock.patch.object(
-        fork_mod, '_has_pidfd', False,
+        fork_mod,
+        "_has_pidfd",
+        False,
     ):
         await _do_test_fork()
 
@@ -161,7 +154,9 @@ async def test_fork_fallback():
 @pytest.mark.asyncio
 async def test_fork_already_termination_fallback():
     with mock.patch.object(
-        fork_mod, '_has_pidfd', False,
+        fork_mod,
+        "_has_pidfd",
+        False,
     ):
         await _do_test_fork_already_terminated()
 
@@ -169,7 +164,9 @@ async def test_fork_already_termination_fallback():
 @pytest.mark.asyncio
 async def test_fork_signal_fallback():
     with mock.patch.object(
-        fork_mod, '_has_pidfd', False,
+        fork_mod,
+        "_has_pidfd",
+        False,
     ):
         await _do_test_fork_signal()
 
@@ -177,7 +174,9 @@ async def test_fork_signal_fallback():
 @pytest.mark.asyncio
 async def test_fork_segfault_fallback():
     with mock.patch.object(
-        fork_mod, '_has_pidfd', False,
+        fork_mod,
+        "_has_pidfd",
+        False,
     ):
         await _do_test_fork_segfault()
 
@@ -185,6 +184,8 @@ async def test_fork_segfault_fallback():
 @pytest.mark.asyncio
 async def test_fork_many_fallback():
     with mock.patch.object(
-        fork_mod, '_has_pidfd', False,
+        fork_mod,
+        "_has_pidfd",
+        False,
     ):
         await _do_test_fork_many()

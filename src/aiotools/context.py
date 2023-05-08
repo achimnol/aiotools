@@ -8,15 +8,19 @@ Provides an implementation of asynchronous context manager and its applications.
    and later.
 """
 
-import contextlib
 import asyncio
-from typing import Iterable, Optional, List
+import contextlib
+from typing import Iterable, List, Optional
 
 __all__ = [
-    'AsyncContextManager', 'async_ctx_manager', 'actxmgr',
-    'aclosing', 'closing_async',
-    'AsyncContextGroup', 'actxgroup',
-    'AsyncExitStack',
+    "AsyncContextManager",
+    "async_ctx_manager",
+    "actxmgr",
+    "aclosing",
+    "closing_async",
+    "AsyncContextGroup",
+    "actxgroup",
+    "AsyncExitStack",
 ]
 
 
@@ -84,8 +88,9 @@ class AsyncContextGroup:
 
     """
 
-    def __init__(self,
-                 context_managers: Optional[Iterable[AbstractAsyncContextManager]] = None):  # noqa
+    def __init__(
+        self, context_managers: Optional[Iterable[AbstractAsyncContextManager]] = None
+    ):  # noqa
         self._cm = list(context_managers) if context_managers else []
         self._cm_yields: List[asyncio.Task] = []
         self._cm_exits: List[asyncio.Task] = []
@@ -101,8 +106,8 @@ class AsyncContextGroup:
         # NOTE: There is no way to "skip" the context body even if the entering
         #       process fails.
         self._cm_yields[:] = await asyncio.gather(
-            *(e.__aenter__() for e in self._cm),
-            return_exceptions=True)
+            *(e.__aenter__() for e in self._cm), return_exceptions=True
+        )
         return self._cm_yields
 
     async def __aexit__(self, *exc_info):
@@ -110,8 +115,8 @@ class AsyncContextGroup:
         self._cm_yields.clear()
         # Exceptions are stored into _cm_exits list.
         self._cm_exits[:] = await asyncio.gather(
-            *(e.__aexit__(*exc_info) for e in self._cm),
-            return_exceptions=True)
+            *(e.__aexit__(*exc_info) for e in self._cm), return_exceptions=True
+        )
 
     def exit_states(self):
         """

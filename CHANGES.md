@@ -325,7 +325,7 @@ Changelog
 0.4.0 (2017-08-01)
 ------------------
 
-* Add `use_threading` argument to 
+* Add `use_threading` argument to
 * Add initial documentation (which currently not served
   on readthedocs.io due to Python version problem)
 

@@ -1,6 +1,4 @@
-from asyncio import events
-from asyncio import exceptions
-from asyncio import tasks
+from asyncio import events, exceptions, tasks
 from typing import Optional
 
 __all__ = ["Supervisor"]
@@ -46,21 +44,20 @@ class Supervisor:
         self._on_completed_fut = None
 
     def __repr__(self):
-        info = ['']
+        info = [""]
         if self._tasks:
-            info.append(f'tasks={len(self._tasks)}')
+            info.append(f"tasks={len(self._tasks)}")
         if self._aborting:
-            info.append('cancelling')
+            info.append("cancelling")
         elif self._entered:
-            info.append('entered')
+            info.append("entered")
 
-        info_str = ' '.join(info)
-        return f'<Supervisor{info_str}>'
+        info_str = " ".join(info)
+        return f"<Supervisor{info_str}>"
 
     async def __aenter__(self):
         if self._entered:
-            raise RuntimeError(
-                f"Supervisor {self!r} has been already entered")
+            raise RuntimeError(f"Supervisor {self!r} has been already entered")
         self._entered = True
 
         if self._loop is None:
@@ -68,24 +65,20 @@ class Supervisor:
 
         self._parent_task = tasks.current_task(self._loop)
         if self._parent_task is None:
-            raise RuntimeError(
-                f'Supervisor {self!r} cannot determine the parent task')
+            raise RuntimeError(f"Supervisor {self!r} cannot determine the parent task")
 
         return self
 
     async def __aexit__(self, et, exc, tb):
         self._exiting = True
 
-        if (exc is not None and
-                self._is_base_error(exc) and
-                self._base_error is None):
+        if exc is not None and self._is_base_error(exc) and self._base_error is None:
             # SystemExit or KeyboardInterrupt in "async with"
             # so we cancel other tasks.
             self._base_error = exc
             self._abort()
 
-        propagate_cancellation_error = \
-            exc if et is exceptions.CancelledError else None
+        propagate_cancellation_error = exc if et is exceptions.CancelledError else None
         if self._parent_cancel_requested:
             assert self._parent_task is not None
             # If this flag is set we *must* call uncancel().
@@ -197,19 +190,17 @@ class Supervisor:
         if self._parent_task.done():
             # Not sure if this case is possible, but we want to handle
             # it anyways.
-            self._loop.call_exception_handler({
-                'message': f'Task {task!r} has errored out but its parent '
-                           f'task {self._parent_task} is already completed',
-                'exception': exc,
-                'task': task,
-            })
+            self._loop.call_exception_handler(
+                {
+                    "message": f"Task {task!r} has errored out but its parent "
+                    f"task {self._parent_task} is already completed",
+                    "exception": exc,
+                    "task": task,
+                }
+            )
             return
 
-        if (
-            _is_base_error and
-            not self._aborting and
-            not self._parent_cancel_requested
-        ):
+        if _is_base_error and not self._aborting and not self._parent_cancel_requested:
             # For base SystemExit and KeyboardInterrupt ONLY, if parent task
             # *is not* being cancelled, it means that we want to manually cancel
             # it to abort whatever is being run right now in the Supervisor.
