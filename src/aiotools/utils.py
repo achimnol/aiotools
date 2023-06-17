@@ -11,6 +11,8 @@ from typing import (
     Any,
     AsyncGenerator,
     Awaitable,
+    Coroutine,
+    Generator,
     Iterable,
     List,
     Optional,
@@ -31,7 +33,7 @@ T = TypeVar("T")
 
 
 async def as_completed_safe(
-    coros: Iterable[Awaitable[T]],
+    coros: Iterable[Coroutine[Any, None, T] | Generator[None, None, T]],
     *,
     context: Optional[Context] = None,
 ) -> AsyncGenerator[Awaitable[T], None]:
@@ -78,7 +80,7 @@ async def as_completed_safe(
 
 
 async def gather_safe(
-    coros: Iterable[Awaitable[T]],
+    coros: Iterable[Coroutine[Any, None, T] | Generator[None, None, T]],
     *,
     context: Optional[Context] = None,
 ) -> List[T | Exception]:
@@ -97,6 +99,7 @@ async def gather_safe(
     .. versionadded:: 2.0
     """
     tasks = []
+    t: asyncio.Task[T]
     async with Supervisor() as supervisor:
         for coro in coros:
             t = supervisor.create_task(coro, context=context)
@@ -106,7 +109,7 @@ async def gather_safe(
 
 
 async def race(
-    coros: Iterable[Awaitable[T]],
+    coros: Iterable[Coroutine[Any, None, T] | Generator[None, None, T]],
     *,
     continue_on_error: bool = False,
     context: Optional[Context] = None,
