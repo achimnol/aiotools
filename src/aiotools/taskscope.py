@@ -138,6 +138,7 @@ class TaskScope(TaskContext):
             self._on_completed_fut = None
 
         assert not self._tasks
+        self._exited = True
 
         if self._base_error is not None:
             raise self._base_error

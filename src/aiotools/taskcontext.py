@@ -72,8 +72,8 @@ class TaskContext:
         self._parent_task = None
         # status flags
         self._entered = False
-        self._aborting = False
         self._exited = False
+        self._aborting = False
 
     def __del__(self) -> None:
         loc: str = "<loc>"  # TODO: implement
