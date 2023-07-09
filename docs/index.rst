@@ -17,6 +17,8 @@ aiotools Documentation
    aiotools.func
    aiotools.iter
    aiotools.server
+   aiotools.taskcontext
+   aiotools.taskscope
    aiotools.supervisor
    aiotools.taskgroup
    aiotools.timer
