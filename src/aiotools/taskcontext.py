@@ -54,6 +54,15 @@ class TaskContext:
     """
     TaskContext keeps the references to the child tasks during its lifetime,
     so that they can be terminated safely when shutdown is explicitly requested.
+
+    This is the loosest form of child task managers among TaskScope, TaskGroup, and
+    Supervisor, as it does not enforce structured concurrency but just provides a
+    reference set to child tasks.
+
+    You may replace existing patterns using class:`weakref.WeakSet` to keep track
+    of child tasks for a long-running server application with TaskContext.
+
+    .. versionadded:: 2.1
     """
 
     _tasks: set[asyncio.Task[Any]]

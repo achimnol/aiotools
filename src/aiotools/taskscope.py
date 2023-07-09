@@ -19,25 +19,25 @@ T = TypeVar("T")
 
 
 class TaskScope(TaskContext):
-    """Asynchronous context manager for managing a scope of subtasks.
+    """
+    TaskScope is an asynchronous context manager for managing a scope of subtasks,
+    terminating when all child tasks make conclusion (either results or exceptions).
 
-    Example use:
+    The key difference to :class:`asyncio.TaskGroup` is that it allows
+    customization of the exception handling logic for unhandled child
+    task exceptions, instead cancelling all pending child tasks upon any
+    unhandled child task exceptions.
 
-        async with asyncio.TaskScope() as scope:
-            task1 = scope.create_task(some_coroutine(...))
-            task2 = scope.create_task(other_coroutine(...))
-        print("Both tasks have completed now.")
-
-    All tasks are awaited when the context manager exits.
-
-    Any exceptions other than `asyncio.CancelledError` raised within
-    a task will be handled differently depending on `delegate_errors`.
-
-    If `delegate_errors` is not set, it will run
-    `loop.call_exception_handler()`.
+    If ``delegate_errors`` is not set (the default behavior), it will run
+    :method:`asyncio.AbstractEventLoop.call_exception_handler()`.
     If it is set `None`, it will silently ignore the exception.
     If it is set as a callable function, it will invoke it using the same
-    context argument of `loop.call_exception_handler()`.
+    context argument of :method:`asyncio.AbstractEventLoop.call_exception_handler()`.
+
+    Based on this customizability, :class:`aiotools.Supervisor` is a mere alias of
+    TaskScope with ``delegate_errors=None``.
+
+    .. versionadded:: 2.1
     """
 
     _tasks: set[asyncio.Task[Any]]
