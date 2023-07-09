@@ -29,10 +29,10 @@ class TaskScope(TaskContext):
     unhandled child task exceptions.
 
     If ``delegate_errors`` is not set (the default behavior), it will run
-    :method:`asyncio.AbstractEventLoop.call_exception_handler()`.
+    :func:`asyncio.AbstractEventLoop.call_exception_handler()`.
     If it is set `None`, it will silently ignore the exception.
     If it is set as a callable function, it will invoke it using the same
-    context argument of :method:`asyncio.AbstractEventLoop.call_exception_handler()`.
+    context argument of :func:`asyncio.AbstractEventLoop.call_exception_handler()`.
 
     Based on this customizability, :class:`aiotools.Supervisor` is a mere alias of
     TaskScope with ``delegate_errors=None``.
