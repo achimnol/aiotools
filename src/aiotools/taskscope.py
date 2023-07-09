@@ -112,14 +112,33 @@ class TaskScope(TaskContext):
                 #
                 self.abort()
 
+        prop_ex = await self._wait_completion()
+        assert not self._tasks
+        if prop_ex is not None:
+            propagate_cancellation_error = prop_ex
+        self._exited = True
+
+        if self._base_error is not None:
+            raise self._base_error
+
+        # Propagate CancelledError as the child exceptions are handled separately.
+        if propagate_cancellation_error:
+            raise propagate_cancellation_error
+
+        if et is not None and et is not exceptions.CancelledError:
+            self._has_errors = True
+        return None
+
+    async def _wait_completion(self):
         # We use while-loop here because "self._on_completed_fut"
         # can be cancelled multiple times if our parent task
         # is being cancelled repeatedly (or even once, when
         # our own cancellation is already in progress)
+        assert self._loop is not None
+        propagate_cancellation_error = None
         while self._tasks:
             if self._on_completed_fut is None:
                 self._on_completed_fut = self._loop.create_future()
-
             try:
                 await self._on_completed_fut
             except exceptions.CancelledError as ex:
@@ -133,24 +152,14 @@ class TaskScope(TaskContext):
                     # "wrapper" is being cancelled while "foo" is
                     # still running.
                     propagate_cancellation_error = ex
-                    self.abort()
-
+                    self.abort(msg=ex.args[0] if ex.args else None)
             self._on_completed_fut = None
+        return propagate_cancellation_error
 
-        assert not self._tasks
-        self._exited = True
-
-        if self._base_error is not None:
-            raise self._base_error
-
-        # Propagate CancelledError if there is one, except if there
-        # are other errors -- those have priority.
-        if propagate_cancellation_error and not self._has_errors:
-            raise propagate_cancellation_error
-
-        if et is not None and et is not exceptions.CancelledError:
-            self._has_errors = True
-        return None
+    async def shutdown(self) -> None:
+        # Trigger cancellation and wait.
+        self.abort(r"{self!r} is shutdown")
+        await self._wait_completion()
 
     def create_task(
         self,
@@ -177,12 +186,12 @@ class TaskScope(TaskContext):
         assert isinstance(exc, BaseException)
         return isinstance(exc, (SystemExit, KeyboardInterrupt))
 
-    def abort(self) -> None:
+    def abort(self, msg: Optional[str] = None) -> None:
         # Trigger cancellation but don't wait.
         self._aborting = True
         for t in self._tasks:
             if not t.done():
-                t.cancel()
+                t.cancel(msg=msg)
 
     def _on_task_done(self, task: asyncio.Task[Any]) -> None:
         assert self._loop is not None

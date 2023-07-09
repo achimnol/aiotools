@@ -75,7 +75,7 @@ async def as_completed_safe(
                 # CancelledError: injected when a timeout occurs
                 #                 (i.e., the outer scope cancels the inner)
                 # BaseException: injected when the process is going to terminate
-                supervisor.abort()
+                await supervisor.shutdown()
                 raise
 
 
