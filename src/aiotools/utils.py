@@ -24,12 +24,33 @@ from typing import (
 from .supervisor import Supervisor
 
 __all__ = (
+    "cancel_and_wait",
     "as_completed_safe",
     "gather_safe",
     "race",
 )
 
 T = TypeVar("T")
+
+
+async def cancel_and_wait(
+    task: asyncio.Task[Any],
+    msg: str | None = None,
+) -> None:
+    """
+    See the discussion in https://github.com/python/cpython/issues/103486
+    """
+    task.cancel(msg)
+    try:
+        await task
+    except asyncio.CancelledError:
+        parent_task = asyncio.current_task()
+        if parent_task is not None and parent_task.cancelling() == 0:
+            raise
+        else:
+            return  # this is the only non-exceptional return
+    else:
+        raise RuntimeError("Cancelled task did not end with an exception")
 
 
 async def as_completed_safe(

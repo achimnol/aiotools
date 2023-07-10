@@ -1,6 +1,7 @@
 __all__ = ["ErrorArg", "ErrorCallback", "TaskContext"]
 
 import asyncio
+import contextvars
 import enum
 import warnings
 from contextvars import Context
@@ -30,26 +31,6 @@ ErrorCallback: TypeAlias = Callable[[ErrorArg], None]
 T = TypeVar("T")
 
 
-async def cancel_and_wait(
-    task: asyncio.Task[Any],
-    msg: str | None = None,
-) -> None:
-    """
-    See the discussion in https://github.com/python/cpython/issues/103486
-    """
-    task.cancel(msg)
-    try:
-        await task
-    except asyncio.CancelledError:
-        parent_task = asyncio.current_task()
-        if parent_task is not None and parent_task.cancelling() == 0:
-            raise
-        else:
-            return  # this is the only non-exceptional return
-    else:
-        raise RuntimeError("Cancelled task did not end with an exception")
-
-
 class TaskContext:
     """
     TaskContext keeps the references to the child tasks during its lifetime,
@@ -59,8 +40,21 @@ class TaskContext:
     Supervisor, as it does not enforce structured concurrency but just provides a
     reference set to child tasks.
 
-    You may replace existing patterns using class:`weakref.WeakSet` to keep track
+    You may replace existing patterns using :class:`weakref.WeakSet` to keep track
     of child tasks for a long-running server application with TaskContext.
+
+    If ``delegate_errors`` is not set (the default behavior), it will run
+    :meth:`loop.call_exception_handler() <asyncio.loop.call_exception_handler>`
+    with the context argument consisting of the ``message``, ``task`` (the child task
+    that raised the exception), and ``exception`` (the exception object) fields.
+
+    If it is set *None*, it will silently ignore the exception.
+
+    If it is set as a callable function, it will invoke the specified callback
+    function using the context argument same to that used when calling
+    :meth:`loop.call_exception_handler() <asyncio.loop.call_exception_handler>`.
+
+    If you provide ``context``, it will be passed to :meth:`create_task()` by default.
 
     .. versionadded:: 2.1
     """
@@ -74,11 +68,13 @@ class TaskContext:
         delegate_errors: Optional[
             ErrorCallback | DefaultErrorHandler
         ] = DefaultErrorHandler.TOKEN,
+        context: Optional[contextvars.Context] = None,
     ) -> None:
         self._loop = None
-        self._delegate_errors = delegate_errors
         self._tasks = set()
         self._parent_task = None
+        self._delegate_errors = delegate_errors
+        self._default_context = context
         # status flags
         self._entered = False
         self._exited = False
@@ -106,7 +102,9 @@ class TaskContext:
         return f"<{type(self).__name__} {info_str}>"
 
     async def shutdown(self) -> None:
-        # Trigger cancellation and wait.
+        """
+        Triggers cancellation and waits for completion.
+        """
         self._aborting = True
         try:
             for t in {*self._tasks}:
@@ -126,6 +124,10 @@ class TaskContext:
         name: Optional[str] = None,
         context: Optional[Context] = None,
     ) -> asyncio.Task[T]:
+        """
+        Create a new task in this scope and return it.
+        Similar to :func:`asyncio.create_task()`.
+        """
         if not self._entered:
             self._entered = True
             self._loop = asyncio.get_running_loop()
@@ -145,17 +147,13 @@ class TaskContext:
         name: Optional[str] = None,
         context: Optional[Context] = None,
     ) -> asyncio.Task[T]:
-        """
-        Create a new task in this context and return it.
-        Similar to :func:`asyncio.create_task()`.
-        """
         assert self._loop is not None
         if self._aborting:
             raise RuntimeError(f"{type(self).__name__} {self!r} is shutting down")
         task: asyncio.Task[T] = self._loop.create_task(
             coro,
             name=name,
-            context=context,
+            context=context or self._default_context,
         )
         # optimization: Immediately call the done callback if the task is
         # already done (e.g. if the coro was able to complete eagerly),

@@ -1,6 +1,7 @@
 __all__ = ("TaskScope",)
 
 import asyncio
+import contextvars
 from asyncio import events, exceptions, tasks
 from contextvars import Context
 from typing import (
@@ -20,22 +21,19 @@ T = TypeVar("T")
 
 class TaskScope(TaskContext):
     """
-    TaskScope is an asynchronous context manager for managing a scope of subtasks,
-    terminating when all child tasks make conclusion (either results or exceptions).
+    TaskScope is an asynchronous context manager which implements structured
+    concurrency, i.e., "scoped" cancellation, over a set of child tasks.
+    It terminates when all child tasks make conclusion (either results or exceptions).
 
     The key difference to :class:`asyncio.TaskGroup` is that it allows
     customization of the exception handling logic for unhandled child
     task exceptions, instead cancelling all pending child tasks upon any
     unhandled child task exceptions.
 
-    If ``delegate_errors`` is not set (the default behavior), it will run
-    :func:`asyncio.AbstractEventLoop.call_exception_handler()`.
-    If it is set `None`, it will silently ignore the exception.
-    If it is set as a callable function, it will invoke it using the same
-    context argument of :func:`asyncio.AbstractEventLoop.call_exception_handler()`.
+    See the descriptions about the arguments in :class:`TaskContext`.
 
-    Based on this customizability, :class:`aiotools.Supervisor` is a mere alias of
-    TaskScope with ``delegate_errors=None``.
+    Based on this customizability, :class:`Supervisor` is a mere alias of TaskScope
+    with ``delegate_errors=None``.
 
     .. versionadded:: 2.1
     """
@@ -49,8 +47,9 @@ class TaskScope(TaskContext):
         delegate_errors: Optional[
             ErrorCallback | DefaultErrorHandler
         ] = DefaultErrorHandler.TOKEN,
+        context: Optional[contextvars.Context] = None,
     ) -> None:
-        super().__init__(delegate_errors=delegate_errors)
+        super().__init__(delegate_errors=delegate_errors, context=context)
         # status flags
         self._entered = False
         self._exiting = False
@@ -59,7 +58,6 @@ class TaskScope(TaskContext):
         # taskscope-specifics
         self._base_error = None
         self._on_completed_fut = None
-        self._delegate_errors = delegate_errors
         self._has_errors = False
 
     async def __aenter__(self) -> Self:
@@ -157,7 +155,9 @@ class TaskScope(TaskContext):
         return propagate_cancellation_error
 
     async def shutdown(self) -> None:
-        # Trigger cancellation and wait.
+        """
+        Triggers cancellation and waits for completion.
+        """
         self.abort(r"{self!r} is shutdown")
         await self._wait_completion()
 
@@ -187,7 +187,9 @@ class TaskScope(TaskContext):
         return isinstance(exc, (SystemExit, KeyboardInterrupt))
 
     def abort(self, msg: Optional[str] = None) -> None:
-        # Trigger cancellation but don't wait.
+        """
+        Triggers cancellation and immediately returns *without* waiting for completion.
+        """
         self._aborting = True
         for t in self._tasks:
             if not t.done():

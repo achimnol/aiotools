@@ -1,5 +1,8 @@
 __all__ = ["Supervisor"]
 
+import contextvars
+from typing import Optional
+
 from .taskscope import TaskScope
 
 
@@ -19,17 +22,25 @@ class Supervisor(TaskScope):
     from its subtasks.  Instead, the callers must use additional task-done
     callbacks to process subtask results and exceptions.
 
-    Supervisor provides the same analogy to Kotlin's ``SupervisorScope`` and
-    Javascript's ``Promise.allSettled()``, while :class:`asyncio.TaskGroup` provides
-    the same analogy to Kotlin's ``CoroutineScope`` and Javascript's
-    ``Promise.all()``.
+    Supervisor provides the same analogy to Kotlin's |SupervisorScope|_ and
+    Javascript's |Promise.allSettled()|_, while :class:`asyncio.TaskGroup` provides
+    the same analogy to Kotlin's |CoroutineScope|_ and Javascript's |Promise.all()|_.
+
+    .. |SupervisorScope| replace:: ``SupervisorScope``
+    .. |CoroutineScope| replace:: ``CoroutineScope``
+    .. _SupervisorScope: https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/supervisor-scope.html
+    .. _CoroutineScope: https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-coroutine-scope/
+    .. |Promise.allSettled()| replace:: ``Promise.allSettled()``
+    .. |Promise.all()| replace:: ``Promise.all()``
+    .. _Promise.allSettled(): https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
+    .. _Promise.all(): https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Promise/all
 
     The original implementation is based on DontPanicO's pull request
     (https://github.com/achimnol/cpython/pull/31) and :class:`PersistentTaskGroup`,
     but it is modified *not* to store unhandled subtask exceptions.
 
     .. versionadded:: 2.0
-    """
+    """  # noqa: E501
 
-    def __init__(self) -> None:
-        super().__init__(delegate_errors=None)
+    def __init__(self, context: Optional[contextvars.Context] = None) -> None:
+        super().__init__(delegate_errors=None, context=context)
