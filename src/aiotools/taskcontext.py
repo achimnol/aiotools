@@ -153,7 +153,7 @@ class TaskContext:
         task: asyncio.Task[T] = self._loop.create_task(
             coro,
             name=name,
-            context=context or self._default_context,
+            context=self._default_context if context is None else context,
         )
         # optimization: Immediately call the done callback if the task is
         # already done (e.g. if the coro was able to complete eagerly),

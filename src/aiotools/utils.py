@@ -77,9 +77,9 @@ async def as_completed_safe(
     def result_callback(t: asyncio.Task[Any]) -> None:
         q.put_nowait(t)
 
-    async with Supervisor() as supervisor:
+    async with Supervisor(context=context) as supervisor:
         for coro in coros:
-            t = supervisor.create_task(coro, context=context)
+            t = supervisor.create_task(coro)
             t.add_done_callback(result_callback)
             remaining += 1
         while remaining:
@@ -121,9 +121,9 @@ async def gather_safe(
     """
     tasks = []
     t: asyncio.Task[T]
-    async with Supervisor() as supervisor:
+    async with Supervisor(context=context) as supervisor:
         for coro in coros:
-            t = supervisor.create_task(coro, context=context)
+            t = supervisor.create_task(coro)
             tasks.append(t)
         # To ensure safety, the Python version must be 3.7 or higher.
         return await asyncio.gather(*tasks, return_exceptions=True)
