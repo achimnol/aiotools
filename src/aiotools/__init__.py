@@ -3,14 +3,7 @@ from importlib.metadata import version
 # Import submodules only when installed properly
 from . import (
     context,
-)
-from . import defer as _defer
-from . import fork as _fork
-from . import (
     func,
-)
-from . import iter as _iter
-from . import (
     server,
     supervisor,
     taskcontext,
@@ -20,6 +13,9 @@ from . import (
     timer,
     utils,
 )
+from . import defer as _defer
+from . import fork as _fork
+from . import iter as _iter
 
 __all__ = (
     *context.__all__,

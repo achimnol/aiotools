@@ -79,8 +79,10 @@ class PosixChildProcess(AbstractChildProcess):
         if self._terminated:
             if signum != signal.SIGKILL:
                 logger.warning(
-                    "PosixChildProcess(%d).send_signal(%d): "
-                    "The process has already terminated.",
+                    (
+                        "PosixChildProcess(%d).send_signal(%d): "
+                        "The process has already terminated."
+                    ),
                     self._pid,
                     signum,
                 )
@@ -98,8 +100,10 @@ class PosixChildProcess(AbstractChildProcess):
             # (may happen if waitpid() is called elsewhere).
             self._returncode = 255
             logger.warning(
-                "child process pid %d exit status already read: "
-                "it will report returncode 255",
+                (
+                    "child process pid %d exit status already read: "
+                    "it will report returncode 255"
+                ),
                 self._pid,
             )
         else:
@@ -132,8 +136,10 @@ class PidfdChildProcess(AbstractChildProcess):
         if self._terminated:
             if signum != signal.SIGKILL:
                 logger.warning(
-                    "PidfdChildProcess(%d, %d).send_signal(%d): "
-                    "The process has already terminated.",
+                    (
+                        "PidfdChildProcess(%d, %d).send_signal(%d): "
+                        "The process has already terminated."
+                    ),
                     self._pid,
                     self._pidfd,
                     signum,
@@ -158,8 +164,10 @@ class PidfdChildProcess(AbstractChildProcess):
             # (may happen if waitpid() is called elsewhere).
             self._returncode = 255
             logger.warning(
-                "child process %d exit status already read: "
-                "it will report returncode 255",
+                (
+                    "child process %d exit status already read: "
+                    "it will report returncode 255"
+                ),
                 self._pid,
             )
         else:
