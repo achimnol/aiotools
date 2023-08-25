@@ -14,9 +14,9 @@ from .taskgroup import TaskGroup
 from .types import CoroutineLike
 
 __all__ = (
-    'create_timer',
-    'TimerDelayPolicy',
-    'VirtualClock',
+    "create_timer",
+    "TimerDelayPolicy",
+    "VirtualClock",
 )
 
 
@@ -25,6 +25,7 @@ class TimerDelayPolicy(enum.Enum):
     An enumeration of supported policies for when the timer function takes
     longer on each tick than the given timer interval.
     """
+
     DEFAULT = 0
     CANCEL = 1
 
@@ -103,12 +104,11 @@ class VirtualClock:
         loop = get_running_loop()
         with mock.patch.object(
             loop._selector,
-            'select',
+            "select",
             new=functools.partial(self._virtual_select, loop._selector.select),
-        ), \
-            mock.patch.object(
+        ), mock.patch.object(
             loop,
-            'time',
+            "time",
             new=self.virtual_time,
         ):
             yield

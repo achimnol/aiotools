@@ -23,8 +23,10 @@
 # https://github.com/edgedb/edgedb-python/blob/bcbe005/edgedb/_taskgroup.py
 
 import asyncio
+
 try:
     from contextvars import ContextVar
+
     has_contextvars = True
 except ImportError:
     has_contextvars = False
@@ -35,19 +37,17 @@ from ..compat import current_task, get_running_loop
 from .common import create_task_with_name, patch_task
 from .types import TaskGroupError
 
-
 __all__ = [
-    'TaskGroup',
+    "TaskGroup",
 ]
 
 
 if has_contextvars:
-    current_taskgroup: ContextVar['TaskGroup'] = ContextVar('current_taskgroup')
-    __all__.append('current_taskgroup')
+    current_taskgroup: ContextVar["TaskGroup"] = ContextVar("current_taskgroup")
+    __all__.append("current_taskgroup")
 
 
 class TaskGroup:
-
     def __init__(self, *, name=None):
         if name is None:
             self._name = f"tg-{_name_counter()}"
@@ -70,31 +70,29 @@ class TaskGroup:
         return self._name
 
     def __repr__(self):
-        msg = f'<TaskGroup {self._name!r}'
+        msg = f"<TaskGroup {self._name!r}"
         if self._tasks:
-            msg += f' tasks:{len(self._tasks)}'
+            msg += f" tasks:{len(self._tasks)}"
         if self._unfinished_tasks:
-            msg += f' unfinished:{self._unfinished_tasks}'
+            msg += f" unfinished:{self._unfinished_tasks}"
         if self._errors:
-            msg += f' errors:{len(self._errors)}'
+            msg += f" errors:{len(self._errors)}"
         if self._aborting:
-            msg += ' cancelling'
+            msg += " cancelling"
         elif self._entered:
-            msg += ' entered'
-        msg += '>'
+            msg += " entered"
+        msg += ">"
         return msg
 
     async def __aenter__(self):
         if self._entered:
-            raise RuntimeError(
-                f"TaskGroup {self!r} has been already entered")
+            raise RuntimeError(f"TaskGroup {self!r} has been already entered")
         self._entered = True
 
         self._parent_task = current_task()
 
         if self._parent_task is None:
-            raise RuntimeError(
-                f'TaskGroup {self!r} cannot determine the parent task')
+            raise RuntimeError(f"TaskGroup {self!r} cannot determine the parent task")
         patch_task(self._parent_task)
         if has_contextvars:
             self._current_taskgroup_token = current_taskgroup.set(self)
@@ -104,9 +102,7 @@ class TaskGroup:
         self._exiting = True
         propagate_cancelation = False
 
-        if (exc is not None and
-                self._is_base_error(exc) and
-                self._base_error is None):
+        if exc is not None and self._is_base_error(exc) and self._base_error is None:
             self._base_error = exc
 
         if et is asyncio.CancelledError:
@@ -184,8 +180,7 @@ class TaskGroup:
             errors = self._errors
             self._errors = None
 
-            me = TaskGroupError('unhandled errors in a TaskGroup',
-                                errors)
+            me = TaskGroupError("unhandled errors in a TaskGroup", errors)
             raise me from None
 
     def create_task(self, coro, *, name=None):
@@ -232,12 +227,16 @@ class TaskGroup:
         if self._parent_task.done():
             # Not sure if this case is possible, but we want to handle
             # it anyways.
-            self._loop.call_exception_handler({
-                'message': f'Task {task!r} has errored out but its parent '
-                           f'task {self._parent_task} is already completed',
-                'exception': exc,
-                'task': task,
-            })
+            self._loop.call_exception_handler(
+                {
+                    "message": (
+                        f"Task {task!r} has errored out but its parent "
+                        f"task {self._parent_task} is already completed"
+                    ),
+                    "exception": exc,
+                    "task": task,
+                }
+            )
             return
 
         self._abort()

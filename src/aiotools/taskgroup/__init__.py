@@ -2,10 +2,11 @@ import asyncio
 
 from .types import MultiError, TaskGroupError
 
-if hasattr(asyncio, 'TaskGroup'):
+if hasattr(asyncio, "TaskGroup"):
     from . import persistent
-    from .base import *        # noqa
+    from .base import *  # noqa
     from .persistent import *  # noqa
+
     __all__ = [
         "MultiError",
         "TaskGroup",
@@ -15,9 +16,10 @@ if hasattr(asyncio, 'TaskGroup'):
     ]
 else:
     from . import persistent_compat
-    from .base_compat import *        # type: ignore  # noqa
-    from .persistent_compat import *  # type: ignore  # noqa
+    from .base_compat import *  # type: ignore  # noqa
     from .base_compat import has_contextvars
+    from .persistent_compat import *  # type: ignore  # noqa
+
     __all__ = [  # type: ignore  # noqa
         "MultiError",
         "TaskGroup",

@@ -9,6 +9,7 @@ from typing import (
     TypeVar,
     Union,
 )
+
 from typing_extensions import TypeAlias
 
 _T = TypeVar("_T")

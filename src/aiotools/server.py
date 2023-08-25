@@ -25,10 +25,13 @@ graceful shutdown steps.
 
 import asyncio
 from contextlib import (
-    AbstractContextManager, ContextDecorator,
+    AbstractContextManager,
+    ContextDecorator,
 )
+
 try:
     import contextvars
+
     _cv_available = True
 except ImportError:
     _cv_available = False
@@ -53,7 +56,7 @@ from typing import (
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
-from .fork import AbstractChildProcess, afork, _has_pidfd
+from .fork import AbstractChildProcess, _has_pidfd, afork
 
 try:
     from typing import Literal
@@ -61,19 +64,19 @@ except ImportError:
     from typing_extensions import Literal  # type: ignore  # noqa
 
 __all__ = (
-    'main',
-    'start_server',
-    'process_index',
-    'AsyncServerContextManager',
-    'ServerMainContextManager',
-    'InterruptedBySignal',
+    "main",
+    "start_server",
+    "process_index",
+    "AsyncServerContextManager",
+    "ServerMainContextManager",
+    "InterruptedBySignal",
 )
 
 log = logging.getLogger(__name__)
 
 if _cv_available:
-    process_index: 'contextvars.ContextVar[int]'
-    process_index = contextvars.ContextVar('process_index')
+    process_index: "contextvars.ContextVar[int]"
+    process_index = contextvars.ContextVar("process_index")
 else:
     # Unsupported in Python 3.6
     process_index = None  # type: ignore  # noqa
@@ -90,6 +93,7 @@ class InterruptedBySignal(BaseException):
 
     The first argument of this exception is the signal number received.
     """
+
     pass
 
 
@@ -106,8 +110,7 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
 
     def __init__(self, func: Callable[..., Any], args, kwargs):
         if not inspect.isasyncgenfunction(func):
-            raise RuntimeError('Context manager function must be '
-                               'an async-generator')
+            raise RuntimeError("Context manager function must be an async-generator")
         self._agen = func(*args, **kwargs)
         self.func = func
         self.args = args
@@ -116,7 +119,7 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
 
     async def __aenter__(self):
         try:
-            return (await self._agen.__anext__())
+            return await self._agen.__anext__()
         except StopAsyncIteration:
             raise RuntimeError("async-generator didn't yield") from None
 
@@ -149,8 +152,7 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
                     raise
 
 
-class ServerMainContextManager(AbstractContextManager,
-                               ContextDecorator):
+class ServerMainContextManager(AbstractContextManager, ContextDecorator):
     """
     A modified version of :func:`contextlib.contextmanager`.
 
@@ -206,10 +208,12 @@ class ServerMainContextManager(AbstractContextManager,
 # This is a dirty hack to implement "module callable".
 # NOTE: only works in Python 3.5 or higher.
 
+
 def _server_ctxmgr(func):
     @functools.wraps(func)
     def helper(*args, **kwargs):
         return AsyncServerContextManager(func, args, kwargs)
+
     return helper
 
 
@@ -240,9 +244,11 @@ def _main_ctxmgr(func):
 
        aiotools.start_server(..., main_ctxmgr=mymain, ...)
     """
+
     @functools.wraps(func)
     def helper(*args, **kwargs):
         return ServerMainContextManager(func, args, kwargs)
+
     return helper
 
 
@@ -251,7 +257,7 @@ main = _main_ctxmgr
 
 def setup_child_watcher(loop: asyncio.AbstractEventLoop) -> None:
     try:
-        watcher_cls = getattr(asyncio, 'PidfdChildWatcher', None)
+        watcher_cls = getattr(asyncio, "PidfdChildWatcher", None)
         if _has_pidfd and watcher_cls:
             watcher = watcher_cls()
             asyncio.set_child_watcher(watcher)
@@ -276,11 +282,13 @@ async def cancel_all_tasks() -> None:
         if task.cancelled():
             continue
         if task.exception() is not None:
-            loop.call_exception_handler({
-                'message': 'unhandled exception during loop shutdown',
-                'exception': task.exception(),
-                'task': task,
-            })
+            loop.call_exception_handler(
+                {
+                    "message": "unhandled exception during loop shutdown",
+                    "exception": task.exception(),
+                    "task": task,
+                }
+            )
 
 
 def _worker_main(
@@ -320,22 +328,23 @@ def _worker_main(
     signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
 
     async def _wrapped_worker():
-        err_ctx = 'enter'
+        err_ctx = "enter"
         try:
             async with ctx:
-                err_ctx = 'body'
+                err_ctx = "body"
                 try:
                     await forever_future
                 except asyncio.CancelledError:
                     pass
                 finally:
-                    err_ctx = 'exit'
+                    err_ctx = "exit"
         except Exception:
-            if err_ctx != 'body':
-                err_ctx_str = 'initialization' if err_ctx == 'enter' else 'shutdown'
-                log.exception(f'Worker {proc_idx}: '
-                              f'Error during context manager {err_ctx_str}')
-                os.write(intr_pipe_wfd, struct.pack('i', proc_idx))
+            if err_ctx != "body":
+                err_ctx_str = "initialization" if err_ctx == "enter" else "shutdown"
+                log.exception(
+                    f"Worker {proc_idx}: Error during context manager {err_ctx_str}"
+                )
+                os.write(intr_pipe_wfd, struct.pack("i", proc_idx))
             raise
 
     try:
@@ -389,7 +398,7 @@ def _extra_main(
         if not interrupted.is_set():
             extra_func(intr_event, proc_idx, args)
     except (SystemExit, KeyboardInterrupt, InterruptedBySignal):
-        log.warning(f'extra_proc[{proc_idx}] did not handle stop signals.')
+        log.warning(f"extra_proc[{proc_idx}] did not handle stop signals.")
     finally:
         # same as in _worker_main()
         signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
@@ -398,14 +407,11 @@ def _extra_main(
 
 def start_server(
     worker_actxmgr: Callable[
-        [asyncio.AbstractEventLoop, int, Sequence[Any]],
-        AsyncServerContextManager],
+        [asyncio.AbstractEventLoop, int, Sequence[Any]], AsyncServerContextManager
+    ],
     main_ctxmgr: Optional[Callable[[], ServerMainContextManager]] = None,
     extra_procs: Iterable[Callable] = tuple(),
-    stop_signals: Iterable[signal.Signals] = (
-        signal.SIGINT,
-        signal.SIGTERM
-    ),
+    stop_signals: Iterable[signal.Signals] = (signal.SIGINT, signal.SIGTERM),
     num_workers: int = 1,
     args: Iterable[Any] = tuple(),
     wait_timeout: Optional[float] = None,
@@ -529,7 +535,7 @@ def start_server(
 
     assert stop_signals
 
-    if hasattr(asyncio, 'get_running_loop'):
+    if hasattr(asyncio, "get_running_loop"):
         # only for Python 3.7+
         try:
             asyncio.get_running_loop()
@@ -538,8 +544,8 @@ def start_server(
             pass
         else:
             raise RuntimeError(
-                'aiotools.start_server() cannot be called inside '
-                'a running event loop.')
+                "aiotools.start_server() cannot be called inside a running event loop."
+            )
 
     if main_ctxmgr is None:
         main_ctxmgr = noop_main_ctxmgr
@@ -578,8 +584,8 @@ def start_server(
     # build a reliable worker-to-main interrupt channel using a pipe
     # (workers have no idea whether the main interrupt is enabled/disabled)
     def handle_child_interrupt(fd: int) -> None:
-        child_idx = struct.unpack('i', os.read(fd, 4))[0]  # noqa
-        log.debug(f'Child {child_idx} has interrupted the main program.')
+        child_idx = struct.unpack("i", os.read(fd, 4))[0]  # noqa
+        log.debug(f"Child {child_idx} has interrupted the main program.")
         # self-interrupt to initiate the main-to-worker interrupts
         signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
         os.kill(0, signal.SIGINT)
@@ -590,29 +596,34 @@ def start_server(
 
     # start
     with main_ctx as main_args:
-
         # retrieve args generated by the user-defined main
         if main_args is None:
             main_args = tuple()
         if not isinstance(main_args, tuple):
-            main_args = (main_args, )
+            main_args = (main_args,)
 
         # spawn managed async workers
         for i in range(num_workers):
             try:
-                p = main_loop.run_until_complete(afork(functools.partial(
-                    _worker_main,
-                    worker_actxmgr,
-                    stop_signals,
-                    child_intr_pipe[1],
-                    i,
-                    main_args + args,
-                )))
+                p = main_loop.run_until_complete(
+                    afork(
+                        functools.partial(
+                            _worker_main,
+                            worker_actxmgr,
+                            stop_signals,
+                            child_intr_pipe[1],
+                            i,
+                            main_args + args,
+                        )
+                    )
+                )
             except RuntimeError as e:
-                if 'loop stopped' in e.args[0]:
+                if "loop stopped" in e.args[0]:
                     log.warning(
-                        "skipping spawning of child[worker]:%d due to "
-                        "async failure(s) of other child process",
+                        (
+                            "skipping spawning of child[worker]:%d due to "
+                            "async failure(s) of other child process"
+                        ),
                         i,
                     )
                     continue
@@ -622,18 +633,24 @@ def start_server(
         # spawn extra workers
         for i, f in enumerate(extra_procs):
             try:
-                p = main_loop.run_until_complete(afork(functools.partial(
-                    _extra_main,
-                    f,
-                    stop_signals,
-                    num_workers + i,
-                    main_args + args,
-                )))
+                p = main_loop.run_until_complete(
+                    afork(
+                        functools.partial(
+                            _extra_main,
+                            f,
+                            stop_signals,
+                            num_workers + i,
+                            main_args + args,
+                        )
+                    )
+                )
             except RuntimeError as e:
-                if 'loop stopped' in e.args[0]:
+                if "loop stopped" in e.args[0]:
                     log.warning(
-                        "skipping spawning of child[extra]:%d due to "
-                        "async failure(s) of other child process",
+                        (
+                            "skipping spawning of child[extra]:%d due to "
+                            "async failure(s) of other child process"
+                        ),
                         num_workers + i,
                     )
                     continue
@@ -652,15 +669,17 @@ def start_server(
                 # if interrupted, wait for workers to finish.
                 try:
                     main_loop.run_until_complete(
-                        asyncio.wait_for(asyncio.gather(
-                            *[child.wait() for child in children],
-                            return_exceptions=True,
-                        ), wait_timeout)
+                        asyncio.wait_for(
+                            asyncio.gather(
+                                *[child.wait() for child in children],
+                                return_exceptions=True,
+                            ),
+                            wait_timeout,
+                        )
                     )
                 except asyncio.TimeoutError:
                     log.warning(
-                        "Timeout during waiting for child processes; "
-                        "killing all",
+                        "Timeout during waiting for child processes; killing all",
                     )
                     for child in children:
                         child.send_signal(signal.SIGKILL)
@@ -669,9 +688,7 @@ def start_server(
                 main_loop.run_until_complete(cancel_all_tasks())
                 main_loop.run_until_complete(main_loop.shutdown_asyncgens())
                 try:
-                    main_loop.run_until_complete(
-                        main_loop.shutdown_default_executor()
-                    )
+                    main_loop.run_until_complete(main_loop.shutdown_default_executor())
                 except (AttributeError, NotImplementedError):  # for uvloop
                     pass
             finally:

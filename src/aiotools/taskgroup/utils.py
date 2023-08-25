@@ -6,7 +6,7 @@ import asyncio
 
 from . import PersistentTaskGroup
 
-__all__ = ("as_completed_safe", )
+__all__ = ("as_completed_safe",)
 
 
 async def as_completed_safe(coros, timeout=None):

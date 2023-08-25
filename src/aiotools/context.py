@@ -9,30 +9,32 @@ Provides an implementation of asynchronous context manager and its applications.
 """
 
 import abc
-import contextlib
 import asyncio
+import contextlib
 import functools
 import inspect
-from typing import Any, Callable, Iterable, Optional, List
+from typing import Any, Callable, Iterable, List, Optional
 
 __all__ = [
-    'AsyncContextManager', 'async_ctx_manager', 'actxmgr',
-    'aclosing', 'closing_async',
-    'AsyncContextGroup', 'actxgroup',
+    "AsyncContextManager",
+    "async_ctx_manager",
+    "actxmgr",
+    "aclosing",
+    "closing_async",
+    "AsyncContextGroup",
+    "actxgroup",
 ]
 
 
-if hasattr(contextlib, 'asynccontextmanager'):
-    __all__ += ['AsyncExitStack']
+if hasattr(contextlib, "asynccontextmanager"):
+    __all__ += ["AsyncExitStack"]
 
-    AbstractAsyncContextManager = \
-        contextlib.AbstractAsyncContextManager
-    AsyncContextManager = \
-        contextlib._AsyncGeneratorContextManager     # type: ignore
+    AbstractAsyncContextManager = contextlib.AbstractAsyncContextManager
+    AsyncContextManager = contextlib._AsyncGeneratorContextManager
     AsyncExitStack = contextlib.AsyncExitStack
     async_ctx_manager = contextlib.asynccontextmanager
 else:
-    __all__ += ['AsyncContextDecorator', 'actxdecorator']
+    __all__ += ["AsyncContextDecorator", "actxdecorator"]
 
     class AbstractAsyncContextManager(abc.ABC):  # type: ignore
         """
@@ -49,8 +51,9 @@ else:
         @classmethod
         def __subclasshook__(cls, C):
             if cls is AbstractAsyncContextManager:
-                if (any('__aenter__' in B.__dict__ for B in C.__mro__) and
-                    any('__aexit__' in B.__dict__ for B in C.__mro__)):
+                if any("__aenter__" in B.__dict__ for B in C.__mro__) and any(
+                    "__aexit__" in B.__dict__ for B in C.__mro__
+                ):
                     return True
             return NotImplemented
 
@@ -66,21 +69,24 @@ else:
             @functools.wraps(func)
             async def inner(*args, **kwargs):
                 async with self._recreate_cm():
-                    return (await func(*args, **kwargs))
+                    return await func(*args, **kwargs)
+
             return inner
 
     actxdecorator = AsyncContextDecorator
 
-    class AsyncContextManager(AsyncContextDecorator,         # type: ignore
-                              AbstractAsyncContextManager):
+    class AsyncContextManager(  # type: ignore[no-redef]
+        AsyncContextDecorator, AbstractAsyncContextManager
+    ):
         """
         Converts an async-generator function into asynchronous context manager.
         """
 
         def __init__(self, func: Callable[..., Any], args, kwargs):
             if not inspect.isasyncgenfunction(func):
-                raise RuntimeError('Context manager function must be '
-                                   'an async-generator')
+                raise RuntimeError(
+                    "Context manager function must be an async-generator"
+                )
             self._agen = func(*args, **kwargs)
             self.func = func
             self.args = args
@@ -91,7 +97,7 @@ else:
 
         async def __aenter__(self):
             try:
-                return (await self._agen.__anext__())
+                return await self._agen.__anext__()
             except StopAsyncIteration:
                 # The generator should yield at least once.
                 raise RuntimeError("async-generator didn't yield") from None
@@ -147,6 +153,7 @@ else:
         @functools.wraps(func)
         def helper(*args, **kwargs):
             return AsyncContextManager(func, args, kwargs)
+
         return helper
 
 
@@ -229,8 +236,9 @@ class AsyncContextGroup:
 
     """
 
-    def __init__(self,
-                 context_managers: Optional[Iterable[AbstractAsyncContextManager]] = None):  # noqa
+    def __init__(
+        self, context_managers: Optional[Iterable[AbstractAsyncContextManager]] = None
+    ):  # noqa
         self._cm = list(context_managers) if context_managers else []
         self._cm_yields: List[asyncio.Task] = []
         self._cm_exits: List[asyncio.Task] = []
@@ -246,8 +254,8 @@ class AsyncContextGroup:
         # NOTE: There is no way to "skip" the context body even if the entering
         #       process fails.
         self._cm_yields[:] = await asyncio.gather(
-            *(e.__aenter__() for e in self._cm),
-            return_exceptions=True)
+            *(e.__aenter__() for e in self._cm), return_exceptions=True
+        )
         return self._cm_yields
 
     async def __aexit__(self, *exc_info):
@@ -255,8 +263,8 @@ class AsyncContextGroup:
         self._cm_yields.clear()
         # Exceptions are stored into _cm_exits list.
         self._cm_exits[:] = await asyncio.gather(
-            *(e.__aexit__(*exc_info) for e in self._cm),
-            return_exceptions=True)
+            *(e.__aexit__(*exc_info) for e in self._cm), return_exceptions=True
+        )
 
     def exit_states(self):
         """
