@@ -11,6 +11,7 @@ from unittest import mock
 
 from .compat import get_running_loop
 from .taskgroup import TaskGroup
+from .types import CoroutineLike
 
 __all__ = (
     'create_timer',
@@ -28,9 +29,12 @@ class TimerDelayPolicy(enum.Enum):
     CANCEL = 1
 
 
-def create_timer(cb: Callable[[float], None], interval: float,
-                 delay_policy: TimerDelayPolicy = TimerDelayPolicy.DEFAULT,
-                 loop: Optional[asyncio.AbstractEventLoop] = None) -> asyncio.Task:
+def create_timer(
+    cb: Callable[[float], CoroutineLike[None]],
+    interval: float,
+    delay_policy: TimerDelayPolicy = TimerDelayPolicy.DEFAULT,
+    loop: Optional[asyncio.AbstractEventLoop] = None,
+) -> asyncio.Task:
     """
     Schedule a timer with the given callable and the interval in seconds.
     The interval value is also passed to the callable.
@@ -59,7 +63,7 @@ def create_timer(cb: Callable[[float], None], interval: float,
                         fired_tasks.clear()
                     else:
                         fired_tasks[:] = [t for t in fired_tasks if not t.done()]
-                    t = task_group.create_task(cb(interval=interval))
+                    t = task_group.create_task(cb(interval))
                     fired_tasks.append(t)
                     await asyncio.sleep(interval)
         except asyncio.CancelledError:
