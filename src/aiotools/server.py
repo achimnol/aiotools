@@ -590,10 +590,8 @@ def start_server(
             except RuntimeError as e:
                 if "loop stopped" in e.args[0]:
                     log.warning(
-                        (
-                            "skipping spawning of child[worker]:%d due to "
-                            "async failure(s) of other child process"
-                        ),
+                        "skipping spawning of child[worker]:%d due to "
+                        "async failure(s) of other child process",
                         i,
                     )
                     continue
@@ -617,10 +615,8 @@ def start_server(
             except RuntimeError as e:
                 if "loop stopped" in e.args[0]:
                     log.warning(
-                        (
-                            "skipping spawning of child[extra]:%d due to "
-                            "async failure(s) of other child process"
-                        ),
+                        "skipping spawning of child[extra]:%d due to "
+                        "async failure(s) of other child process",
                         num_workers + i,
                     )
                     continue
