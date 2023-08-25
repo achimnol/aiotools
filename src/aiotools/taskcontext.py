@@ -84,10 +84,8 @@ class TaskContext:
         loc: str = "<loc>"  # TODO: implement
         if self._entered and not self._exited:
             warnings.warn(
-                (
-                    f"TaskContext initialized at {loc} is not properly "
-                    "terminated until it is garbage-collected."
-                ),
+                f"TaskContext initialized at {loc} is not properly "
+                "terminated until it is garbage-collected.",
                 category=ResourceWarning,
             )
 
