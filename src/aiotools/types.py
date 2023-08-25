@@ -7,6 +7,7 @@ from typing import (
     Coroutine,
     Generator,
     TypeVar,
+    Union,
 )
 from typing_extensions import TypeAlias
 
@@ -17,5 +18,5 @@ if sys.version_info >= (3, 12):
     AwaitableLike: TypeAlias = Awaitable[_T]  # noqa: Y047
     CoroutineLike: TypeAlias = Coroutine[Any, Any, _T]  # noqa: Y047
 else:
-    AwaitableLike: TypeAlias = Generator[Any, None, _T] | Awaitable[_T]
-    CoroutineLike: TypeAlias = Generator[Any, None, _T] | Coroutine[Any, Any, _T]
+    AwaitableLike: TypeAlias = Union[Generator[Any, None, _T], Awaitable[_T]]
+    CoroutineLike: TypeAlias = Union[Generator[Any, None, _T], Coroutine[Any, Any, _T]]
