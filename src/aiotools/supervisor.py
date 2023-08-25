@@ -192,8 +192,10 @@ class Supervisor:
             # it anyways.
             self._loop.call_exception_handler(
                 {
-                    "message": f"Task {task!r} has errored out but its parent "
-                    f"task {self._parent_task} is already completed",
+                    "message": (
+                        f"Task {task!r} has errored out but its parent "
+                        f"task {self._parent_task} is already completed"
+                    ),
                     "exception": exc,
                     "task": task,
                 }

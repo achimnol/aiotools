@@ -1,12 +1,10 @@
 from importlib.metadata import version
 
 # Import submodules only when installed properly
-from . import context
+from . import context, func, server, taskgroup, timeouts, timer, utils
 from . import defer as _defer
 from . import fork as _fork
-from . import func
 from . import iter as _iter
-from . import server, taskgroup, timeouts, timer, utils
 
 __all__ = (
     *context.__all__,

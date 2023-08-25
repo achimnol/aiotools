@@ -167,8 +167,10 @@ class PersistentTaskGroup:
                 # to the timing when PersistentTaskGroup terminates.
                 loop.call_exception_handler(
                     {
-                        "message": f"Got an unhandled exception "
-                        f"in the exception handler of Task {task!r}",
+                        "message": (
+                            "Got an unhandled exception "
+                            f"in the exception handler of Task {task!r}"
+                        ),
                         "exception": exc,
                         "task": task,
                     }

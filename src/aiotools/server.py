@@ -82,7 +82,7 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
 
     def __init__(self, func: Callable[..., Any], args, kwargs):
         if not inspect.isasyncgenfunction(func):
-            raise RuntimeError("Context manager function must be " "an async-generator")
+            raise RuntimeError("Context manager function must be an async-generator")
         self._agen = func(*args, **kwargs)
         self.func = func
         self.args = args
@@ -313,7 +313,7 @@ def _worker_main(
             if err_ctx != "body":
                 err_ctx_str = "initialization" if err_ctx == "enter" else "shutdown"
                 log.exception(
-                    f"Worker {proc_idx}: " f"Error during context manager {err_ctx_str}"
+                    f"Worker {proc_idx}: Error during context manager {err_ctx_str}"
                 )
                 os.write(intr_pipe_wfd, struct.pack("i", proc_idx))
             raise
@@ -514,8 +514,7 @@ def start_server(
             pass
         else:
             raise RuntimeError(
-                "aiotools.start_server() cannot be called inside "
-                "a running event loop."
+                "aiotools.start_server() cannot be called inside a running event loop."
             )
 
     if main_ctxmgr is None:
@@ -591,8 +590,10 @@ def start_server(
             except RuntimeError as e:
                 if "loop stopped" in e.args[0]:
                     log.warning(
-                        "skipping spawning of child[worker]:%d due to "
-                        "async failure(s) of other child process",
+                        (
+                            "skipping spawning of child[worker]:%d due to "
+                            "async failure(s) of other child process"
+                        ),
                         i,
                     )
                     continue
@@ -616,8 +617,10 @@ def start_server(
             except RuntimeError as e:
                 if "loop stopped" in e.args[0]:
                     log.warning(
-                        "skipping spawning of child[extra]:%d due to "
-                        "async failure(s) of other child process",
+                        (
+                            "skipping spawning of child[extra]:%d due to "
+                            "async failure(s) of other child process"
+                        ),
                         num_workers + i,
                     )
                     continue
@@ -646,7 +649,7 @@ def start_server(
                     )
                 except asyncio.TimeoutError:
                     log.warning(
-                        "Timeout during waiting for child processes; " "killing all",
+                        "Timeout during waiting for child processes; killing all",
                     )
                     for child in children:
                         child.send_signal(signal.SIGKILL)

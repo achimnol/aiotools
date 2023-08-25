@@ -47,6 +47,24 @@ underlines = ["-", "", ""]
     name = "Miscellaneous"
     showcontent = true
 
-[tool.isort]
-profile = "black"
-split_on_trailing_comma = true
+[tool.ruff]
+line-length = 88
+src = ["src"]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    # "C",  # flake8-comprehensions
+    # "B",  # flake8-bugbear
+]
+ignore = ["E203","E731","E501"]
+
+[tool.ruff.isort]
+known-first-party = ["aiotools"]
+known-local-folder = ["src"]
+split-on-trailing-comma = true
+
+[tool.black]
+line-length = 88
+preview = true
