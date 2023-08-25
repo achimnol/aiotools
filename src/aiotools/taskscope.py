@@ -67,7 +67,7 @@ class TaskScope(TaskContext):
     async def __aenter__(self) -> Self:
         if self._entered:
             raise RuntimeError(
-                f"{type(self).__name__} {self!r} " f"has been already entered"
+                f"{type(self).__name__} {self!r} has been already entered"
             )
         self._entered = True
 
@@ -77,7 +77,7 @@ class TaskScope(TaskContext):
         self._parent_task = tasks.current_task(self._loop)
         if self._parent_task is None:
             raise RuntimeError(
-                f"{type(self).__name__} {self!r} " f"cannot determine the parent task"
+                f"{type(self).__name__} {self!r} cannot determine the parent task"
             )
 
         return self
@@ -224,8 +224,10 @@ class TaskScope(TaskContext):
             # it anyways.
             self._loop.call_exception_handler(
                 {
-                    "message": f"Task {task!r} has errored out but its parent "
-                    f"task {self._parent_task} is already completed",
+                    "message": (
+                        f"Task {task!r} has errored out but its parent "
+                        f"task {self._parent_task} is already completed"
+                    ),
                     "exception": exc,
                     "task": task,
                 }

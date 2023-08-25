@@ -84,8 +84,10 @@ class TaskContext:
         loc: str = "<loc>"  # TODO: implement
         if self._entered and not self._exited:
             warnings.warn(
-                f"TaskContext initialized at {loc} is not properly "
-                f"terminated until it is garbage-collected.",
+                (
+                    f"TaskContext initialized at {loc} is not properly "
+                    "terminated until it is garbage-collected."
+                ),
                 category=ResourceWarning,
             )
 
@@ -184,8 +186,10 @@ class TaskContext:
             case func if callable(func):
                 func(
                     {
-                        "message": f"Task {task!r} has errored inside the parent "
-                        f"task {self._parent_task}",
+                        "message": (
+                            f"Task {task!r} has errored inside the parent "
+                            f"task {self._parent_task}"
+                        ),
                         "exception": exc,
                         "task": task,
                     }
@@ -193,8 +197,10 @@ class TaskContext:
             case DefaultErrorHandler():
                 self._loop.call_exception_handler(
                     {
-                        "message": f"Task {task!r} has errored inside the parent "
-                        f"task {self._parent_task}",
+                        "message": (
+                            f"Task {task!r} has errored inside the parent "
+                            f"task {self._parent_task}"
+                        ),
                         "exception": exc,
                         "task": task,
                     }
