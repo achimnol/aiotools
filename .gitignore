@@ -92,6 +92,7 @@ ENV/
 .ropeproject
 
 # Vim extras
+.exrc
 .*.swp
 .swp
 /.vim
