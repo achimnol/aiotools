@@ -11,6 +11,7 @@ from unittest import mock
 
 from .compat import get_running_loop
 from .taskgroup import TaskGroup
+from .types import CoroutineLike
 
 __all__ = (
     "create_timer",
@@ -29,8 +30,9 @@ class TimerDelayPolicy(enum.Enum):
     CANCEL = 1
 
 
+asyncio._CoroutineLike
 def create_timer(
-    cb: Callable[[float], asyncio._CoroutineLike[None]],
+    cb: Callable[[float], CoroutineLike[None]],
     interval: float,
     delay_policy: TimerDelayPolicy = TimerDelayPolicy.DEFAULT,
     loop: Optional[asyncio.AbstractEventLoop] = None,
