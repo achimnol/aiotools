@@ -30,9 +30,6 @@ class TimerDelayPolicy(enum.Enum):
     CANCEL = 1
 
 
-asyncio._CoroutineLike
-
-
 def create_timer(
     cb: Callable[[float], CoroutineLike[None]],
     interval: float,
