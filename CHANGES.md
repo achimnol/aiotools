@@ -16,6 +16,16 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.7.0 (2023-08-25)
+---------------------------------
+
+### Breaking changes
+* Dropped the support for Python 3.7 as it's end-of-life.
+
+### Fixes
+* Correct the type annotation of the callback argument in `create_timer()` ([#61](https://github.com/achimnol/aiotools/issues/61))
+
+
 1.6.1 (2023-05-02)
 ------------------
 
