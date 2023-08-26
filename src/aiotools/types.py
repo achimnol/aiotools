@@ -6,13 +6,22 @@ from typing import (
     Awaitable,
     Coroutine,
     Generator,
+    Protocol,
     TypeVar,
     Union,
+    runtime_checkable,
 )
 
 from typing_extensions import TypeAlias
 
 _T = TypeVar("_T")
+
+
+@runtime_checkable
+class AsyncClosable(Protocol):
+    async def close(self) -> None:
+        ...
+
 
 # taken from the typeshed
 if sys.version_info >= (3, 12):
