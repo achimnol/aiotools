@@ -47,6 +47,8 @@ aclosing = contextlib.aclosing
 class resetting(Generic[T]):
     """
     An extra context manager to auto-reset the given context variable.
+    It supports both the standard contextmanager protocol and the
+    async-contextmanager protocol.
 
     .. versionadded:: 1.8.0
     """
@@ -58,7 +60,14 @@ class resetting(Generic[T]):
     def __enter__(self) -> None:
         self._token = self._ctxvar.set(self._value)
 
+    async def __aenter__(self) -> None:
+        self._token = self._ctxvar.set(self._value)
+
     def __exit__(self, *exc_info) -> Optional[bool]:
+        self._ctxvar.reset(self._token)
+        return None
+
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
         self._ctxvar.reset(self._token)
         return None
 
@@ -77,7 +86,7 @@ class closing_async(Generic[T_AsyncClosable]):
     async def __aenter__(self) -> T_AsyncClosable:
         return self.thing
 
-    async def __aexit__(self, *args) -> Optional[bool]:
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
         await self.thing.close()
         return None
 

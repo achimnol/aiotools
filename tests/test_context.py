@@ -32,6 +32,27 @@ def test_resetting_ctxvar():
         my_variable.get()
 
 
+@pytest.mark.asyncio
+async def test_resetting_ctxvar_async():
+    with pytest.raises(LookupError):
+        my_variable.get()
+    async with resetting(my_variable, 1):
+        assert my_variable.get() == 1
+        async with resetting(my_variable, 2):
+            assert my_variable.get() == 2
+        assert my_variable.get() == 1
+    with pytest.raises(LookupError):
+        my_variable.get()
+
+    # should behave the same way even when an exception occurs
+    with suppress(RuntimeError):
+        async with resetting(my_variable, 10):
+            assert my_variable.get() == 10
+            raise RuntimeError("oops")
+    with pytest.raises(LookupError):
+        my_variable.get()
+
+
 def test_actxmgr_types():
     assert issubclass(aiotools.AsyncContextManager, AbstractAsyncContextManager)
 
