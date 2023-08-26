@@ -18,7 +18,7 @@ from typing import (
     TypeVar,
 )
 
-from .types import AsyncClosable
+from .types import AClosable, AsyncClosable
 
 __all__ = [
     "resetting",
@@ -32,6 +32,7 @@ __all__ = [
 ]
 
 T = TypeVar("T")
+T_AClosable = TypeVar("T_AClosable", bound=AClosable)
 T_AsyncClosable = TypeVar("T_AsyncClosable", bound=AsyncClosable)
 
 
@@ -39,7 +40,6 @@ AbstractAsyncContextManager = contextlib.AbstractAsyncContextManager
 AsyncContextManager = contextlib._AsyncGeneratorContextManager
 AsyncExitStack = contextlib.AsyncExitStack
 async_ctx_manager = contextlib.asynccontextmanager
-aclosing = contextlib.aclosing
 
 
 class resetting(Generic[T]):
@@ -67,6 +67,29 @@ class resetting(Generic[T]):
 
     async def __aexit__(self, *exc_info) -> Optional[bool]:
         self._ctxvar.reset(self._token)
+        return None
+
+
+class aclosing(Generic[T_AClosable]):
+    """
+    An analogy to :func:`contextlib.closing` for async generators.
+
+    The motivation has been proposed by:
+
+    * https://github.com/njsmith/async_generator
+    * https://vorpus.org/blog/some-thoughts-on-asynchronous-api-design-\
+in-a-post-asyncawait-world/#cleanup-in-generators-and-async-generators
+    * https://www.python.org/dev/peps/pep-0533/
+    """
+
+    def __init__(self, thing: T_AClosable) -> None:
+        self.thing = thing
+
+    async def __aenter__(self) -> T_AClosable:
+        return self.thing
+
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
+        await self.thing.aclose()
         return None
 
 
