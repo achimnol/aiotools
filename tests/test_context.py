@@ -1,11 +1,35 @@
 import asyncio
 import sys
 import warnings
+from contextlib import suppress
+from contextvars import ContextVar
 
 import pytest
 
 import aiotools
-from aiotools.context import AbstractAsyncContextManager
+from aiotools.context import AbstractAsyncContextManager, resetting
+
+my_variable: ContextVar[int] = ContextVar("my_variable")
+
+
+def test_resetting_ctxvar():
+    with pytest.raises(LookupError):
+        my_variable.get()
+    with resetting(my_variable, 1):
+        assert my_variable.get() == 1
+        with resetting(my_variable, 2):
+            assert my_variable.get() == 2
+        assert my_variable.get() == 1
+    with pytest.raises(LookupError):
+        my_variable.get()
+
+    # should behave the same way even when an exception occurs
+    with suppress(RuntimeError):
+        with resetting(my_variable, 10):
+            assert my_variable.get() == 10
+            raise RuntimeError("oops")
+    with pytest.raises(LookupError):
+        my_variable.get()
 
 
 def test_actxmgr_types():
