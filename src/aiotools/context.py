@@ -10,9 +10,19 @@ Provides an implementation of asynchronous context manager and its applications.
 
 import asyncio
 import contextlib
-from typing import Iterable, List, Optional
+from contextvars import ContextVar
+from typing import (
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    TypeVar,
+)
+
+from .types import AsyncClosable
 
 __all__ = [
+    "resetting",
     "AsyncContextManager",
     "async_ctx_manager",
     "actxmgr",
@@ -24,6 +34,9 @@ __all__ = [
 ]
 
 
+T = TypeVar("T")
+T_AsyncClosable = TypeVar("T_AsyncClosable", bound=AsyncClosable)
+
 AbstractAsyncContextManager = contextlib.AbstractAsyncContextManager
 AsyncContextManager = contextlib._AsyncGeneratorContextManager
 AsyncExitStack = contextlib.AsyncExitStack
@@ -31,22 +44,51 @@ async_ctx_manager = contextlib.asynccontextmanager
 aclosing = contextlib.aclosing
 
 
-class closing_async:
+class resetting(Generic[T]):
     """
-    An analogy to :func:`contextlib.closing` for objects with ``close()``
-    methods as async functions.
+    An extra context manager to auto-reset the given context variable.
+    It supports both the standard contextmanager protocol and the
+    async-contextmanager protocol.
+
+    .. versionadded:: 1.8.0
+    """
+
+    def __init__(self, ctxvar: ContextVar[T], value: T) -> None:
+        self._ctxvar = ctxvar
+        self._value = value
+
+    def __enter__(self) -> None:
+        self._token = self._ctxvar.set(self._value)
+
+    async def __aenter__(self) -> None:
+        self._token = self._ctxvar.set(self._value)
+
+    def __exit__(self, *exc_info) -> Optional[bool]:
+        self._ctxvar.reset(self._token)
+        return None
+
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
+        self._ctxvar.reset(self._token)
+        return None
+
+
+class closing_async(Generic[T_AsyncClosable]):
+    """
+    An analogy to :func:`contextlib.closing` for objects defining the ``close()``
+    method as an async function.
 
     .. versionadded:: 1.5.6
     """
 
-    def __init__(self, thing):
+    def __init__(self, thing: T_AsyncClosable) -> None:
         self.thing = thing
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> T_AsyncClosable:
         return self.thing
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
         await self.thing.close()
+        return None
 
 
 class AsyncContextGroup:
