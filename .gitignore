@@ -82,6 +82,7 @@ celerybeat-schedule
 .envrc
 
 # virtualenv
+.venv/
 venv/
 ENV/
 
