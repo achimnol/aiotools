@@ -229,6 +229,7 @@ main = _main_ctxmgr
 
 def setup_child_watcher(loop: asyncio.AbstractEventLoop) -> None:
     if sys.version_info < (3, 12, 0):
+        # see python/cpython#94597 (issue) and python/cpython#98215 (pr)
         try:
             watcher_cls = getattr(asyncio, "PidfdChildWatcher", None)
             if _has_pidfd and watcher_cls:
