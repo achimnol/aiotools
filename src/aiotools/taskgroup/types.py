@@ -14,8 +14,7 @@ class AsyncExceptionHandler(Protocol):
         exc_type: type[Exception],
         exc_obj: Exception,
         exc_tb: TracebackType,
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 class MultiError(ExceptionGroup):
