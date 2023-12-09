@@ -228,18 +228,20 @@ main = _main_ctxmgr
 
 
 def setup_child_watcher(loop: asyncio.AbstractEventLoop) -> None:
-    try:
-        watcher_cls = getattr(asyncio, "PidfdChildWatcher", None)
-        if _has_pidfd and watcher_cls:
-            watcher = watcher_cls()
-            asyncio.set_child_watcher(watcher)
-        else:
-            # Just get the default child watcher.
-            watcher = asyncio.get_child_watcher()
-        if not watcher.is_active():
-            watcher.attach_loop(loop)
-    except NotImplementedError:
-        pass  # for uvloop
+    if sys.version_info < (3, 12, 0):
+        # see python/cpython#94597 (issue) and python/cpython#98215 (pr)
+        try:
+            watcher_cls = getattr(asyncio, "PidfdChildWatcher", None)
+            if _has_pidfd and watcher_cls:
+                watcher = watcher_cls()
+                asyncio.set_child_watcher(watcher)
+            else:
+                # Just get the default child watcher.
+                watcher = asyncio.get_child_watcher()
+            if not watcher.is_active():
+                watcher.attach_loop(loop)
+        except NotImplementedError:
+            pass  # for uvloop
 
 
 async def cancel_all_tasks() -> None:
