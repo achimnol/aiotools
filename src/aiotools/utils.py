@@ -11,6 +11,8 @@ from typing import (
     Any,
     AsyncGenerator,
     Awaitable,
+    Coroutine,
+    Generator,
     Iterable,
     List,
     Optional,
@@ -22,6 +24,7 @@ from typing import (
 from .supervisor import Supervisor
 
 __all__ = (
+    "cancel_and_wait",
     "as_completed_safe",
     "gather_safe",
     "race",
@@ -30,8 +33,28 @@ __all__ = (
 T = TypeVar("T")
 
 
+async def cancel_and_wait(
+    task: asyncio.Task[Any],
+    msg: str | None = None,
+) -> None:
+    """
+    See the discussion in https://github.com/python/cpython/issues/103486
+    """
+    task.cancel(msg)
+    try:
+        await task
+    except asyncio.CancelledError:
+        parent_task = asyncio.current_task()
+        if parent_task is not None and parent_task.cancelling() == 0:
+            raise
+        else:
+            return  # this is the only non-exceptional return
+    else:
+        raise RuntimeError("Cancelled task did not end with an exception")
+
+
 async def as_completed_safe(
-    coros: Iterable[Awaitable[T]],
+    coros: Iterable[Coroutine[Any, None, T] | Generator[None, None, T]],
     *,
     context: Optional[Context] = None,
 ) -> AsyncGenerator[Awaitable[T], None]:
@@ -54,9 +77,9 @@ async def as_completed_safe(
     def result_callback(t: asyncio.Task[Any]) -> None:
         q.put_nowait(t)
 
-    async with Supervisor() as supervisor:
+    async with Supervisor(context=context) as supervisor:
         for coro in coros:
-            t = supervisor.create_task(coro, context=context)
+            t = supervisor.create_task(coro)
             t.add_done_callback(result_callback)
             remaining += 1
         while remaining:
@@ -78,7 +101,7 @@ async def as_completed_safe(
 
 
 async def gather_safe(
-    coros: Iterable[Awaitable[T]],
+    coros: Iterable[Coroutine[Any, None, T] | Generator[None, None, T]],
     *,
     context: Optional[Context] = None,
 ) -> List[T | Exception]:
@@ -97,16 +120,17 @@ async def gather_safe(
     .. versionadded:: 2.0
     """
     tasks = []
-    async with Supervisor() as supervisor:
+    t: asyncio.Task[T]
+    async with Supervisor(context=context) as supervisor:
         for coro in coros:
-            t = supervisor.create_task(coro, context=context)
+            t = supervisor.create_task(coro)
             tasks.append(t)
         # To ensure safety, the Python version must be 3.7 or higher.
         return await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def race(
-    coros: Iterable[Awaitable[T]],
+    coros: Iterable[Coroutine[Any, None, T] | Generator[None, None, T]],
     *,
     continue_on_error: bool = False,
     context: Optional[Context] = None,
