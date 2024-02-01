@@ -190,16 +190,14 @@ class Supervisor:
         if self._parent_task.done():
             # Not sure if this case is possible, but we want to handle
             # it anyways.
-            self._loop.call_exception_handler(
-                {
-                    "message": (
-                        f"Task {task!r} has errored out but its parent "
-                        f"task {self._parent_task} is already completed"
-                    ),
-                    "exception": exc,
-                    "task": task,
-                }
-            )
+            self._loop.call_exception_handler({
+                "message": (
+                    f"Task {task!r} has errored out but its parent "
+                    f"task {self._parent_task} is already completed"
+                ),
+                "exception": exc,
+                "task": task,
+            })
             return
 
         if _is_base_error and not self._aborting and not self._parent_cancel_requested:

@@ -37,13 +37,11 @@ async def test_as_completed_safe() -> None:
     results = []
     with VirtualClock().patch_loop():
         async with aclosing(
-            as_completed_safe(
-                [
-                    do_job(0.3, 1),
-                    do_job(0.2, 2),
-                    do_job(0.1, 3),
-                ]
-            )
+            as_completed_safe([
+                do_job(0.3, 1),
+                do_job(0.2, 2),
+                do_job(0.1, 3),
+            ])
         ) as ag:
             async for result in ag:
                 results.append(await result)
@@ -56,14 +54,12 @@ async def test_as_completed_safe_partial_failure() -> None:
     errors = []
     with VirtualClock().patch_loop():
         async with aclosing(
-            as_completed_safe(
-                [
-                    do_job(0.1, 1),
-                    fail_job(0.2),
-                    do_job(0.3, 3),
-                    fail_job(0.4),
-                ]
-            )
+            as_completed_safe([
+                do_job(0.1, 1),
+                fail_job(0.2),
+                do_job(0.3, 3),
+                fail_job(0.4),
+            ])
         ) as ag:
             async for result in ag:
                 try:

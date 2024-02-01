@@ -59,6 +59,7 @@ select = [
     # "B",  # flake8-bugbear
 ]
 ignore = ["E203","E731","E501"]
+preview = true
 
 [tool.ruff.isort]
 known-first-party = ["aiotools"]

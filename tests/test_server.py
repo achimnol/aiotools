@@ -172,24 +172,22 @@ async def myserver_worker_init_error(loop, proc_idx, args):
             self.writer(f"log:{proc_idx}:{msg}")
 
     log_stream = _LogAdaptor(write)
-    logging.config.dictConfig(
-        {
-            "version": 1,
-            "handlers": {
-                "console": {
-                    "class": "logging.StreamHandler",
-                    "stream": log_stream,
-                    "level": "DEBUG",
-                },
+    logging.config.dictConfig({
+        "version": 1,
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "stream": log_stream,
+                "level": "DEBUG",
             },
-            "loggers": {
-                "aiotools": {
-                    "handlers": ["console"],
-                    "level": "DEBUG",
-                },
+        },
+        "loggers": {
+            "aiotools": {
+                "handlers": ["console"],
+                "level": "DEBUG",
             },
-        }
-    )
+        },
+    })
     log = logging.getLogger("aiotools")
     write(f"started:{proc_idx}")
     log.debug("hello")
