@@ -1,6 +1,8 @@
 from asyncio import events, exceptions, tasks
 from typing import Optional
 
+from .compat import set_task_name
+
 __all__ = ["Supervisor"]
 
 
@@ -116,7 +118,7 @@ class Supervisor:
             task = self._loop.create_task(coro)
         else:
             task = self._loop.create_task(coro, context=context)
-        tasks._set_task_name(task, name)
+        set_task_name(task, name)
         task.add_done_callback(self._on_task_done)
         self._tasks.add(task)
         return task
