@@ -24,17 +24,6 @@ graceful shutdown steps.
 """
 
 import asyncio
-from contextlib import (
-    AbstractContextManager,
-    ContextDecorator,
-)
-
-try:
-    import contextvars
-
-    _cv_available = True
-except ImportError:
-    _cv_available = False
 import functools
 import inspect
 import logging
@@ -43,25 +32,14 @@ import signal
 import struct
 import sys
 import threading
-from typing import (
-    Any,
-    Callable,
-    Iterable,
-    List,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-)
+from collections.abc import Callable, Collection, Sequence
+from contextlib import AbstractContextManager, ContextDecorator
+from contextvars import ContextVar
+from typing import Any, Optional
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
 from .fork import AbstractChildProcess, _has_pidfd, afork
-
-try:
-    from typing import Literal
-except ImportError:
-    from typing_extensions import Literal  # type: ignore  # noqa
 
 __all__ = (
     "main",
@@ -74,12 +52,7 @@ __all__ = (
 
 log = logging.getLogger(__name__)
 
-if _cv_available:
-    process_index: "contextvars.ContextVar[int]"
-    process_index = contextvars.ContextVar("process_index")
-else:
-    # Unsupported in Python 3.6
-    process_index = None  # type: ignore  # noqa
+process_index: ContextVar[int] = ContextVar("process_index")
 
 
 class InterruptedBySignal(BaseException):
@@ -256,18 +229,20 @@ main = _main_ctxmgr
 
 
 def setup_child_watcher(loop: asyncio.AbstractEventLoop) -> None:
-    try:
-        watcher_cls = getattr(asyncio, "PidfdChildWatcher", None)
-        if _has_pidfd and watcher_cls:
-            watcher = watcher_cls()
-            asyncio.set_child_watcher(watcher)
-        else:
-            # Just get the default child watcher.
-            watcher = asyncio.get_child_watcher()
-        if not watcher.is_active():
-            watcher.attach_loop(loop)
-    except NotImplementedError:
-        pass  # for uvloop
+    if sys.version_info < (3, 12, 0):
+        # see python/cpython#94597 (issue) and python/cpython#98215 (pr)
+        try:
+            watcher_cls = getattr(asyncio, "PidfdChildWatcher", None)
+            if _has_pidfd and watcher_cls:
+                watcher = watcher_cls()
+                asyncio.set_child_watcher(watcher)
+            else:
+                # Just get the default child watcher.
+                watcher = asyncio.get_child_watcher()
+            if not watcher.is_active():
+                watcher.attach_loop(loop)
+        except NotImplementedError:
+            pass  # for uvloop
 
 
 async def cancel_all_tasks() -> None:
@@ -294,7 +269,7 @@ def _worker_main(
         [asyncio.AbstractEventLoop, int, Sequence[Any]],
         AsyncServerContextManager,
     ],
-    stop_signals: Set[signal.Signals],
+    stop_signals: Collection[signal.Signals],
     intr_pipe_wfd: int,
     proc_idx: int,
     args: Sequence[Any],
@@ -304,8 +279,7 @@ def _worker_main(
     setup_child_watcher(loop)
     interrupted = asyncio.Event()
     ctx = worker_actxmgr(loop, proc_idx, args)
-    if _cv_available:
-        process_index.set(proc_idx)
+    process_index.set(proc_idx)
     forever_future = loop.create_future()
 
     def handle_stop_signal(signum):
@@ -362,13 +336,12 @@ def _worker_main(
 
 def _extra_main(
     extra_func,
-    stop_signals: Set[signal.Signals],
+    stop_signals: Collection[signal.Signals],
     proc_idx: int,
     args: Sequence[Any],
 ) -> int:
     interrupted = threading.Event()
-    if _cv_available:
-        process_index.set(proc_idx)
+    process_index.set(proc_idx)
 
     # Since signals only work for the main thread in Python,
     # extra processes in use_threading=True mode should check
@@ -408,10 +381,10 @@ def start_server(
         [asyncio.AbstractEventLoop, int, Sequence[Any]], AsyncServerContextManager
     ],
     main_ctxmgr: Optional[Callable[[], ServerMainContextManager]] = None,
-    extra_procs: Iterable[Callable] = tuple(),
-    stop_signals: Iterable[signal.Signals] = (signal.SIGINT, signal.SIGTERM),
+    extra_procs: Collection[Callable] = tuple(),
+    stop_signals: Collection[signal.Signals] = (signal.SIGINT, signal.SIGTERM),
     num_workers: int = 1,
-    args: Iterable[Any] = tuple(),
+    args: Sequence[Any] = tuple(),
     wait_timeout: Optional[float] = None,
 ) -> None:
     """
@@ -548,7 +521,7 @@ def start_server(
     if main_ctxmgr is None:
         main_ctxmgr = noop_main_ctxmgr
 
-    children: List[AbstractChildProcess] = []
+    children: list[AbstractChildProcess] = []
     sigblock_mask = frozenset(stop_signals)
 
     main_ctx = main_ctxmgr()
@@ -588,7 +561,7 @@ def start_server(
         signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
         os.kill(0, signal.SIGINT)
 
-    child_intr_pipe: Tuple[int, int] = os.pipe()
+    child_intr_pipe: tuple[int, int] = os.pipe()
     rfd = child_intr_pipe[0]
     main_loop.add_reader(rfd, handle_child_interrupt, rfd)
 
