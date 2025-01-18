@@ -183,16 +183,14 @@ class PersistentTaskGroup:
                 # we report it as soon as possible using the event loop's
                 # exception handler, instead of postponing
                 # to the timing when PersistentTaskGroup terminates.
-                loop.call_exception_handler(
-                    {
-                        "message": (
-                            "Got an unhandled exception "
-                            f"in the exception handler of Task {task!r}"
-                        ),
-                        "exception": exc,
-                        "task": task,
-                    }
-                )
+                loop.call_exception_handler({
+                    "message": (
+                        "Got an unhandled exception "
+                        f"in the exception handler of Task {task!r}"
+                    ),
+                    "exception": exc,
+                    "task": task,
+                })
         finally:
             del fut
 

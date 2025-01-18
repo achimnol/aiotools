@@ -61,21 +61,21 @@ def defer(func):
     A synchronous version of the defer API.
     It can only defer normal functions.
     """
-    assert not inspect.iscoroutinefunction(
-        func
-    ), "the decorated function must not be async"
+    assert not inspect.iscoroutinefunction(func), (
+        "the decorated function must not be async"
+    )
 
     @functools.wraps(func)
     def _wrapped(*args, **kwargs):
         deferreds = deque()
 
         def defer(f: Callable) -> None:
-            assert not inspect.iscoroutinefunction(
-                f
-            ), "the deferred function must not be async"
-            assert not inspect.iscoroutine(
-                f
-            ), "the deferred object must not be a coroutine"
+            assert not inspect.iscoroutinefunction(f), (
+                "the deferred function must not be async"
+            )
+            assert not inspect.iscoroutine(f), (
+                "the deferred object must not be a coroutine"
+            )
             deferreds.append(f)
 
         try:

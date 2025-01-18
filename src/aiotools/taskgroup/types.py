@@ -22,8 +22,7 @@ class AsyncExceptionHandler(Protocol):
         exc_type: Type[Exception],
         exc_obj: Exception,
         exc_tb: TracebackType,
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 if not hasattr(builtins, "ExceptionGroup"):
@@ -32,7 +31,7 @@ if not hasattr(builtins, "ExceptionGroup"):
         def __init__(self, msg, errors=()):
             if errors:
                 types = set(type(e).__name__ for e in errors)
-                msg = f'{msg}; {len(errors)} sub errors: ({", ".join(types)})'
+                msg = f"{msg}; {len(errors)} sub errors: ({', '.join(types)})"
                 for er in errors:
                     msg += f"\n + {type(er).__name__}: {er}"
                     if er.__traceback__:

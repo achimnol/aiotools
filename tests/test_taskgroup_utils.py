@@ -25,13 +25,11 @@ async def test_as_completed_safe():
         results = []
 
         async with aclosing(
-            as_completed_safe(
-                [
-                    do_job(0.3, 1),
-                    do_job(0.2, 2),
-                    do_job(0.1, 3),
-                ]
-            )
+            as_completed_safe([
+                do_job(0.3, 1),
+                do_job(0.2, 2),
+                do_job(0.1, 3),
+            ])
         ) as ag:
             async for result in ag:
                 results.append(await result)
@@ -42,13 +40,11 @@ async def test_as_completed_safe():
         errors = []
 
         async with aclosing(
-            as_completed_safe(
-                [
-                    do_job(0.1, 1),
-                    fail_job(0.2),
-                    do_job(0.3, 3),
-                ]
-            )
+            as_completed_safe([
+                do_job(0.1, 1),
+                fail_job(0.2),
+                do_job(0.3, 3),
+            ])
         ) as ag:
             async for result in ag:
                 try:
@@ -140,14 +136,12 @@ async def test_as_completed_safe_timeout_extlib():
         try:
             async with async_timeout.timeout(0.15):
                 async with aclosing(
-                    as_completed_safe(
-                        [
-                            do_job(0.1, 1),
-                            # timeout occurs here
-                            do_job(0.2, 2),
-                            do_job(10.0, 3),
-                        ]
-                    )
+                    as_completed_safe([
+                        do_job(0.1, 1),
+                        # timeout occurs here
+                        do_job(0.2, 2),
+                        do_job(10.0, 3),
+                    ])
                 ) as ag:
                     async for result in ag:
                         results.append(await result)

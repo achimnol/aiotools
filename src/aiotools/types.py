@@ -19,14 +19,12 @@ _T = TypeVar("_T")
 
 @runtime_checkable
 class AClosable(Protocol):
-    async def aclose(self) -> None:
-        ...
+    async def aclose(self) -> None: ...
 
 
 @runtime_checkable
 class AsyncClosable(Protocol):
-    async def close(self) -> None:
-        ...
+    async def close(self) -> None: ...
 
 
 # taken from the typeshed
