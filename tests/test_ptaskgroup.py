@@ -320,7 +320,7 @@ async def test_ptaskgroup_exc_handler_swallow():
             async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
                 for _ in range(10):
                     tg.create_task(subtask())
-        except ExceptionGroup as eg:
+        except aiotools.TaskGroupError as eg:
             # All non-base exceptions must be swallowed by
             # our exception handler.
             assert len(eg.subgroup(ZeroDivisionError).exceptions) == 0
@@ -377,7 +377,7 @@ async def test_ptaskgroup_error_in_exc_handlers():
                     tg.create_task(subtask())
         except ValueError:
             assert False, "should not reach here"
-        except ExceptionGroup:
+        except aiotools.TaskGroupError:
             assert False, "should not reach here"
 
         # Check if the event loop exception handler is called.
@@ -398,7 +398,7 @@ async def test_ptaskgroup_error_in_exc_handlers():
             async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
                 for _ in range(10):
                     tg.create_task(subtask())
-        except ExceptionGroup:
+        except aitools.TaskGroupError:
             assert False, "should not reach here"
 
         # Check if the event loop exception handler is called.
