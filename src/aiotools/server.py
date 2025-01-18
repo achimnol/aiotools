@@ -32,9 +32,10 @@ import signal
 import struct
 import sys
 import threading
+from collections.abc import Callable, Collection, Sequence
 from contextlib import AbstractContextManager, ContextDecorator
 from contextvars import ContextVar
-from typing import Any, Callable, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Any, Optional
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
@@ -268,7 +269,7 @@ def _worker_main(
         [asyncio.AbstractEventLoop, int, Sequence[Any]],
         AsyncServerContextManager,
     ],
-    stop_signals: Set[signal.Signals],
+    stop_signals: Collection[signal.Signals],
     intr_pipe_wfd: int,
     proc_idx: int,
     args: Sequence[Any],
@@ -335,7 +336,7 @@ def _worker_main(
 
 def _extra_main(
     extra_func,
-    stop_signals: Set[signal.Signals],
+    stop_signals: Collection[signal.Signals],
     proc_idx: int,
     args: Sequence[Any],
 ) -> int:
@@ -380,10 +381,10 @@ def start_server(
         [asyncio.AbstractEventLoop, int, Sequence[Any]], AsyncServerContextManager
     ],
     main_ctxmgr: Optional[Callable[[], ServerMainContextManager]] = None,
-    extra_procs: Iterable[Callable] = tuple(),
-    stop_signals: Iterable[signal.Signals] = (signal.SIGINT, signal.SIGTERM),
+    extra_procs: Collection[Callable] = tuple(),
+    stop_signals: Collection[signal.Signals] = (signal.SIGINT, signal.SIGTERM),
     num_workers: int = 1,
-    args: Iterable[Any] = tuple(),
+    args: Sequence[Any] = tuple(),
     wait_timeout: Optional[float] = None,
 ) -> None:
     """
@@ -520,7 +521,7 @@ def start_server(
     if main_ctxmgr is None:
         main_ctxmgr = noop_main_ctxmgr
 
-    children: List[AbstractChildProcess] = []
+    children: list[AbstractChildProcess] = []
     sigblock_mask = frozenset(stop_signals)
 
     main_ctx = main_ctxmgr()
@@ -560,7 +561,7 @@ def start_server(
         signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
         os.kill(0, signal.SIGINT)
 
-    child_intr_pipe: Tuple[int, int] = os.pipe()
+    child_intr_pipe: tuple[int, int] = os.pipe()
     rfd = child_intr_pipe[0]
     main_loop.add_reader(rfd, handle_child_interrupt, rfd)
 
