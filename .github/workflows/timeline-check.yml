@@ -5,6 +5,8 @@ on: [pull_request]
 jobs:
   towncrier:
     runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.pull_request.labels.*.name, 'skip:changelog')
     steps:
     - uses: actions/checkout@v2
       with:
