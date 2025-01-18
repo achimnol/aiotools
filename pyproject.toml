@@ -63,7 +63,7 @@ select = [
 ]
 ignore = ["E203","E731","E501"]
 preview = true
-target-version = "py38"
+target-version = "py39"
 
 [tool.ruff.isort]
 known-first-party = ["aiotools"]
