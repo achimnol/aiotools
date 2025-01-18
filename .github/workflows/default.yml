@@ -28,24 +28,6 @@ jobs:
       run: |
         python -m pip install -U pip setuptools wheel
         python -m pip install -U -r requirements/test.txt
-    - name: Prepare testing
-      run: |
-        mkdir -p /tmp/etcd
-        docker run -d -p 2379:2379 -p 2380:2380 \
-         -v /tmp/etcd:/etcd-data \
-         --name backendai-etcd \
-         quay.io/coreos/etcd:v3.4.1 \
-         /usr/local/bin/etcd \
-         --name backendai-etcd \
-         --data-dir /etcd-data \
-         --listen-client-urls http://0.0.0.0:2379 \
-         --advertise-client-urls http://0.0.0.0:2379 \
-         --listen-peer-urls http://0.0.0.0:2380 \
-         --initial-advertise-peer-urls http://0.0.0.0:2380 \
-         --initial-cluster backendai-etcd=http://0.0.0.0:2380 \
-         --initial-cluster-token backendai-etcd-token \
-         --initial-cluster-state new \
-         --auto-compaction-retention 1
     - name: Test with pytest
       timeout-minutes: 3
       run: |
