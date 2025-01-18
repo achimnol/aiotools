@@ -118,7 +118,6 @@ class Supervisor:
             task = self._loop.create_task(coro)
         else:
             task = self._loop.create_task(coro, context=context)
-        task.set_name(name)
         set_task_name(task, name)
         task.add_done_callback(self._on_task_done)
         self._tasks.add(task)
