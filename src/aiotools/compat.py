@@ -14,11 +14,9 @@ def set_task_name(task, name):
             set_name = task.set_name
         except AttributeError:
             warnings.warn(
-                "Task.set_name() was added in Python 3.8, "
-                "the method support will be mandatory for third-party "
-                "task implementations since 3.13.",
+                "Task name customization may not be available in 3rd-party event loops before Python 3.13",
                 DeprecationWarning,
-                stacklevel=3,
+                stacklevel=2,
             )
         else:
             set_name(name)
