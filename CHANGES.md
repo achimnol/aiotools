@@ -16,8 +16,20 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.8.0 (2025-01-18)
+------------------
+
+### Breaking changes
+* Dropped the support for Python 3.8 as it's end-of-life.
+
+### Features
+* Add support for Python 3.12 and 3.13.
+* Add `aiotools.context.resetting()` as a sync/async context manager to auto-reset the given context variable ([#62](https://github.com/achimnol/aiotools/issues/62))
+* Add type checker support - now includes py.typed in the package to indicate to type checkers like mypy that typing is supported. ([#63](https://github.com/achimnol/aiotools/issues/63))
+
+
 1.7.0 (2023-08-25)
----------------------------------
+------------------
 
 ### Breaking changes
 * Dropped the support for Python 3.7 as it's end-of-life.
