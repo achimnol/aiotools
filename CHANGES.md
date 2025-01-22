@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.8.1 (2025-01-22)
+------------------
+
+### Fixes
+* Fix static type checker's recognition of `aiotools.taskgroup` public exports, such as `aiotools.PersistentTaskGroup` ([#72](https://github.com/achimnol/aiotools/issues/72))
+
+
 1.8.0 (2025-01-18)
 ------------------
 
