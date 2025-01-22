@@ -10,6 +10,7 @@ __all__ = [
     "as_completed_safe",
     "persistent",
     "persistent_compat",
+    "current_taskgroup",
     "current_ptaskgroup",
     "has_contextvars",
 ]
