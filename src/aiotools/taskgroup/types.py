@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import builtins
 import textwrap
 import traceback
-from typing import Type
 
 try:
     from typing import Protocol
@@ -19,9 +20,9 @@ class AsyncExceptionHandler(Protocol):
 
     async def __call__(
         self,
-        exc_type: Type[Exception],
-        exc_obj: Exception,
-        exc_tb: TracebackType,
+        exc_type: type[BaseException] | None,
+        exc_obj: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None: ...
 
 
@@ -56,7 +57,7 @@ if not hasattr(builtins, "ExceptionGroup"):
 
 else:
 
-    class MultiError(ExceptionGroup):  # type: ignore[no-redef,name-defined]
+    class MultiError(ExceptionGroup):  # type: ignore[no-redef,name-defined]  # noqa
         def __init__(self, msg, errors=()):
             super().__init__(msg, errors)
             self.__errors__ = errors

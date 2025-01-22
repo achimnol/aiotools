@@ -1,26 +1,23 @@
+from __future__ import annotations
+
 import asyncio
 import itertools
 import logging
 import sys
 import traceback
-
-try:
-    from contextvars import ContextVar, Token
-
-    has_contextvars = True
-except ImportError:
-    has_contextvars = False
 import weakref
+from contextvars import ContextVar, Token
 from types import TracebackType
 from typing import (
     Any,
-    Awaitable,
     Callable,
     Coroutine,
     Optional,
     Sequence,
-    Type,
+    TypeVar,
 )
+
+from typing_extensions import Self
 
 from .. import compat
 from .common import create_task_with_name, patch_task
@@ -28,32 +25,35 @@ from .types import AsyncExceptionHandler
 
 __all__ = [
     "PersistentTaskGroup",
+    "current_ptaskgroup",
 ]
 
-if has_contextvars:
-    current_ptaskgroup: ContextVar["PersistentTaskGroup"] = ContextVar(
-        "current_ptaskgroup"
-    )
-    __all__.append("current_ptaskgroup")
+current_ptaskgroup: ContextVar["PersistentTaskGroup"] = ContextVar("current_ptaskgroup")
 
 _ptaskgroup_idx = itertools.count()
 _log = logging.getLogger(__name__)
-_all_ptaskgroups: "weakref.WeakSet[PersistentTaskGroup]" = weakref.WeakSet()
+_all_ptaskgroups: weakref.WeakSet[PersistentTaskGroup] = weakref.WeakSet()
+
+T_co = TypeVar("T_co", covariant=True)
 
 
-async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
+async def _default_exc_handler(
+    exc_type: type[BaseException] | None,
+    exc_obj: BaseException | None,
+    exc_tb: TracebackType | None,
+) -> None:
     traceback.print_exc()
 
 
 class PersistentTaskGroup:
     _base_error: Optional[BaseException]
     _exc_handler: AsyncExceptionHandler
-    _tasks: "weakref.WeakSet[asyncio.Task]"
-    _on_completed_fut: Optional[asyncio.Future]
-    _current_taskgroup_token: Optional["Token[PersistentTaskGroup]"]
+    _tasks: weakref.WeakSet[asyncio.Task[Any]]
+    _on_completed_fut: Optional[asyncio.Future[Any]]
+    _current_taskgroup_token: Optional[Token[PersistentTaskGroup]]
 
     @classmethod
-    def all_ptaskgroups(cls) -> Sequence["PersistentTaskGroup"]:
+    def all_ptaskgroups(cls) -> Sequence[PersistentTaskGroup]:
         return list(_all_ptaskgroups)
 
     def __init__(
@@ -87,10 +87,10 @@ class PersistentTaskGroup:
 
     def create_task(
         self,
-        coro: Coroutine[Any, Any, Any],
+        coro: Coroutine[Any, Any, T_co],
         *,
         name: Optional[str] = None,
-    ) -> Awaitable[Any]:
+    ) -> asyncio.Future[T_co]:
         if not self._entered:
             # When used as object attribute, auto-enter.
             self._entered = True
@@ -100,11 +100,11 @@ class PersistentTaskGroup:
 
     def _create_task_with_name(
         self,
-        coro: Coroutine[Any, Any, Any],
+        coro: Coroutine[Any, Any, T_co],
         *,
         name: Optional[str] = None,
-        cb: Callable[[asyncio.Task], Any],
-    ) -> Awaitable[Any]:
+        cb: Callable[[asyncio.Task[None]], Any],
+    ) -> asyncio.Future[T_co]:
         loop = compat.get_running_loop()
         result_future = loop.create_future()
         child_task = create_task_with_name(
@@ -153,8 +153,8 @@ class PersistentTaskGroup:
     async def _task_wrapper(
         self,
         coro: Coroutine,
-        result_future: "weakref.ref[asyncio.Future]",
-    ) -> Any:
+        result_future: weakref.ref[asyncio.Future[T_co]],
+    ) -> T_co | None:
         loop = compat.get_running_loop()
         task = compat.current_task()
         fut = result_future()
@@ -191,10 +191,11 @@ class PersistentTaskGroup:
                     "exception": exc,
                     "task": task,
                 })
+            return None
         finally:
             del fut
 
-    def _on_task_done(self, task: asyncio.Task) -> None:
+    def _on_task_done(self, task: asyncio.Task[None]) -> None:
         self._unfinished_tasks -= 1
         assert self._unfinished_tasks >= 0
         assert self._parent_task is not None
@@ -219,20 +220,19 @@ class PersistentTaskGroup:
         if not self._parent_task.__cancel_requested__:  # type: ignore
             self._parent_cancel_requested = True
 
-    async def __aenter__(self) -> "PersistentTaskGroup":
+    async def __aenter__(self) -> Self:
         self._parent_task = compat.current_task()
         patch_task(self._parent_task)
-        if has_contextvars:
-            self._current_taskgroup_token = current_ptaskgroup.set(self)
+        self._current_taskgroup_token = current_ptaskgroup.set(self)
         self._entered = True
         return self
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         self._exiting = True
         propagate_cancelation = False
 
@@ -259,10 +259,9 @@ class PersistentTaskGroup:
         prop_ex = await self._wait_completion()
         if prop_ex is not None:
             propagate_cancelation = prop_ex
-        if has_contextvars:
-            if self._current_taskgroup_token:
-                current_ptaskgroup.reset(self._current_taskgroup_token)
-                self._current_taskgroup_token = None
+        if self._current_taskgroup_token:
+            current_ptaskgroup.reset(self._current_taskgroup_token)
+            self._current_taskgroup_token = None
 
         if propagate_cancelation:
             # The wrapping task was cancelled; since we're done with

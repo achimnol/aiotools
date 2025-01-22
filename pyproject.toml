@@ -50,6 +50,11 @@ underlines = ["-", "", ""]
 [tool.ruff]
 line-length = 88
 src = ["src"]
+target-version = "py39"
+preview = true
+
+[tool.ruff.lint]
+ignore = ["E203","E731","E501"]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
@@ -58,16 +63,13 @@ select = [
     # "C",  # flake8-comprehensions
     # "B",  # flake8-bugbear
 ]
-ignore = ["E203","E731","E501"]
-preview = true
-target-version = "py39"
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["aiotools"]
 known-local-folder = ["src"]
 split-on-trailing-comma = true
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "src/aiotools/taskgroup/__init__.py" = ["F405"]
 
 [tool.black]
