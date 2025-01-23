@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import textwrap
 import traceback
+from collections.abc import Awaitable
 
 try:
     from typing import Protocol
@@ -18,12 +19,12 @@ class AsyncExceptionHandler(Protocol):
     :func:`sys.exc_info()` is available.
     """
 
-    async def __call__(
+    def __call__(
         self,
-        exc_type: type[BaseException] | None,
-        exc_obj: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None: ...
+        exc_type: type[BaseException],
+        exc_obj: BaseException,
+        exc_tb: TracebackType,
+    ) -> Awaitable[None]: ...
 
 
 if not hasattr(builtins, "ExceptionGroup"):

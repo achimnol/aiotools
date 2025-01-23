@@ -10,6 +10,7 @@ from contextvars import ContextVar, Token
 from types import TracebackType
 from typing import (
     Any,
+    Awaitable,
     Callable,
     Coroutine,
     Optional,
@@ -37,9 +38,9 @@ T_co = TypeVar("T_co", covariant=True)
 
 
 async def _default_exc_handler(
-    exc_type: type[BaseException] | None,
-    exc_obj: BaseException | None,
-    exc_tb: TracebackType | None,
+    exc_type: type[BaseException],
+    exc_obj: BaseException,
+    exc_tb: TracebackType,
 ) -> None:
     traceback.print_exc()
 
@@ -86,7 +87,7 @@ class PersistentTaskGroup:
 
     def create_task(
         self,
-        coro: Coroutine[Any, Any, T_co],
+        coro: Coroutine[Any, Any, T_co] | Awaitable[T_co],
         *,
         name: Optional[str] = None,
     ) -> asyncio.Future[T_co]:
@@ -99,7 +100,7 @@ class PersistentTaskGroup:
 
     def _create_task_with_name(
         self,
-        coro: Coroutine[Any, Any, T_co],
+        coro: Coroutine[Any, Any, T_co] | Awaitable[T_co],
         *,
         name: Optional[str] = None,
         cb: Callable[[asyncio.Task[None]], Any],
@@ -151,7 +152,7 @@ class PersistentTaskGroup:
 
     async def _task_wrapper(
         self,
-        coro: Coroutine,
+        coro: Coroutine[Any, Any, T_co] | Awaitable[T_co],
         result_future: weakref.ref[asyncio.Future[T_co]],
     ) -> T_co | None:
         loop = compat.get_running_loop()
@@ -176,7 +177,11 @@ class PersistentTaskGroup:
             try:
                 if fut is not None:
                     fut.set_exception(e)
-                await self._exc_handler(*sys.exc_info())
+                exc_info = sys.exc_info()
+                assert exc_info[0] is not None
+                assert exc_info[1] is not None
+                assert exc_info[2] is not None
+                await self._exc_handler(*exc_info)
             except Exception as exc:
                 # If there are exceptions inside the exception handler
                 # we report it as soon as possible using the event loop's
