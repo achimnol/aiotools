@@ -272,7 +272,6 @@ async def test_taskgroup_error_weakref():
 @pytest.mark.asyncio
 async def test_taskgroup_memoryleak_with_persistent_tg():
     with VirtualClock().patch_loop(), warnings.catch_warnings():
-        warnings.simplefilter("ignore")
 
         async def do_job(delay):
             await asyncio.sleep(delay)

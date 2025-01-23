@@ -49,7 +49,7 @@ async def _default_exc_handler(
 class PersistentTaskGroup:
     _base_error: Optional[BaseException]
     _exc_handler: AsyncExceptionHandler
-    _tasks: weakref.WeakSet[asyncio.Task[Any]]
+    _tasks: set[asyncio.Task[Any]]
     _on_completed_fut: Optional[asyncio.Future[Any]]
     _current_taskgroup_token: Optional[Token[PersistentTaskGroup]]
 
@@ -72,7 +72,7 @@ class PersistentTaskGroup:
         self._unfinished_tasks = 0
         self._on_completed_fut = None
         self._parent_task = compat.current_task()
-        self._tasks = weakref.WeakSet()
+        self._tasks = set()
         self._current_taskgroup_token = None
         _all_ptaskgroups.add(self)
         if exception_handler is None:
@@ -201,29 +201,32 @@ class PersistentTaskGroup:
             del fut
 
     def _on_task_done(self, task: asyncio.Task[None]) -> None:
-        self._unfinished_tasks -= 1
-        assert self._unfinished_tasks >= 0
-        assert self._parent_task is not None
+        try:
+            self._unfinished_tasks -= 1
+            assert self._unfinished_tasks >= 0
+            assert self._parent_task is not None
 
-        if self._on_completed_fut is not None and not self._unfinished_tasks:
-            if not self._on_completed_fut.done():
-                self._on_completed_fut.set_result(True)
+            if self._on_completed_fut is not None and not self._unfinished_tasks:
+                if not self._on_completed_fut.done():
+                    self._on_completed_fut.set_result(True)
 
-        if task.cancelled():
-            _log.debug("%r in %r has been cancelled.", task, self)
-            return
+            if task.cancelled():
+                _log.debug("%r in %r has been cancelled.", task, self)
+                return
 
-        exc = task.exception()
-        if exc is None:
-            return
+            exc = task.exception()
+            if exc is None:
+                return
 
-        # Now the exception is BaseException.
-        if self._base_error is None:
-            self._base_error = exc
+            # Now the exception is BaseException.
+            if self._base_error is None:
+                self._base_error = exc
 
-        self._trigger_shutdown()
-        if not self._parent_task.__cancel_requested__:  # type: ignore
-            self._parent_cancel_requested = True
+            self._trigger_shutdown()
+            if not self._parent_task.__cancel_requested__:  # type: ignore
+                self._parent_cancel_requested = True
+        finally:
+            self._tasks.discard(task)
 
     async def __aenter__(self) -> Self:
         self._parent_task = compat.current_task()

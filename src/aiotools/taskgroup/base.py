@@ -30,7 +30,7 @@ class TaskGroup(asyncio.TaskGroup):
     async def __aexit__(self, et, exc, tb):
         try:
             return await super().__aexit__(et, exc, tb)
-        except BaseExceptionGroup as eg:  # noqa
+        except BaseExceptionGroup as eg:  # noqa: F821 (this module is not used in Python older than 3.11)
             # Just wrap the exception group as TaskGroupError for backward
             # compatibility.  In Python 3.11 or higher, TaskGroupError
             # also inherits BaseExceptionGroup, so the standard except*
