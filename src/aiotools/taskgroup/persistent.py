@@ -39,7 +39,7 @@ async def _default_exc_handler(exc_type, exc_obj, exc_tb) -> None:
 class PersistentTaskGroup:
     _base_error: Optional[BaseException]
     _exc_handler: AsyncExceptionHandler
-    _tasks: "weakref.WeakSet[asyncio.Task]"
+    _tasks: set[asyncio.Task]
     _on_completed_fut: Optional[asyncio.Future]
     _current_taskgroup_token: Optional[Token["PersistentTaskGroup"]]
 
@@ -62,7 +62,7 @@ class PersistentTaskGroup:
         self._unfinished_tasks = 0
         self._on_completed_fut = None
         self._parent_task = compat.current_task()
-        self._tasks = weakref.WeakSet()
+        self._tasks = set()
         self._current_taskgroup_token = None
         _all_ptaskgroups.add(self)
         if exception_handler is None:
