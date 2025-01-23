@@ -398,7 +398,7 @@ async def test_ptaskgroup_error_in_exc_handlers():
             async with aiotools.PersistentTaskGroup(exception_handler=handler) as tg:
                 for _ in range(10):
                     tg.create_task(subtask())
-        except aitools.TaskGroupError:
+        except aiotools.TaskGroupError:
             assert False, "should not reach here"
 
         # Check if the event loop exception handler is called.

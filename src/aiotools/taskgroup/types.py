@@ -56,7 +56,7 @@ if not hasattr(builtins, "ExceptionGroup"):
 
 else:
 
-    class MultiError(ExceptionGroup):  # type: ignore[no-redef,name-defined]
+    class MultiError(ExceptionGroup):  # type: ignore[no-redef,name-defined]  # noqa: F821
         def __init__(self, msg, errors=()):
             super().__init__(msg, errors)
             self.__errors__ = errors
