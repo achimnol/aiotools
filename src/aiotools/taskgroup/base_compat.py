@@ -205,36 +205,39 @@ class TaskGroup:
                 t.cancel()
 
     def _on_task_done(self, task):
-        self._unfinished_tasks -= 1
-        assert self._unfinished_tasks >= 0
+        try:
+            self._unfinished_tasks -= 1
+            assert self._unfinished_tasks >= 0
 
-        if self._exiting and not self._unfinished_tasks:
-            if not self._on_completed_fut.done():
-                self._on_completed_fut.set_result(True)
+            if self._exiting and not self._unfinished_tasks:
+                if not self._on_completed_fut.done():
+                    self._on_completed_fut.set_result(True)
 
-        if task.cancelled():
-            return
+            if task.cancelled():
+                return
 
-        exc = task.exception()
-        if exc is None:
-            return
+            exc = task.exception()
+            if exc is None:
+                return
 
-        self._errors.append(exc)
-        if self._is_base_error(exc) and self._base_error is None:
-            self._base_error = exc
+            self._errors.append(exc)
+            if self._is_base_error(exc) and self._base_error is None:
+                self._base_error = exc
 
-        if self._parent_task.done():
-            # Not sure if this case is possible, but we want to handle
-            # it anyways.
-            self._loop.call_exception_handler({
-                "message": (
-                    f"Task {task!r} has errored out but its parent "
-                    f"task {self._parent_task} is already completed"
-                ),
-                "exception": exc,
-                "task": task,
-            })
-            return
+            if self._parent_task.done():
+                # Not sure if this case is possible, but we want to handle
+                # it anyways.
+                self._loop.call_exception_handler({
+                    "message": (
+                        f"Task {task!r} has errored out but its parent "
+                        f"task {self._parent_task} is already completed"
+                    ),
+                    "exception": exc,
+                    "task": task,
+                })
+                return
+        finally:
+            self._tasks.discard(task)
 
         self._abort()
         if not self._parent_task.__cancel_requested__:
