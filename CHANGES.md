@@ -16,6 +16,16 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.8.2 (2025-01-23)
+------------------
+
+### Features
+* Update and modernize the type annotations of the `taskgroup` module for Python 3.9 or later ([#73](https://github.com/achimnol/aiotools/issues/73))
+
+### Fixes
+* Track task references explicitly and discard them after their completion in taskgroups ([#60](https://github.com/achimnol/aiotools/issues/60))
+
+
 1.8.1 (2025-01-22)
 ------------------
 
