@@ -45,17 +45,14 @@ execution context without extra indentations.
    This behavior may be changed in the future versions, though.
 """
 
-from collections import deque
 import functools
 import inspect
-from typing import (
-    Union,
-    Awaitable,
-    Callable,
-)
+from collections import deque
+from typing import Awaitable, Callable, Union
 
 __all__ = (
-    'defer', 'adefer',
+    "defer",
+    "adefer",
 )
 
 
@@ -64,18 +61,21 @@ def defer(func):
     A synchronous version of the defer API.
     It can only defer normal functions.
     """
-    assert not inspect.iscoroutinefunction(func), \
-           'the decorated function must not be async'
+    assert not inspect.iscoroutinefunction(func), (
+        "the decorated function must not be async"
+    )
 
     @functools.wraps(func)
     def _wrapped(*args, **kwargs):
         deferreds = deque()
 
         def defer(f: Callable) -> None:
-            assert not inspect.iscoroutinefunction(f), \
-                   'the deferred function must not be async'
-            assert not inspect.iscoroutine(f), \
-                   'the deferred object must not be a coroutine'
+            assert not inspect.iscoroutinefunction(f), (
+                "the deferred function must not be async"
+            )
+            assert not inspect.iscoroutine(f), (
+                "the deferred object must not be a coroutine"
+            )
             deferreds.append(f)
 
         try:
@@ -93,8 +93,7 @@ def adefer(func):
     An asynchronous version of the defer API.
     It can defer coroutine functions, coroutines, and normal functions.
     """
-    assert inspect.iscoroutinefunction(func), \
-           'the decorated function must be async'
+    assert inspect.iscoroutinefunction(func), "the decorated function must be async"
 
     @functools.wraps(func)
     async def _wrapped(*args, **kwargs):

@@ -1,156 +1,76 @@
 """
 Provides an implementation of asynchronous context manager and its applications.
 
-.. note::
+.. versionchanged::
 
-   The async context managers in this module are transparent aliases to
-   ``contextlib.asynccontextmanager`` of the standard library in Python 3.7
-   and later.
+   As aiotools 1.7+ drops support for Python 3.7 or earlier, most attributes
+   are just aliases of the standard contextlib.
 """
 
-import abc
-import contextlib
 import asyncio
-import functools
-import inspect
-from typing import Any, Callable, Iterable, Optional, List
+import contextlib
+from contextvars import ContextVar
+from typing import (
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    TypeVar,
+)
+
+from .types import AClosable, AsyncClosable
 
 __all__ = [
-    'AsyncContextManager', 'async_ctx_manager', 'actxmgr',
-    'aclosing', 'closing_async',
-    'AsyncContextGroup', 'actxgroup',
+    "resetting",
+    "AsyncContextManager",
+    "async_ctx_manager",
+    "actxmgr",
+    "aclosing",
+    "closing_async",
+    "AsyncContextGroup",
+    "actxgroup",
 ]
 
-
-if hasattr(contextlib, 'asynccontextmanager'):
-    __all__ += ['AsyncExitStack']
-
-    AbstractAsyncContextManager = \
-        contextlib.AbstractAsyncContextManager
-    AsyncContextManager = \
-        contextlib._AsyncGeneratorContextManager     # type: ignore
-    AsyncExitStack = contextlib.AsyncExitStack
-    async_ctx_manager = contextlib.asynccontextmanager
-else:
-    __all__ += ['AsyncContextDecorator', 'actxdecorator']
-
-    class AbstractAsyncContextManager(abc.ABC):  # type: ignore
-        """
-        The base abstract interface for asynchronous context manager.
-        """
-
-        async def __aenter__(self):
-            return self  # pragma: no cover
-
-        @abc.abstractmethod
-        async def __aexit__(self, exc_type, exc_value, tb):
-            return None  # pragma: no cover
-
-        @classmethod
-        def __subclasshook__(cls, C):
-            if cls is AbstractAsyncContextManager:
-                if (any('__aenter__' in B.__dict__ for B in C.__mro__) and
-                    any('__aexit__' in B.__dict__ for B in C.__mro__)):
-                    return True
-            return NotImplemented
-
-    class AsyncContextDecorator:
-        """
-        Make an asynchronous context manager be used as a decorator function.
-        """
-
-        def _recreate_cm(self):
-            return self
-
-        def __call__(self, func):
-            @functools.wraps(func)
-            async def inner(*args, **kwargs):
-                async with self._recreate_cm():
-                    return (await func(*args, **kwargs))
-            return inner
-
-    actxdecorator = AsyncContextDecorator
-
-    class AsyncContextManager(AsyncContextDecorator,         # type: ignore
-                              AbstractAsyncContextManager):
-        """
-        Converts an async-generator function into asynchronous context manager.
-        """
-
-        def __init__(self, func: Callable[..., Any], args, kwargs):
-            if not inspect.isasyncgenfunction(func):
-                raise RuntimeError('Context manager function must be '
-                                   'an async-generator')
-            self._agen = func(*args, **kwargs)
-            self.func = func
-            self.args = args
-            self.kwargs = kwargs
-
-        def _recreate_cm(self):
-            return self.__class__(self.func, self.args, self.kwargs)
-
-        async def __aenter__(self):
-            try:
-                return (await self._agen.__anext__())
-            except StopAsyncIteration:
-                # The generator should yield at least once.
-                raise RuntimeError("async-generator didn't yield") from None
-
-        async def __aexit__(self, exc_type, exc_value, tb):
-            if exc_type is None:
-                # This is the normal path when the context body
-                # did not raise any exception.
-                try:
-                    await self._agen.__anext__()
-                except StopAsyncIteration:
-                    return
-                else:
-                    # The generator has already yielded,
-                    # no more yields are allowed.
-                    raise RuntimeError("async-generator didn't stop") from None
-            else:
-                # The context body has raised an exception.
-                if exc_value is None:
-                    # Ensure exc_value is a valid Exception.
-                    exc_value = exc_type()
-                try:
-                    # Throw the catched exception into the generator,
-                    # so that it can handle as it wants.
-                    await self._agen.athrow(exc_type, exc_value, tb)
-                    # Here the generator should have finished!
-                    # (i.e., it should not yield again in except/finally blocks!)
-                    raise RuntimeError("async-generator didn't stop after athrow()")
-                    # NOTE for PEP-479
-                    #   StopAsyncIteration raised inside the context body
-                    #   is converted to RuntimeError.
-                    #   In the standard library's contextlib.py, there is
-                    #   an extra except clause to catch StopIteration here,
-                    #   but this is unnecessary now.
-                except StopAsyncIteration as exc_new_value:
-                    return exc_new_value is not exc_value
-                except RuntimeError as exc_new_value:
-                    # When the context body did not catch the exception, re-raise.
-                    if exc_new_value is exc_value:
-                        return False
-                    # When the context body's exception handler raises
-                    # another chained exception, re-raise.
-                    if isinstance(exc_value, (StopIteration, StopAsyncIteration)):
-                        if exc_new_value.__cause__ is exc_value:
-                            return False
-                    # If this is a purely new exception, raise the new one.
-                    raise
-                except (BaseException, asyncio.CancelledError) as exc:
-                    if exc is not exc_value:
-                        raise
-
-    def async_ctx_manager(func):
-        @functools.wraps(func)
-        def helper(*args, **kwargs):
-            return AsyncContextManager(func, args, kwargs)
-        return helper
+T = TypeVar("T")
+T_AClosable = TypeVar("T_AClosable", bound=AClosable)
+T_AsyncClosable = TypeVar("T_AsyncClosable", bound=AsyncClosable)
 
 
-class aclosing:
+AbstractAsyncContextManager = contextlib.AbstractAsyncContextManager
+AsyncContextManager = contextlib._AsyncGeneratorContextManager
+AsyncExitStack = contextlib.AsyncExitStack
+async_ctx_manager = contextlib.asynccontextmanager
+
+
+class resetting(Generic[T]):
+    """
+    An extra context manager to auto-reset the given context variable.
+    It supports both the standard contextmanager protocol and the
+    async-contextmanager protocol.
+
+    .. versionadded:: 1.8.0
+    """
+
+    def __init__(self, ctxvar: ContextVar[T], value: T) -> None:
+        self._ctxvar = ctxvar
+        self._value = value
+
+    def __enter__(self) -> None:
+        self._token = self._ctxvar.set(self._value)
+
+    async def __aenter__(self) -> None:
+        self._token = self._ctxvar.set(self._value)
+
+    def __exit__(self, *exc_info) -> Optional[bool]:
+        self._ctxvar.reset(self._token)
+        return None
+
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
+        self._ctxvar.reset(self._token)
+        return None
+
+
+class aclosing(Generic[T_AClosable]):
     """
     An analogy to :func:`contextlib.closing` for async generators.
 
@@ -162,32 +82,34 @@ in-a-post-asyncawait-world/#cleanup-in-generators-and-async-generators
     * https://www.python.org/dev/peps/pep-0533/
     """
 
-    def __init__(self, thing):
+    def __init__(self, thing: T_AClosable) -> None:
         self.thing = thing
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> T_AClosable:
         return self.thing
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
         await self.thing.aclose()
+        return None
 
 
-class closing_async:
+class closing_async(Generic[T_AsyncClosable]):
     """
-    An analogy to :func:`contextlib.closing` for objects with ``close()``
-    methods as async functions.
+    An analogy to :func:`contextlib.closing` for objects defining the ``close()``
+    method as an async function.
 
     .. versionadded:: 1.5.6
     """
 
-    def __init__(self, thing):
+    def __init__(self, thing: T_AsyncClosable) -> None:
         self.thing = thing
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> T_AsyncClosable:
         return self.thing
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
         await self.thing.close()
+        return None
 
 
 class AsyncContextGroup:
@@ -229,8 +151,9 @@ class AsyncContextGroup:
 
     """
 
-    def __init__(self,
-                 context_managers: Optional[Iterable[AbstractAsyncContextManager]] = None):  # noqa
+    def __init__(
+        self, context_managers: Optional[Iterable[AbstractAsyncContextManager]] = None
+    ):  # noqa
         self._cm = list(context_managers) if context_managers else []
         self._cm_yields: List[asyncio.Task] = []
         self._cm_exits: List[asyncio.Task] = []
@@ -246,8 +169,8 @@ class AsyncContextGroup:
         # NOTE: There is no way to "skip" the context body even if the entering
         #       process fails.
         self._cm_yields[:] = await asyncio.gather(
-            *(e.__aenter__() for e in self._cm),
-            return_exceptions=True)
+            *(e.__aenter__() for e in self._cm), return_exceptions=True
+        )
         return self._cm_yields
 
     async def __aexit__(self, *exc_info):
@@ -255,8 +178,8 @@ class AsyncContextGroup:
         self._cm_yields.clear()
         # Exceptions are stored into _cm_exits list.
         self._cm_exits[:] = await asyncio.gather(
-            *(e.__aexit__(*exc_info) for e in self._cm),
-            return_exceptions=True)
+            *(e.__aexit__(*exc_info) for e in self._cm), return_exceptions=True
+        )
 
     def exit_states(self):
         """

@@ -1,9 +1,17 @@
+import asyncio
 import logging
 import os
-from typing import Set
+from typing import (
+    Any,
+    AsyncIterator,
+    Sequence,
+    Set,
+)
+
+import zmq
+import zmq.asyncio
 
 import aiotools
-import zmq, zmq.asyncio
 
 num_workers = 4
 
@@ -16,7 +24,8 @@ def get_logger(name: str, pid: int) -> logging.Logger:
     if name not in log_init_states:
         sh = logging.StreamHandler()
         fmt = logging.Formatter(
-            f'%(relativeCreated).3f %(name)s[{pid}] %(levelname)s: %(message)s')
+            f"%(relativeCreated).3f %(name)s[{pid}] %(levelname)s: %(message)s"
+        )
         sh.setFormatter(fmt)
         log.addHandler(sh)
         log.propagate = False
@@ -25,37 +34,45 @@ def get_logger(name: str, pid: int) -> logging.Logger:
     return log
 
 
-def router_main(_, pidx, args):
-    log = get_logger('examples.zmqserver.extra', pidx)
+def router_main(
+    loop: asyncio.AbstractEventLoop,
+    pidx: int,
+    args: Sequence[Any],
+) -> None:
+    log = get_logger("examples.zmqserver.extra", pidx)
     zctx = zmq.Context()
     zctx.linger = 0
     in_sock = zctx.socket(zmq.PULL)
-    in_sock.bind('tcp://*:5033')
+    in_sock.bind("tcp://*:5033")
     out_sock = zctx.socket(zmq.PUSH)
-    out_sock.bind('ipc://example-events')
+    out_sock.bind("ipc://example-events")
     try:
-        log.info('router proxy started')
+        log.info("router proxy started")
         zmq.proxy(in_sock, out_sock)
     except KeyboardInterrupt:
         pass
     except Exception:
-        log.exception('unexpected error')
+        log.exception("unexpected error")
     finally:
         for _ in range(num_workers):
-            out_sock.send(b'')  # sentinel
-        log.info('router proxy terminated')
+            out_sock.send(b"")  # sentinel
+        log.info("router proxy terminated")
         in_sock.close()
         out_sock.close()
         zctx.term()
-        os.unlink('example-events')
+        os.unlink("example-events")
 
 
-@aiotools.actxmgr
-async def worker_main(loop, pidx, args):
-    log = get_logger('examples.zmqserver.worker', pidx)
+@aiotools.server_context
+async def worker_main(
+    loop: asyncio.AbstractEventLoop,
+    pidx: int,
+    args: Sequence[Any],
+) -> AsyncIterator[None]:
+    log = get_logger("examples.zmqserver.worker", pidx)
     zctx = zmq.asyncio.Context()
     router = zctx.socket(zmq.PULL)
-    router.connect('ipc://example-events')
+    router.connect("ipc://example-events")
 
     async def process_incoming(router):
         while True:
@@ -65,7 +82,7 @@ async def worker_main(loop, pidx, args):
             log.info(data)
 
     task = loop.create_task(process_incoming(router))
-    log.info('started')
+    log.info("started")
 
     try:
         yield
@@ -73,15 +90,13 @@ async def worker_main(loop, pidx, args):
         await task
         router.close()
         zctx.term()
-        log.info('terminated')
+        log.info("terminated")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # This example must be run with multiprocessing.
-    server = aiotools.start_server(
+    aiotools.start_server(
         worker_main,
-        use_threading=False,
         num_workers=num_workers,
         extra_procs=[router_main],
-        start_method='spawn',
     )

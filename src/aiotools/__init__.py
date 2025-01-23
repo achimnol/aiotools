@@ -1,16 +1,16 @@
-import pkgutil
+from importlib.metadata import version
 
 # Import submodules only when installed properly
 from . import (
     context,
-    defer as _defer,
-    fork as _fork,
     func,
-    iter as _iter,
     server,
     taskgroup,
     timer,
 )
+from . import defer as _defer
+from . import fork as _fork
+from . import iter as _iter
 
 __all__ = (
     *context.__all__,
@@ -21,21 +21,21 @@ __all__ = (
     *server.__all__,
     *taskgroup.__all__,
     *timer.__all__,
-    '__version__',
+    "__version__",
+    # "@aiotools.server" still works,
+    # but server_context is provided to silence typecheckers.
+    "server_context",
 )
 
-from .context import *     # noqa
-from .defer import *       # noqa
-from .fork import *        # noqa
-from .func import *        # noqa
-from .iter import *        # noqa
-from .server import *      # noqa
-from .taskgroup import *   # noqa
-from .timer import *       # noqa
+from .context import *  # noqa
+from .defer import *  # noqa
+from .fork import *  # noqa
+from .func import *  # noqa
+from .iter import *  # noqa
+from .server import *  # noqa
+from .taskgroup import *  # noqa
+from .timer import *  # noqa
 
+server_context = server._server_ctxmgr
 
-_version_data = pkgutil.get_data("aiotools", "VERSION")
-if _version_data is None:
-    __version__ = '0.0.dev'
-else:
-    __version__ = _version_data.decode('utf8').strip()
+__version__ = version("aiotools")

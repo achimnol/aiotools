@@ -9,17 +9,17 @@ __pycache__/
 # Distribution / packaging
 .Python
 env/
-build/
-develop-eggs/
-dist/
-downloads/
+/build/
+/develop-eggs/
+/dist/
+/downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
-sdist/
-var/
+/sdist/
+/var/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -46,6 +46,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
 
 # Translations
 *.mo
@@ -91,9 +92,15 @@ ENV/
 # Rope project settings
 .ropeproject
 
-# Vim swaps
-.*.swp
+# Vim extras
+.exrc
 .swp
+.swo
+.*.swp
+.*.swo
+.vim/
+.zed/
+
 
 # macOS extras
 .DS_Store

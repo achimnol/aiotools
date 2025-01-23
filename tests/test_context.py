@@ -1,17 +1,62 @@
 import asyncio
 import sys
 import warnings
+from contextlib import suppress
+from contextvars import ContextVar
+
+import pytest
 
 import aiotools
-from aiotools.context import AbstractAsyncContextManager
-import pytest
+from aiotools.context import AbstractAsyncContextManager, resetting
+
+my_variable: ContextVar[int] = ContextVar("my_variable")
+
+
+def test_resetting_ctxvar():
+    with pytest.raises(LookupError):
+        my_variable.get()
+    with resetting(my_variable, 1):
+        assert my_variable.get() == 1
+        with resetting(my_variable, 2):
+            assert my_variable.get() == 2
+        assert my_variable.get() == 1
+    with pytest.raises(LookupError):
+        my_variable.get()
+
+    # should behave the same way even when an exception occurs
+    with suppress(RuntimeError):
+        with resetting(my_variable, 10):
+            assert my_variable.get() == 10
+            raise RuntimeError("oops")
+    with pytest.raises(LookupError):
+        my_variable.get()
+
+
+@pytest.mark.asyncio
+async def test_resetting_ctxvar_async():
+    with pytest.raises(LookupError):
+        my_variable.get()
+    async with resetting(my_variable, 1):
+        assert my_variable.get() == 1
+        async with resetting(my_variable, 2):
+            assert my_variable.get() == 2
+        assert my_variable.get() == 1
+    with pytest.raises(LookupError):
+        my_variable.get()
+
+    # should behave the same way even when an exception occurs
+    with suppress(RuntimeError):
+        async with resetting(my_variable, 10):
+            assert my_variable.get() == 10
+            raise RuntimeError("oops")
+    with pytest.raises(LookupError):
+        my_variable.get()
 
 
 def test_actxmgr_types():
-
     assert issubclass(aiotools.AsyncContextManager, AbstractAsyncContextManager)
 
-    class boilerplate_ctx():
+    class boilerplate_ctx:
         async def __aenter__(self):
             return self
 
@@ -32,7 +77,6 @@ def test_actxmgr_types():
 
 @pytest.mark.asyncio
 async def test_actxmgr(event_loop):
-
     step = 0
 
     @aiotools.actxmgr
@@ -49,41 +93,41 @@ async def test_actxmgr(event_loop):
             step = 4
 
     step = 0
-    async with simple_ctx('hello') as msg:
+    async with simple_ctx("hello") as msg:
         assert step == 2
-        assert msg == 'hello'
+        assert msg == "hello"
     assert step == 4
 
     step = 0
     try:
-        async with simple_ctx('world') as msg:
+        async with simple_ctx("world") as msg:
             assert step == 2
-            assert msg == 'world'
+            assert msg == "world"
             await asyncio.sleep(0)
-            raise ValueError('something wrong')
+            raise ValueError("something wrong")
     except Exception as e:
         await asyncio.sleep(0)
-        assert e.args[0] == 'something wrong'
+        assert e.args[0] == "something wrong"
         assert step == 4
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 7, 0),
-                    reason='Deprecated in Python 3.7 or higher')
+@pytest.mark.skipif(
+    sys.version_info >= (3, 7, 0), reason="Deprecated in Python 3.7 or higher"
+)
 @pytest.mark.asyncio
 async def test_actxmgr_reuse(event_loop):
-
     @aiotools.actxmgr
     async def simple_ctx(msg):
         yield msg
 
-    cm = simple_ctx('hello')
+    cm = simple_ctx("hello")
 
     async with cm as msg:
-        assert msg == 'hello'
+        assert msg == "hello"
 
     try:
         async with cm as msg:
-            assert msg == 'hello'
+            assert msg == "hello"
     except BaseException as exc:
         assert isinstance(exc, RuntimeError)
         assert "didn't yield" in exc.args[0]
@@ -91,12 +135,11 @@ async def test_actxmgr_reuse(event_loop):
     cm = cm._recreate_cm()
 
     async with cm as msg:
-        assert msg == 'hello'
+        assert msg == "hello"
 
 
 @pytest.mark.asyncio
 async def test_actxmgr_exception_in_context_body():
-
     # Exceptions raised in the context body
     # should be transparently raised.
 
@@ -107,31 +150,30 @@ async def test_actxmgr_exception_in_context_body():
         await asyncio.sleep(0)
 
     with pytest.raises(ZeroDivisionError):
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
             raise ZeroDivisionError
 
     try:
-        exc = RuntimeError('oops')
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
+        exc = RuntimeError("oops")
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
             raise exc
     except BaseException as e:
         assert e is exc
-        assert e.args[0] == 'oops'
+        assert e.args[0] == "oops"
     else:
         pytest.fail()
 
-    cm = simple_ctx('hello')
+    cm = simple_ctx("hello")
     ret = await cm.__aenter__()
-    assert ret == 'hello'
+    assert ret == "hello"
     ret = await cm.__aexit__(ValueError, None, None)
     assert not ret
 
 
 @pytest.mark.asyncio
 async def test_actxmgr_exception_in_initialization():
-
     # Any exception before first yield is just transparently
     # raised out to the context block.
 
@@ -144,14 +186,14 @@ async def test_actxmgr_exception_in_initialization():
         await asyncio.sleep(0)
 
     try:
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
     except ZeroDivisionError:
         pass
     else:
         pytest.fail()
 
-    exc = RuntimeError('oops')
+    exc = RuntimeError("oops")
 
     @aiotools.actxmgr
     async def simple_ctx(msg):
@@ -162,18 +204,17 @@ async def test_actxmgr_exception_in_initialization():
         await asyncio.sleep(0)
 
     try:
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
     except BaseException as e:
         assert e is exc
-        assert e.args[0] == 'oops'
+        assert e.args[0] == "oops"
     else:
         pytest.fail()
 
 
 @pytest.mark.asyncio
 async def test_actxmgr_exception_in_finalization():
-
     @aiotools.actxmgr
     async def simple_ctx(msg):
         await asyncio.sleep(0)
@@ -183,14 +224,14 @@ async def test_actxmgr_exception_in_finalization():
         await asyncio.sleep(0)
 
     try:
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
     except ZeroDivisionError:
         pass
     else:
         pytest.fail()
 
-    exc = RuntimeError('oops')
+    exc = RuntimeError("oops")
 
     @aiotools.actxmgr
     async def simple_ctx(msg):
@@ -198,18 +239,17 @@ async def test_actxmgr_exception_in_finalization():
         raise exc
 
     try:
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
     except BaseException as e:
         assert e is exc
-        assert e.args[0] == 'oops'
+        assert e.args[0] == "oops"
     else:
         pytest.fail()
 
 
 @pytest.mark.asyncio
 async def test_actxmgr_exception_uncaught():
-
     @aiotools.actxmgr
     async def simple_ctx(msg):
         await asyncio.sleep(0)
@@ -217,36 +257,34 @@ async def test_actxmgr_exception_uncaught():
         await asyncio.sleep(0)
 
     try:
-        async with simple_ctx('hello'):
-            raise IndexError('bomb')
+        async with simple_ctx("hello"):
+            raise IndexError("bomb")
     except BaseException as e:
         assert isinstance(e, IndexError)
-        assert e.args[0] == 'bomb'
+        assert e.args[0] == "bomb"
 
 
 @pytest.mark.asyncio
 async def test_actxmgr_exception_nested():
-
     @aiotools.actxmgr
     async def simple_ctx(msg):
         yield msg
 
     try:
-        async with simple_ctx('hello') as msg1:
-            async with simple_ctx('world') as msg2:
-                assert msg1 == 'hello'
-                assert msg2 == 'world'
-                raise IndexError('bomb1')
+        async with simple_ctx("hello") as msg1:
+            async with simple_ctx("world") as msg2:
+                assert msg1 == "hello"
+                assert msg2 == "world"
+                raise IndexError("bomb1")
     except BaseException as exc:
         assert isinstance(exc, IndexError)
-        assert 'bomb1' == exc.args[0]
+        assert "bomb1" == exc.args[0]
     else:
         pytest.fail()
 
 
 @pytest.mark.asyncio
 async def test_actxmgr_exception_chained():
-
     @aiotools.actxmgr
     async def simple_ctx(msg):
         try:
@@ -255,24 +293,23 @@ async def test_actxmgr_exception_chained():
         except Exception as e:
             await asyncio.sleep(0)
             # exception is chained
-            raise ValueError('bomb2') from e
+            raise ValueError("bomb2") from e
 
     try:
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
-            raise IndexError('bomb1')
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
+            raise IndexError("bomb1")
     except BaseException as exc:
         assert isinstance(exc, ValueError)
-        assert 'bomb2' == exc.args[0]
+        assert "bomb2" == exc.args[0]
         assert isinstance(exc.__cause__, IndexError)
-        assert 'bomb1' == exc.__cause__.args[0]
+        assert "bomb1" == exc.__cause__.args[0]
     else:
         pytest.fail()
 
 
 @pytest.mark.asyncio
 async def test_actxmgr_exception_replaced():
-
     @aiotools.actxmgr
     async def simple_ctx(msg):
         try:
@@ -281,15 +318,15 @@ async def test_actxmgr_exception_replaced():
         except Exception:
             await asyncio.sleep(0)
             # exception is replaced
-            raise ValueError('bomb2')
+            raise ValueError("bomb2")
 
     try:
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
-            raise IndexError('bomb1')
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
+            raise IndexError("bomb1")
     except BaseException as exc:
         assert isinstance(exc, ValueError)
-        assert 'bomb2' == exc.args[0]
+        assert "bomb2" == exc.args[0]
         assert exc.__cause__ is None
     else:
         pytest.fail()
@@ -297,7 +334,6 @@ async def test_actxmgr_exception_replaced():
 
 @pytest.mark.asyncio
 async def test_actxmgr_stopaiter(event_loop):
-
     @aiotools.actxmgr
     async def simple_ctx():
         await asyncio.sleep(0)
@@ -324,7 +360,7 @@ async def test_actxmgr_stopaiter(event_loop):
         finally:
             step = 2
             await asyncio.sleep(0)
-            raise StopAsyncIteration('x')
+            raise StopAsyncIteration("x")
 
     try:
         step = 0
@@ -339,7 +375,6 @@ async def test_actxmgr_stopaiter(event_loop):
 
 @pytest.mark.asyncio
 async def test_actxmgr_transparency(event_loop):
-
     step = 0
 
     @aiotools.actxmgr
@@ -352,7 +387,7 @@ async def test_actxmgr_transparency(event_loop):
         await asyncio.sleep(0)
 
     try:
-        exc = StopAsyncIteration('x')
+        exc = StopAsyncIteration("x")
         step = 0
         async with simple_ctx():
             assert step == 1
@@ -396,7 +431,7 @@ async def test_actxmgr_transparency(event_loop):
             await asyncio.sleep(0)
 
     try:
-        exc = StopAsyncIteration('x')
+        exc = StopAsyncIteration("x")
         step = 0
         async with simple_ctx():
             assert step == 1
@@ -435,7 +470,6 @@ async def test_actxmgr_transparency(event_loop):
 
 @pytest.mark.asyncio
 async def test_actxmgr_no_stop(event_loop):
-
     @aiotools.actxmgr
     async def simple_ctx(msg):
         await asyncio.sleep(0)
@@ -445,19 +479,19 @@ async def test_actxmgr_no_stop(event_loop):
         await asyncio.sleep(0)
 
     try:
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
     except RuntimeError as exc:
         assert "didn't stop" in exc.args[0]
     else:
         pytest.fail()
 
     try:
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
-            raise ValueError('oops')
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
+            raise ValueError("oops")
     except ValueError as exc:
-        assert exc.args[0] == 'oops'
+        assert exc.args[0] == "oops"
     else:
         pytest.fail()
 
@@ -471,9 +505,9 @@ async def test_actxmgr_no_stop(event_loop):
             yield msg
 
     try:
-        async with simple_ctx('hello') as msg:
-            assert msg == 'hello'
-            raise ValueError('oops')
+        async with simple_ctx("hello") as msg:
+            assert msg == "hello"
+            raise ValueError("oops")
     except RuntimeError as exc:
         assert "didn't stop after" in exc.args[0]
     else:
@@ -482,7 +516,6 @@ async def test_actxmgr_no_stop(event_loop):
 
 @pytest.mark.asyncio
 async def test_actxmgr_no_yield(event_loop):
-
     @aiotools.actxmgr
     async def no_yield_ctx1(msg):
         pass
@@ -491,7 +524,7 @@ async def test_actxmgr_no_yield(event_loop):
         warnings.simplefilter("ignore")
 
         try:
-            async with no_yield_ctx1('hello'):
+            async with no_yield_ctx1("hello"):
                 pass
         except RuntimeError as exc:
             assert "must be an async-gen" in exc.args[0]
@@ -503,15 +536,14 @@ async def test_actxmgr_no_yield(event_loop):
             pytest.fail()
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 7, 0),
-                    reason='Deprecated in Python 3.7 or higher')
+@pytest.mark.skipif(
+    sys.version_info >= (3, 7, 0), reason="Deprecated in Python 3.7 or higher"
+)
 @pytest.mark.asyncio
 async def test_actxdecorator(event_loop):
-
     step = 0
 
     class myacontext(aiotools.AsyncContextDecorator):
-
         async def __aenter__(self):
             nonlocal step
             step = 1
@@ -534,14 +566,14 @@ async def test_actxdecorator(event_loop):
     @myacontext()
     async def myfunc():
         assert step == 1
-        raise RuntimeError('oops')
+        raise RuntimeError("oops")
 
     step = 0
     assert step == 0
     try:
         await myfunc()
     except BaseException as e:
-        assert e.args[0] == 'oops'
+        assert e.args[0] == "oops"
         assert step == 2
     finally:
         assert step == 2
@@ -560,7 +592,6 @@ async def test_actxdecorator(event_loop):
 
 @pytest.mark.asyncio
 async def test_actxgroup(event_loop):
-
     # Test basic function.
     exit_count = 0
 
@@ -610,7 +641,6 @@ async def test_actxgroup(event_loop):
 
 @pytest.mark.asyncio
 async def test_actxgroup_exception_from_cm(event_loop):
-
     @aiotools.actxmgr
     async def ctx1(a):
         await asyncio.sleep(0)
@@ -654,7 +684,6 @@ async def test_actxgroup_exception_from_cm(event_loop):
 
 @pytest.mark.asyncio
 async def test_actxgroup_exception_from_body(event_loop):
-
     exit_count = 0
 
     @aiotools.actxmgr
@@ -680,7 +709,7 @@ async def test_actxgroup_exception_from_body(event_loop):
     exits = ctxgrp.exit_states()
     assert not exits[0]  # __aexit__ are called successfully
     assert not exits[1]
-    assert exit_count == 0   # but they errored internally
+    assert exit_count == 0  # but they errored internally
 
     exit_count = 0
 
@@ -708,12 +737,11 @@ async def test_actxgroup_exception_from_body(event_loop):
     exits = ctxgrp.exit_states()
     assert not exits[0]  # __aexit__ are called successfully
     assert not exits[1]
-    assert exit_count == 2   # they also suceeeded
+    assert exit_count == 2  # they also suceeeded
 
 
 @pytest.mark.asyncio
 async def test_aclosing(event_loop):
-
     finalized = False
 
     async def myiter():

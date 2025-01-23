@@ -1,3 +1,10 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+version_scheme = "release-branch-semver"
+
 [tool.towncrier]
 package = "aiotools"
 package_dir = "src"
@@ -39,3 +46,30 @@ underlines = ["-", "", ""]
     directory = "misc"
     name = "Miscellaneous"
     showcontent = true
+
+[tool.ruff]
+line-length = 88
+src = ["src"]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    # "C",  # flake8-comprehensions
+    # "B",  # flake8-bugbear
+]
+ignore = ["E203","E731","E501"]
+preview = true
+target-version = "py39"
+
+[tool.ruff.isort]
+known-first-party = ["aiotools"]
+known-local-folder = ["src"]
+split-on-trailing-comma = true
+
+[tool.ruff.per-file-ignores]
+"src/aiotools/taskgroup/__init__.py" = ["F405"]
+
+[tool.black]
+line-length = 88
+preview = true

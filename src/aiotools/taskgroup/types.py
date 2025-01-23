@@ -2,6 +2,7 @@ import builtins
 import textwrap
 import traceback
 from typing import Type
+
 try:
     from typing import Protocol
 except ImportError:
@@ -15,29 +16,28 @@ class AsyncExceptionHandler(Protocol):
     This is always called under exception context where
     :func:`sys.exc_info()` is available.
     """
+
     async def __call__(
         self,
         exc_type: Type[Exception],
         exc_obj: Exception,
         exc_tb: TracebackType,
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
-if not hasattr(builtins, 'ExceptionGroup'):
+if not hasattr(builtins, "ExceptionGroup"):
 
     class MultiError(Exception):  # type: ignore[no-redef]
-
         def __init__(self, msg, errors=()):
             if errors:
                 types = set(type(e).__name__ for e in errors)
-                msg = f'{msg}; {len(errors)} sub errors: ({", ".join(types)})'
+                msg = f"{msg}; {len(errors)} sub errors: ({', '.join(types)})"
                 for er in errors:
-                    msg += f'\n + {type(er).__name__}: {er}'
+                    msg += f"\n + {type(er).__name__}: {er}"
                     if er.__traceback__:
-                        er_tb = ''.join(traceback.format_tb(er.__traceback__))
-                        er_tb = textwrap.indent(er_tb, ' | ')
-                        msg += f'\n{er_tb}\n'
+                        er_tb = "".join(traceback.format_tb(er.__traceback__))
+                        er_tb = textwrap.indent(er_tb, " | ")
+                        msg += f"\n{er_tb}\n"
             super().__init__(msg)
             self.__errors__ = tuple(errors)
 
@@ -45,18 +45,18 @@ if not hasattr(builtins, 'ExceptionGroup'):
             return {type(e) for e in self.__errors__}
 
         def __reduce__(self):
-            return (type(self), (self.args,), {'__errors__': self.__errors__})
+            return (type(self), (self.args,), {"__errors__": self.__errors__})
 
     class TaskGroupError(MultiError):  # type: ignore[no-redef]
         """
         An alias to :exc:`MultiError`.
         """
+
         pass
 
 else:
 
-    class MultiError(ExceptionGroup):  # type: ignore[no-redef]
-
+    class MultiError(ExceptionGroup):  # type: ignore[no-redef,name-defined]
         def __init__(self, msg, errors=()):
             super().__init__(msg, errors)
             self.__errors__ = errors

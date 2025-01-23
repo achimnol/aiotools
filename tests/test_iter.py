@@ -39,7 +39,6 @@ def test_iter_sentinel():
 
 @pytest.mark.asyncio
 async def test_aiter():
-
     async def stream():
         for i in range(10):
             yield i
@@ -53,7 +52,6 @@ async def test_aiter():
 
 @pytest.mark.asyncio
 async def test_aiter_with_sentinel():
-
     _call_count = 0
     _sentinel = 5
 
@@ -72,7 +70,6 @@ async def test_aiter_with_sentinel():
 
 @pytest.mark.asyncio
 async def test_aiter_with_null_sentinel():
-
     _call_count = 0
     _sentinel = 3
 

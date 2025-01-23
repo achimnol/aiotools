@@ -3,61 +3,6 @@ name: default
 on: [push, pull_request]
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11"]
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-        cache: "pip"
-        cache-dependency-path: |
-          setup.cfg
-          requirements/lint.txt
-    - name: Install dependencies
-      run: |
-        python -m pip install -U pip setuptools wheel
-        python -m pip install -U -r requirements/lint.txt
-    - name: Lint with flake8
-      run: |
-        if [ "$GITHUB_EVENT_NAME" == "pull_request" -a -n "$GITHUB_HEAD_REF" ]; then
-          echo "(skipping matchers for pull request from local branches)"
-        else
-          echo "::add-matcher::.github/workflows/flake8-matcher.json"
-        fi
-        python -m flake8 src/aiotools tests
-
-  typecheck:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11"]
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-        cache: "pip"
-        cache-dependency-path: |
-          setup.cfg
-          requirements/typecheck.txt
-    - name: Install dependencies
-      run: |
-        python -m pip install -U pip setuptools wheel
-        python -m pip install -U -r requirements/typecheck.txt
-    - name: Type check with mypy
-      run: |
-        if [ "$GITHUB_EVENT_NAME" == "pull_request" -a -n "$GITHUB_HEAD_REF" ]; then
-          echo "(skipping matchers for pull request from local branches)"
-        else
-          echo "::add-matcher::.github/workflows/mypy-matcher.json"
-        fi
-        python -m mypy --no-color-output src/aiotools tests
 
   test:
     runs-on: ubuntu-latest
@@ -65,11 +10,16 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
+        python-version:
+        - "3.9"
+        - "3.10"
+        - "3.11"
+        - "3.12"
+        - "3.13"
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
         cache: "pip"
@@ -80,24 +30,6 @@ jobs:
       run: |
         python -m pip install -U pip setuptools wheel
         python -m pip install -U -r requirements/test.txt
-    - name: Prepare testing
-      run: |
-        mkdir -p /tmp/etcd
-        docker run -d -p 2379:2379 -p 2380:2380 \
-         -v /tmp/etcd:/etcd-data \
-         --name backendai-etcd \
-         quay.io/coreos/etcd:v3.4.1 \
-         /usr/local/bin/etcd \
-         --name backendai-etcd \
-         --data-dir /etcd-data \
-         --listen-client-urls http://0.0.0.0:2379 \
-         --advertise-client-urls http://0.0.0.0:2379 \
-         --listen-peer-urls http://0.0.0.0:2380 \
-         --initial-advertise-peer-urls http://0.0.0.0:2380 \
-         --initial-cluster backendai-etcd=http://0.0.0.0:2380 \
-         --initial-cluster-token backendai-etcd-token \
-         --initial-cluster-state new \
-         --auto-compaction-retention 1
     - name: Test with pytest
       timeout-minutes: 3
       run: |
@@ -107,29 +39,39 @@ jobs:
       with:
         env_vars: GHA_OS,GHA_PYTHON
 
-  deploy-to-pypi:
-    needs: [lint, typecheck, test]
-    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+  required-checks:
+    if: always()
+    needs: [test]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v3
+    - name: Decide whether the needed jobs succeeded or failed
+      uses: re-actors/alls-green@release/v1
       with:
-        python-version: "3.10"
+        jobs: ${{ toJSON(needs) }}
+
+  deploy-to-pypi:
+    needs: [test]
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    environment: deploy-to-pypi
+    permissions:
+      id-token: write
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
         cache: "pip"
         cache-dependency-path: |
           requirements/build.txt
     - name: Install dependencies
-      env:
-        REQUIREMENTS_FILE: build
       run: |
-        python -m pip install -U pip setuptools wheel
+        python -m pip install -U pip setuptools
         pip install -U -r requirements/build.txt
-    - name: Build and publish
-      env:
-        TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+    - name: Build sdist and wheel
       run: |
-        python setup.py sdist bdist_wheel
-        twine upload dist/*
+        python -m build -s -w
+    - name: Publish
+      uses: pypa/gh-action-pypi-publish@release/v1

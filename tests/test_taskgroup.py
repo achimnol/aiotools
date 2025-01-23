@@ -4,23 +4,18 @@ import warnings
 
 import pytest
 
-from aiotools import (
-    TaskGroup,
-    TaskGroupError,
-    VirtualClock,
-)
+from aiotools import TaskGroup, TaskGroupError, VirtualClock
 
 
 @pytest.mark.asyncio
 async def test_taskgroup_naming():
-
     async def subtask():
         pass
 
     async with TaskGroup(name="XYZ") as tg:
         t = tg.create_task(subtask(), name="ABC")
         assert tg.get_name() == "XYZ"
-        if hasattr(t, 'get_name'):
+        if hasattr(t, "get_name"):
             assert t.get_name() == "ABC"
 
 
@@ -28,24 +23,23 @@ async def test_taskgroup_naming():
 async def test_delayed_subtasks():
     with VirtualClock().patch_loop():
         async with TaskGroup() as tg:
-            t1 = tg.create_task(asyncio.sleep(3, 'a'))
-            t2 = tg.create_task(asyncio.sleep(2, 'b'))
-            t3 = tg.create_task(asyncio.sleep(1, 'c'))
+            t1 = tg.create_task(asyncio.sleep(3, "a"))
+            t2 = tg.create_task(asyncio.sleep(2, "b"))
+            t3 = tg.create_task(asyncio.sleep(1, "c"))
         assert t1.done()
         assert t2.done()
         assert t3.done()
-        assert t1.result() == 'a'
-        assert t2.result() == 'b'
-        assert t3.result() == 'c'
+        assert t1.result() == "a"
+        assert t2.result() == "b"
+        assert t3.result() == "c"
 
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(
     sys.version_info < (3, 7),
-    reason='contextvars is available only in Python 3.7 or later',
+    reason="contextvars is available only in Python 3.7 or later",
 )
 async def test_contextual_taskgroup():
-
     from aiotools import current_taskgroup
 
     refs = []
@@ -72,12 +66,11 @@ async def test_contextual_taskgroup():
 
 @pytest.mark.skipif(
     sys.version_info < (3, 7),
-    reason='contextvars is available only in Python 3.7 or later',
+    reason="contextvars is available only in Python 3.7 or later",
 )
-@pytest.mark.filterwarnings('ignore::RuntimeWarning')
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
 @pytest.mark.asyncio
 async def test_contextual_taskgroup_spawning():
-
     from aiotools import current_taskgroup
 
     total_jobs = 0
@@ -98,7 +91,6 @@ async def test_contextual_taskgroup_spawning():
             tg.create_task(job())
 
     with VirtualClock().patch_loop():
-
         total_jobs = 0
         async with TaskGroup() as tg:
             t = tg.create_task(spawn_job())
@@ -130,24 +122,23 @@ async def test_taskgroup_cancellation():
 
         with pytest.raises(asyncio.CancelledError):
             async with TaskGroup() as tg:
-                t1 = tg.create_task(do_job(0.3, 'a'))
-                t2 = tg.create_task(do_job(0.6, 'b'))
+                t1 = tg.create_task(do_job(0.3, "a"))
+                t2 = tg.create_task(do_job(0.6, "b"))
                 await asyncio.sleep(0.5)
                 raise asyncio.CancelledError
 
         assert t1.done()
         assert t2.cancelled()
-        assert t1.result() == 'a'
+        assert t1.result() == "a"
 
 
 @pytest.mark.asyncio
 async def test_subtask_cancellation():
-
     results = []
 
     async def do_job():
         await asyncio.sleep(1)
-        results.append('a')
+        results.append("a")
 
     async def do_cancel():
         await asyncio.sleep(0.5)
@@ -161,25 +152,20 @@ async def test_subtask_cancellation():
         assert t1.done()
         assert t2.cancelled()
         assert t3.done()
-        assert results == ['a', 'a']
+        assert results == ["a", "a"]
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "cancel_msg",
-    (
-        ["MISSING", None, "msg"]
-        if sys.version_info >= (3, 9, 0)
-        else ["MISSING"]
-    ),
+    (["MISSING", None, "msg"] if sys.version_info >= (3, 9, 0) else ["MISSING"]),
 )
 async def test_cancel_parent_task(cancel_msg):
-
     results = []
 
     async def do_job():
         await asyncio.sleep(1)
-        results.append('a')
+        results.append("a")
 
     async def parent():
         async with TaskGroup() as tg:
@@ -198,13 +184,11 @@ async def test_cancel_parent_task(cancel_msg):
 
 @pytest.mark.asyncio
 async def test_taskgroup_distinguish_inner_error_and_outer_cancel():
-
     async def do_error():
         await asyncio.sleep(0.5)
         raise ValueError("bad stuff")
 
     with VirtualClock().patch_loop():
-
         with pytest.raises(TaskGroupError) as eg:
             async with TaskGroup() as tg:
                 t1 = tg.create_task(do_error())
@@ -228,19 +212,19 @@ async def test_taskgroup_error():
 
         async def do_job(delay, result):
             await asyncio.sleep(delay)
-            if result == 'x':
-                raise ZeroDivisionError('oops')
+            if result == "x":
+                raise ZeroDivisionError("oops")
             else:
                 return 99
 
         with pytest.raises(TaskGroupError) as e:
             async with TaskGroup() as tg:
-                t1 = tg.create_task(do_job(0.3, 'a'))
-                t2 = tg.create_task(do_job(0.5, 'x'))
-                t3 = tg.create_task(do_job(0.7, 'a'))
+                t1 = tg.create_task(do_job(0.3, "a"))
+                t2 = tg.create_task(do_job(0.5, "x"))
+                t3 = tg.create_task(do_job(0.7, "a"))
 
         assert len(e.value.__errors__) == 1
-        assert type(e.value.__errors__[0]).__name__ == 'ZeroDivisionError'
+        assert type(e.value.__errors__[0]).__name__ == "ZeroDivisionError"
 
         assert t1.done()
         assert await t1 == 99
@@ -252,7 +236,7 @@ async def test_taskgroup_error():
             await t2
         with pytest.raises(ZeroDivisionError):
             t2.result()
-        assert type(t2.exception()).__name__ == 'ZeroDivisionError'
+        assert type(t2.exception()).__name__ == "ZeroDivisionError"
 
         assert t3.cancelled()
 
@@ -260,16 +244,15 @@ async def test_taskgroup_error():
 @pytest.mark.asyncio
 async def test_taskgroup_error_weakref():
     with VirtualClock().patch_loop():
-
         results = []
 
         async def do_job(delay, result):
             await asyncio.sleep(delay)
-            if result == 'x':
-                results.append('x')
-                raise ZeroDivisionError('oops')
+            if result == "x":
+                results.append("x")
+                raise ZeroDivisionError("oops")
             else:
-                results.append('o')
+                results.append("o")
                 return 99
 
         with pytest.raises(TaskGroupError) as e:
@@ -277,20 +260,18 @@ async def test_taskgroup_error_weakref():
                 # We don't keep the reference to the tasks,
                 # but they should behave the same way
                 # regardless of usage of WeakSet in the implementation.
-                tg.create_task(do_job(0.3, 'a'))
-                tg.create_task(do_job(0.5, 'x'))
-                tg.create_task(do_job(0.7, 'a'))
+                tg.create_task(do_job(0.3, "a"))
+                tg.create_task(do_job(0.5, "x"))
+                tg.create_task(do_job(0.7, "a"))
 
         assert len(e.value.__errors__) == 1
-        assert type(e.value.__errors__[0]).__name__ == 'ZeroDivisionError'
-        assert results == ['o', 'x']
+        assert type(e.value.__errors__[0]).__name__ == "ZeroDivisionError"
+        assert results == ["o", "x"]
 
 
 @pytest.mark.asyncio
 async def test_taskgroup_memoryleak_with_persistent_tg():
-
-    with VirtualClock().patch_loop(), \
-         warnings.catch_warnings():
+    with VirtualClock().patch_loop(), warnings.catch_warnings():
         warnings.simplefilter("ignore")
 
         async def do_job(delay):

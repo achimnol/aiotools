@@ -1,11 +1,12 @@
-from pprint import pprint
 import asyncio
+from pprint import pprint
+
 import aiotools
 
 
 @aiotools.actxmgr
 async def mygen(id):
-    yield f'mygen id is {id}'
+    yield f"mygen id is {id}"
 
 
 async def run():
@@ -14,7 +15,7 @@ async def run():
         pprint(values)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
