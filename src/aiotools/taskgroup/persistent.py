@@ -103,7 +103,7 @@ class PersistentTaskGroup:
         coro: Coroutine[Any, Any, T_co] | Awaitable[T_co],
         *,
         name: Optional[str] = None,
-        cb: Callable[[asyncio.Task[None]], Any],
+        cb: Callable[[asyncio.Task[Any]], None],
     ) -> asyncio.Future[T_co]:
         loop = compat.get_running_loop()
         result_future = loop.create_future()
@@ -199,7 +199,7 @@ class PersistentTaskGroup:
         finally:
             del fut
 
-    def _on_task_done(self, task: asyncio.Task[None]) -> None:
+    def _on_task_done(self, task: asyncio.Task[Any]) -> None:
         self._unfinished_tasks -= 1
         assert self._unfinished_tasks >= 0
         assert self._parent_task is not None
