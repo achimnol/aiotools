@@ -6,7 +6,7 @@ aiotools
 [![CI Status](https://github.com/achimnol/aiotools/actions/workflows/default.yml/badge.svg)](https://github.com/achimnol/aiotools/actions/workflows/default.yml)
 [![Code Coverage](https://codecov.io/gh/achimnol/aiotools/branch/master/graph/badge.svg)](https://codecov.io/gh/achimnol/aiotools)
 
-Idiomatic asyncio utilties
+Idiomatic asyncio utilities
 
 *NOTE:* This project is under early stage of development. The public APIs may break version by version.
 
