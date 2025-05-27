@@ -11,8 +11,11 @@ so that the users may assume that the child process is completely interruptible 
 import asyncio
 import errno
 import logging
+import multiprocessing
+import multiprocessing.connection
 import os
 import signal
+import traceback
 from abc import ABCMeta, abstractmethod
 from typing import Callable, Tuple
 
@@ -189,69 +192,71 @@ class PidfdChildProcess(AbstractChildProcess):
         return self._returncode
 
 
-def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
-    if init_func is not None:
-        init_func()
-    # notify the parent that the child is ready to execute the requested function.
-    os.write(init_pipe, b"\0")
-    os.close(init_pipe)
-    return child_func()
+def _child_main(
+    write_pipe: multiprocessing.connection.Connection,
+    child_func: Callable[[], int],
+) -> int:
+    ret = -255
+    try:
+        # notify the parent that the child is ready to execute the requested function.
+        write_pipe.send_bytes(b"\0")
+        write_pipe.close()
+        ret = child_func()
+    except KeyboardInterrupt:
+        ret = -signal.SIGINT
+    except SystemExit:
+        ret = -signal.SIGTERM
+    except Exception:
+        traceback.print_exc()
+    finally:
+        os._exit(ret)
+    return ret
 
 
 async def _fork_posix(child_func: Callable[[], int]) -> int:
     loop = get_running_loop()
-    init_pipe = os.pipe()
 
-    pid = os.fork()
-    if pid == 0:
-        os.close(init_pipe[0])
-        ret = 0
-        try:
-            ret = _child_main(None, init_pipe[1], child_func)
-        except KeyboardInterrupt:
-            ret = -signal.SIGINT
-        finally:
-            os._exit(ret)
-        return ret
-    os.close(init_pipe[1])
+    read_pipe, write_pipe = multiprocessing.Pipe()
+    proc = multiprocessing.Process(
+        target=_child_main,
+        args=(write_pipe, child_func),
+        daemon=True,
+    )
+    proc.start()
+    assert proc.pid is not None
+    pid = proc.pid
 
     # Wait for the child's readiness notification
     init_event = asyncio.Event()
-    loop.add_reader(init_pipe[0], init_event.set)
+    loop.add_reader(read_pipe.fileno(), init_event.set)
     await init_event.wait()
-    loop.remove_reader(init_pipe[0])
-    os.read(init_pipe[0], 1)
-    os.close(init_pipe[0])
+    loop.remove_reader(read_pipe.fileno())
+    read_pipe.recv_bytes(1)
+    read_pipe.close()
     return pid
 
 
 async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     loop = get_running_loop()
-    init_pipe = os.pipe()
 
-    pid = os.fork()
-    if pid == 0:
-        os.close(init_pipe[0])
-        ret = 0
-        try:
-            ret = _child_main(None, init_pipe[1], child_func)
-        except KeyboardInterrupt:
-            ret = -signal.SIGINT
-        finally:
-            os._exit(ret)
-        return ret
-    os.close(init_pipe[1])
-
-    # Get the pidfd.
+    read_pipe, write_pipe = multiprocessing.Pipe()
+    proc = multiprocessing.Process(
+        target=_child_main,
+        args=(write_pipe, child_func),
+        daemon=True,
+    )
+    proc.start()
+    assert proc.pid is not None
+    pid = proc.pid
     fd = os.pidfd_open(pid, 0)  # type: ignore
 
     # Wait for the child's readiness notification
     init_event = asyncio.Event()
-    loop.add_reader(init_pipe[0], init_event.set)
+    loop.add_reader(read_pipe.fileno(), init_event.set)
     await init_event.wait()
-    loop.remove_reader(init_pipe[0])
-    os.read(init_pipe[0], 1)
-    os.close(init_pipe[0])
+    loop.remove_reader(read_pipe.fileno())
+    read_pipe.recv_bytes(1)
+    read_pipe.close()
     return pid, fd
 
 
