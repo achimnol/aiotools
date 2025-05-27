@@ -6,7 +6,7 @@ aiotools
 ![Test Status](https://github.com/achimnol/aiotools/workflows/Test%20with%20pytest/badge.svg)
 [![Code Coverage](https://codecov.io/gh/achimnol/aiotools/branch/master/graph/badge.svg)](https://codecov.io/gh/achimnol/aiotools)
 
-Idiomatic asyncio utilties
+Idiomatic asyncio utilities
 
 *NOTE:* This project is under early stage of development. The public APIs may break version by version.
 
