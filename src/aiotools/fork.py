@@ -216,8 +216,9 @@ def _child_main(
 async def _fork_posix(child_func: Callable[[], int]) -> int:
     loop = get_running_loop()
 
-    read_pipe, write_pipe = multiprocessing.Pipe()
-    proc = multiprocessing.Process(
+    mp = multiprocessing.get_context("spawn")
+    read_pipe, write_pipe = mp.Pipe()
+    proc = mp.Process(
         target=_child_main,
         args=(write_pipe, child_func),
         daemon=True,
@@ -239,8 +240,9 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
 async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     loop = get_running_loop()
 
-    read_pipe, write_pipe = multiprocessing.Pipe()
-    proc = multiprocessing.Process(
+    mp = multiprocessing.get_context("spawn")
+    read_pipe, write_pipe = mp.Pipe()
+    proc = mp.Process(
         target=_child_main,
         args=(write_pipe, child_func),
         daemon=True,
