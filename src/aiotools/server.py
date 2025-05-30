@@ -28,7 +28,7 @@ import functools
 import inspect
 import logging
 import multiprocessing as mp
-import multiprocessing.connection as mpc
+import multiprocessing.connection as mpconn
 import os
 import signal
 import struct
@@ -41,7 +41,7 @@ from typing import Any, Optional
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
-from .fork import AbstractChildProcess, _has_pidfd, afork
+from .fork import AbstractChildProcess, MPContext, _has_pidfd, afork
 
 __all__ = (
     "main",
@@ -272,7 +272,7 @@ def _worker_main(
         AsyncServerContextManager,
     ],
     stop_signals: Collection[signal.Signals],
-    intr_write_pipe: mpc.Connection,
+    intr_write_pipe: mpconn.Connection,
     proc_idx: int,
     args: Sequence[Any],
 ) -> int:
@@ -387,7 +387,9 @@ def start_server(
     stop_signals: Collection[signal.Signals] = (signal.SIGINT, signal.SIGTERM),
     num_workers: int = 1,
     args: Sequence[Any] = tuple(),
+    *,
     wait_timeout: Optional[float] = None,
+    mp_context: Optional[MPContext] = None,
 ) -> None:
     """
     Starts a multi-process server where each process has their own individual
@@ -446,6 +448,10 @@ def start_server(
                       remaining child processes after sending initial stop
                       signals.
 
+        mp_context: The multiprocessing context to use for creating child
+                    processes.  If not specified, the default context is
+                    used.
+
     Returns:
         None
 
@@ -500,6 +506,10 @@ def start_server(
     .. versionadded:: 1.5.5
 
        The **wait_timeout** argument.
+
+    .. versionadded:: 1.9.0
+
+        The **mp_context** argument.
     """
 
     @_main_ctxmgr
@@ -556,7 +566,7 @@ def start_server(
 
     # build a reliable worker-to-main interrupt channel using a pipe
     # (workers have no idea whether the main interrupt is enabled/disabled)
-    def handle_child_interrupt(read_pipe: mpc.Connection) -> None:
+    def handle_child_interrupt(read_pipe: mpconn.Connection) -> None:
         child_idx = struct.unpack("i", read_pipe.recv_bytes(4))[0]  # noqa
         log.debug(f"Child {child_idx} has interrupted the main program.")
         # self-interrupt to initiate the main-to-worker interrupts
@@ -586,7 +596,8 @@ def start_server(
                             write_pipe,
                             i,
                             (*main_args, *args),
-                        )
+                        ),
+                        mp_context=mp_context,
                     )
                 )
             except RuntimeError as e:
@@ -611,7 +622,8 @@ def start_server(
                             stop_signals,
                             num_workers + i,
                             (*main_args, *args),
-                        )
+                        ),
+                        mp_context=mp_context,
                     )
                 )
             except RuntimeError as e:

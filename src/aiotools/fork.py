@@ -223,11 +223,11 @@ def _child_main(
 
 async def _fork_posix(
     child_func: Callable[[], int],
-    mp_ctx: MPContext,
+    mp_context: MPContext,
 ) -> int:
     loop = get_running_loop()
-    read_pipe, write_pipe = mp_ctx.Pipe()
-    proc = mp_ctx.Process(
+    read_pipe, write_pipe = mp_context.Pipe()
+    proc = mp_context.Process(
         target=_child_main,
         args=(write_pipe, child_func),
         daemon=True,
@@ -248,11 +248,11 @@ async def _fork_posix(
 
 async def _clone_pidfd(
     child_func: Callable[[], int],
-    mp_ctx: MPContext,
+    mp_context: MPContext,
 ) -> Tuple[int, int]:
     loop = get_running_loop()
-    read_pipe, write_pipe = mp_ctx.Pipe()
-    proc = mp_ctx.Process(
+    read_pipe, write_pipe = mp_context.Pipe()
+    proc = mp_context.Process(
         target=_child_main,
         args=(write_pipe, child_func),
         daemon=True,
@@ -289,11 +289,16 @@ async def afork(
                     wants to run asyncio codes.
         mp_context: The multiprocessing context to use. If not provided, the default
                     context will be used.
+
+    .. versionadded:: 1.9.0
+
+        The argument ``mp_context``.
     """
-    mp_ctx = mp.get_context() if mp_context is None else mp_context
+    if mp_context is None:
+        mp_context = mp.get_context()
     if _has_pidfd:
-        pid, pidfd = await _clone_pidfd(child_func, mp_ctx)
+        pid, pidfd = await _clone_pidfd(child_func, mp_context)
         return PidfdChildProcess(pid, pidfd)
     else:
-        pid = await _fork_posix(child_func, mp_ctx)
+        pid = await _fork_posix(child_func, mp_context)
         return PosixChildProcess(pid)
