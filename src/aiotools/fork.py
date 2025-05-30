@@ -287,6 +287,8 @@ async def afork(
                     returns an integer as its exit code.
                     Note that the function must set up a new event loop if it
                     wants to run asyncio codes.
+        mp_context: The multiprocessing context to use. If not provided, the default
+                    context will be used.
     """
     mp_ctx = mp.get_context() if mp_context is None else mp_context
     if _has_pidfd:
