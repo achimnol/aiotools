@@ -35,15 +35,18 @@ import struct
 import sys
 import threading
 from collections.abc import (
-    AsyncIterator,
     Callable,
     Collection,
-    Iterator,
+    Generator,
+    Mapping,
     Sequence,
 )
 from contextlib import AbstractContextManager, ContextDecorator
 from contextvars import ContextVar
-from typing import Any, Optional
+from types import TracebackType
+from typing import Any, Optional, ParamSpec, TypeVar
+
+from typing_extensions import AsyncGenerator
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
@@ -62,6 +65,9 @@ log = logging.getLogger(__name__)
 
 process_index: ContextVar[int] = ContextVar("process_index")
 
+TYield = TypeVar("TYield")
+PArgs = ParamSpec("PArgs")
+
 
 class InterruptedBySignal(BaseException):
     """
@@ -78,7 +84,7 @@ class InterruptedBySignal(BaseException):
     pass
 
 
-class AsyncServerContextManager(AbstractAsyncContextManager):
+class AsyncServerContextManager(AbstractAsyncContextManager[TYield]):
     """
     A modified version of :func:`contextlib.asynccontextmanager`.
 
@@ -89,7 +95,12 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
 
     yield_return: Optional[signal.Signals]
 
-    def __init__(self, func: Callable[..., Any], args, kwargs):
+    def __init__(
+        self,
+        func: Callable[..., AsyncGenerator[Any, signal.Signals]],
+        args: Sequence[Any],
+        kwargs: Mapping[str, Any],
+    ) -> None:
         if not inspect.isasyncgenfunction(func):
             raise RuntimeError("Context manager function must be an async-generator")
         self._agen = func(*args, **kwargs)
@@ -98,26 +109,33 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
         self.kwargs = kwargs
         self.yield_return = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> TYield:
         try:
             return await self._agen.__anext__()
         except StopAsyncIteration:
             raise RuntimeError("async-generator didn't yield") from None
 
-    async def __aexit__(self, exc_type, exc_value, tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+        /,
+    ) -> Optional[bool]:
         if exc_type is None:
+            assert self.yield_return is not None
             try:
                 # Here is the modified part.
                 await self._agen.asend(self.yield_return)
             except StopAsyncIteration:
-                return
+                return None
             else:
                 raise RuntimeError("async-generator didn't stop") from None
         else:
             if exc_value is None:
                 exc_value = exc_type()
             try:
-                await self._agen.athrow(exc_type, exc_value, tb)
+                await self._agen.athrow(exc_type, exc_value, traceback)
                 raise RuntimeError("async-generator didn't stop after athrow()")
             except StopAsyncIteration as exc_new_value:
                 return exc_new_value is not exc_value
@@ -131,9 +149,10 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
             except (BaseException, asyncio.CancelledError) as exc:
                 if exc is not exc_value:
                     raise
+        return None
 
 
-class ServerMainContextManager(AbstractContextManager, ContextDecorator):
+class ServerMainContextManager(AbstractContextManager[TYield], ContextDecorator):
     """
     A modified version of :func:`contextlib.contextmanager`.
 
@@ -144,22 +163,34 @@ class ServerMainContextManager(AbstractContextManager, ContextDecorator):
 
     yield_return: Optional[signal.Signals]
 
-    def __init__(self, func, args, kwargs):
+    def __init__(
+        self,
+        func: Callable[..., Generator[Any, signal.Signals]],
+        args: Sequence[Any],
+        kwargs: Mapping[str, Any],
+    ) -> None:
         self.gen = func(*args, **kwargs)
         self.func = func
         self.args = args
         self.kwargs = kwargs
         self.yield_return = None
 
-    def __enter__(self):
+    def __enter__(self) -> TYield:
         del self.args, self.kwargs, self.func
         try:
             return next(self.gen)
         except StopIteration:
             raise RuntimeError("generator didn't yield") from None
 
-    def __exit__(self, type, value, traceback):
-        if type is None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+        /,
+    ) -> Optional[bool]:
+        if exc_type is None:
+            assert self.yield_return is not None
             try:
                 self.gen.send(self.yield_return)
             except StopIteration:
@@ -167,23 +198,24 @@ class ServerMainContextManager(AbstractContextManager, ContextDecorator):
             else:
                 raise RuntimeError("generator didn't stop")
         else:
-            if value is None:
-                value = type()
+            if exc_value is None:
+                exc_value = exc_type()
             try:
-                self.gen.throw(type, value, traceback)
+                self.gen.throw(exc_type, exc_value, traceback)
             except StopIteration as exc:
-                return exc is not value
+                return exc is not exc_value
             except RuntimeError as exc:
-                if exc is value:
+                if exc is exc_value:
                     return False
-                if type is StopIteration and exc.__cause__ is value:
+                if exc_type is StopIteration and exc.__cause__ is exc_value:
                     return False
                 raise
             except:  # noqa
-                if sys.exc_info()[1] is value:
+                if sys.exc_info()[1] is exc_value:
                     return False
                 raise
             raise RuntimeError("generator didn't stop after throw()")
+        return None
 
 
 # This is a dirty hack to implement "module callable".
@@ -193,7 +225,7 @@ class ServerMainContextManager(AbstractContextManager, ContextDecorator):
 def _server_ctxmgr(
     func: Callable[
         [asyncio.AbstractEventLoop, int, Sequence[Any]],
-        AsyncIterator[None],
+        AsyncGenerator[None, signal.Signals],
     ],
 ):
     @functools.wraps(func)
@@ -211,7 +243,7 @@ class _ServerModule(sys.modules[__name__].__class__):  # type: ignore
 sys.modules[__name__].__class__ = _ServerModule
 
 
-def _main_ctxmgr(func: Callable[[], Iterator[None]]):
+def _main_ctxmgr(func: Callable[[], Generator[TYield, signal.Signals]]):
     """
     A decorator wrapper for :class:`ServerMainContextManager`
 
@@ -219,8 +251,8 @@ def _main_ctxmgr(func: Callable[[], Iterator[None]]):
 
     .. code:: python
 
-       @aiotools.main
-       def mymain():
+       @aiotools.main_context
+       def mymain() -> Generator[TServerArgs, signal.Signals]:
            server_args = do_init()
            stop_sig = yield server_args
            if stop_sig == signal.SIGINT:
@@ -232,7 +264,7 @@ def _main_ctxmgr(func: Callable[[], Iterator[None]]):
     """
 
     @functools.wraps(func)
-    def helper(*args, **kwargs) -> ServerMainContextManager:
+    def helper(*args, **kwargs) -> ServerMainContextManager[TYield]:
         return ServerMainContextManager(func, args, kwargs)
 
     return helper

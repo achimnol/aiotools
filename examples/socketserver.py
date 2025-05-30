@@ -1,9 +1,7 @@
 import asyncio
-from typing import (
-    Any,
-    AsyncIterator,
-    Sequence,
-)
+import signal
+from collections.abc import AsyncGenerator, Sequence
+from typing import Any
 
 import aiotools
 
@@ -20,7 +18,7 @@ async def worker_main(
     loop: asyncio.AbstractEventLoop,
     pidx: int,
     args: Sequence[Any],
-) -> AsyncIterator[None]:
+) -> AsyncGenerator[None, signal.Signals]:
     # Create a listening socket with SO_REUSEPORT option so that each worker
     # process can share the same listening port and the kernel balances
     # incoming connections across multiple worker processes.
@@ -29,11 +27,13 @@ async def worker_main(
     )
     print(f"[{pidx}] started")
 
-    yield  # wait until terminated
-
-    server.close()
-    await server.wait_closed()
-    print(f"[{pidx}] terminated")
+    sig = None
+    try:
+        sig = yield  # wait until terminated
+    finally:
+        server.close()
+        await server.wait_closed()
+        print(f"[{pidx}] terminated with {sig=}")
 
 
 if __name__ == "__main__":

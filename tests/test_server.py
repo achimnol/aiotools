@@ -8,8 +8,9 @@ import signal
 import sys
 import tempfile
 import time
+from collections.abc import AsyncGenerator, Generator
 from multiprocessing.sharedctypes import SynchronizedArray
-from typing import List, Sequence
+from typing import Any, Sequence
 
 import pytest
 
@@ -64,7 +65,7 @@ def exec_recorder():
             writer.write(msg + "\n")
 
     def read() -> Sequence[str]:
-        lines: List[str] = []
+        lines: list[str] = []
         for path in glob.glob(f"{f.name}.*"):
             with open(path, "r", encoding="utf8") as reader:
                 lines.extend(line.strip() for line in reader.readlines())
@@ -85,7 +86,11 @@ def interrupt_usr1():
 
 
 @aiotools.server_context
-async def myserver_simple(loop, proc_idx, args):
+async def myserver_simple(
+    loop: asyncio.AbstractEventLoop,
+    proc_idx: int,
+    args: Sequence[Any],
+) -> AsyncGenerator[None, signal.Signals]:
     write = args[0]
     await asyncio.sleep(0)
     write(f"started:{proc_idx}")
@@ -128,7 +133,11 @@ def test_server_multiproc(set_timeout, restore_signal, exec_recorder):
 
 
 @aiotools.server_context
-async def myserver_signal(loop, proc_idx, args):
+async def myserver_signal(
+    loop: asyncio.AbstractEventLoop,
+    proc_idx: int,
+    args: Sequence[Any],
+) -> AsyncGenerator[None, signal.Signals]:
     write = args[0]
     await asyncio.sleep(0)
     write(f"started:{proc_idx}")
@@ -228,7 +237,7 @@ worker_signals: SynchronizedArray
 
 
 @aiotools.main_context
-def mymain_user_main():
+def mymain_user_main() -> Generator[int, signal.Signals]:
     global main_enter, main_exit
     main_enter = True
     yield 987
@@ -236,7 +245,11 @@ def mymain_user_main():
 
 
 @aiotools.server_context
-async def myworker_user_main(loop, proc_idx, args):
+async def myworker_user_main(
+    loop: asyncio.AbstractEventLoop,
+    proc_idx: int,
+    args: Sequence[Any],
+) -> AsyncGenerator[None, signal.Signals]:
     assert args[0] == 987  # first arg from user main
     assert args[1] == 123  # second arg from start_server args
     yield
@@ -257,7 +270,7 @@ def test_server_user_main(set_timeout, restore_signal):
 
 
 @aiotools.main_context
-def mymain_for_custom_stop_signals():
+def mymain_for_custom_stop_signals() -> Generator[None, signal.Signals]:
     global main_enter, main_exit, main_signal
     main_enter = True
     main_signal = yield
@@ -265,7 +278,11 @@ def mymain_for_custom_stop_signals():
 
 
 @aiotools.server_context
-async def myworker_for_custom_stop_signals(loop, proc_idx, args):
+async def myworker_for_custom_stop_signals(
+    loop: asyncio.AbstractEventLoop,
+    proc_idx: int,
+    args: Sequence[Any],
+) -> AsyncGenerator[None, signal.Signals]:
     global worker_signals
     worker_signals = args[0]
     worker_signals[proc_idx] = yield
@@ -297,7 +314,7 @@ def test_server_user_main_custom_stop_signals(set_timeout, restore_signal):
 
 
 @aiotools.main_context
-def mymain_for_main_tuple():
+def mymain_for_main_tuple() -> Generator[tuple[int, int], signal.Signals]:
     global main_enter, main_exit
     main_enter = True
     yield 987, 654
@@ -305,7 +322,11 @@ def mymain_for_main_tuple():
 
 
 @aiotools.server_context
-async def myworker_for_main_tuple(loop, proc_idx, args):
+async def myworker_for_main_tuple(
+    loop: asyncio.AbstractEventLoop,
+    proc_idx: int,
+    args: Sequence[Any],
+) -> AsyncGenerator[None, signal.Signals]:
     assert args[0] == 987  # first arg from user main
     assert args[1] == 654  # second arg from user main
     assert args[2] == 123  # third arg from start_server args
@@ -330,7 +351,11 @@ def test_server_user_main_tuple(set_timeout, restore_signal):
 
 
 @aiotools.server_context
-async def myworker_for_extra_proc(loop, pidx, args):
+async def myworker_for_extra_proc(
+    loop: asyncio.AbstractEventLoop,
+    proc_idx: int,
+    args: Sequence[Any],
+) -> AsyncGenerator[None, signal.Signals]:
     yield
 
 
@@ -373,7 +398,11 @@ def test_server_extra_proc(set_timeout, restore_signal):
 
 
 @aiotools.server_context
-async def myworker(loop, pidx, args):
+async def myworker_with_extra_proc_for_custom_stop_signal(
+    loop: asyncio.AbstractEventLoop,
+    proc_idx: int,
+    args: Sequence[Any],
+) -> AsyncGenerator[None, signal.Signals]:
     yield
 
 
@@ -391,7 +420,7 @@ def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
 
     set_timeout(0.3, interrupt_usr1)
     aiotools.start_server(
-        myworker,
+        myworker_with_extra_proc_for_custom_stop_signal,
         extra_procs=[
             functools.partial(extra_proc_for_custom_stop_signal, 0),
             functools.partial(extra_proc_for_custom_stop_signal, 1),
