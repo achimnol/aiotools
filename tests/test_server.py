@@ -50,6 +50,20 @@ def set_timeout():
     yield make_timeout
 
 
+def write_record(record_name: str, msg: str) -> None:
+    path = f"{record_name}.{os.getpid()}"
+    with open(path, "a", encoding="utf8") as writer:
+        writer.write(msg + "\n")
+
+
+def read_records(record_name: str) -> Sequence[str]:
+    lines: list[str] = []
+    for path in glob.glob(f"{record_name}.*"):
+        with open(path, "r", encoding="utf8") as reader:
+            lines.extend(line.strip() for line in reader.readlines())
+    return lines
+
+
 @pytest.fixture
 def exec_recorder():
     f = tempfile.NamedTemporaryFile(
@@ -59,19 +73,7 @@ def exec_recorder():
     )
     f.close()
 
-    def write(msg: str) -> None:
-        path = f"{f.name}.{os.getpid()}"
-        with open(path, "a", encoding="utf8") as writer:
-            writer.write(msg + "\n")
-
-    def read() -> Sequence[str]:
-        lines: list[str] = []
-        for path in glob.glob(f"{f.name}.*"):
-            with open(path, "r", encoding="utf8") as reader:
-                lines.extend(line.strip() for line in reader.readlines())
-        return lines
-
-    yield write, read
+    yield f.name
 
     for path in glob.glob(f"{f.name}.*"):
         os.unlink(path)
@@ -91,37 +93,37 @@ async def myserver_simple(
     proc_idx: int,
     args: Sequence[Any],
 ) -> AsyncGenerator[None, signal.Signals]:
-    write = args[0]
+    record_name = args[0]
     await asyncio.sleep(0)
-    write(f"started:{proc_idx}")
+    write_record(record_name, f"started:{proc_idx}")
 
     yield
 
     await asyncio.sleep(0)
-    write(f"terminated:{proc_idx}")
+    write_record(record_name, f"terminated:{proc_idx}")
 
 
 def test_server_singleproc(set_timeout, restore_signal, exec_recorder):
-    write, read = exec_recorder
+    record_name = exec_recorder
     set_timeout(0.2, interrupt)
     aiotools.start_server(
         myserver_simple,
-        args=(write,),
+        args=(record_name,),
     )
-    lines = set(read())
+    lines = set(read_records(record_name))
     assert "started:0" in lines
     assert "terminated:0" in lines
 
 
 def test_server_multiproc(set_timeout, restore_signal, exec_recorder):
-    write, read = exec_recorder
+    record_name = exec_recorder
     set_timeout(0.2, interrupt)
     aiotools.start_server(
         myserver_simple,
         num_workers=3,
-        args=(write,),
+        args=(record_name,),
     )
-    lines = set(read())
+    lines = set(read_records(record_name))
     assert lines == {
         "started:0",
         "started:1",
@@ -138,14 +140,14 @@ async def myserver_signal(
     proc_idx: int,
     args: Sequence[Any],
 ) -> AsyncGenerator[None, signal.Signals]:
-    write = args[0]
+    record_name = args[0]
     await asyncio.sleep(0)
-    write(f"started:{proc_idx}")
+    write_record(record_name, f"started:{proc_idx}")
 
     received_signum = yield
 
     await asyncio.sleep(0)
-    write(f"terminated:{proc_idx}:{received_signum}")
+    write_record(record_name, f"terminated:{proc_idx}:{received_signum}")
 
 
 def test_server_multiproc_custom_stop_signals(
@@ -153,15 +155,15 @@ def test_server_multiproc_custom_stop_signals(
     restore_signal,
     exec_recorder,
 ):
-    write, read = exec_recorder
+    record_name = exec_recorder
     set_timeout(0.2, interrupt_usr1)
     aiotools.start_server(
         myserver_signal,
         num_workers=2,
         stop_signals={signal.SIGUSR1},
-        args=(write,),
+        args=(record_name,),
     )
-    lines = set(read())
+    lines = set(read_records(record_name))
     assert {"started:0", "started:1"} < lines
     assert {
         f"terminated:0:{int(signal.SIGUSR1)}",
@@ -171,7 +173,7 @@ def test_server_multiproc_custom_stop_signals(
 
 @aiotools.server_context
 async def myserver_worker_init_error(loop, proc_idx, args):
-    write = args[0]
+    record_name = args[0]
 
     class _LogAdaptor:
         def __init__(self, writer):
@@ -181,7 +183,7 @@ async def myserver_worker_init_error(loop, proc_idx, args):
             msg = msg.strip().replace("\n", " ")
             self.writer(f"log:{proc_idx}:{msg}")
 
-    log_stream = _LogAdaptor(write)
+    log_stream = _LogAdaptor(functools.partial(write_record, record_name))
     logging.config.dictConfig({
         "version": 1,
         "handlers": {
@@ -199,7 +201,7 @@ async def myserver_worker_init_error(loop, proc_idx, args):
         },
     })
     log = logging.getLogger("aiotools")
-    write(f"started:{proc_idx}")
+    write_record(record_name, f"started:{proc_idx}")
     log.debug("hello")
     if proc_idx in (0, 2):
         # delay until other workers start normally.
@@ -210,17 +212,17 @@ async def myserver_worker_init_error(loop, proc_idx, args):
 
     # should not be reached if errored.
     await asyncio.sleep(0)
-    write(f"terminated:{proc_idx}")
+    write_record(record_name, f"terminated:{proc_idx}")
 
 
 def test_server_worker_init_error(restore_signal, exec_recorder):
-    write, read = exec_recorder
+    record_name = exec_recorder
     aiotools.start_server(
         myserver_worker_init_error,
         num_workers=4,
-        args=(write,),
+        args=(record_name,),
     )
-    lines = set(read())
+    lines = set(read_records(record_name))
     assert sum(1 if line.startswith("started:") else 0 for line in lines) == 4
     # workers who did not raise errors have already started,
     # and they should have terminated normally
