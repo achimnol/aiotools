@@ -8,6 +8,7 @@ import signal
 import sys
 import tempfile
 import time
+from multiprocessing.sharedctypes import SynchronizedArray
 from typing import List, Sequence
 
 import pytest
@@ -83,7 +84,7 @@ def interrupt_usr1():
     os.kill(os.getpid(), signal.SIGUSR1)
 
 
-@aiotools.server  # type: ignore
+@aiotools.server_context
 async def myserver_simple(loop, proc_idx, args):
     write = args[0]
     await asyncio.sleep(0)
@@ -126,7 +127,7 @@ def test_server_multiproc(set_timeout, restore_signal, exec_recorder):
     }
 
 
-@aiotools.server  # type: ignore
+@aiotools.server_context
 async def myserver_signal(loop, proc_idx, args):
     write = args[0]
     await asyncio.sleep(0)
@@ -159,7 +160,7 @@ def test_server_multiproc_custom_stop_signals(
     } < lines
 
 
-@aiotools.server  # type: ignore
+@aiotools.server_context
 async def myserver_worker_init_error(loop, proc_idx, args):
     write = args[0]
 
@@ -220,23 +221,29 @@ def test_server_worker_init_error(restore_signal, exec_recorder):
     assert sum(1 if "ZeroDivisionError: oops" in line else 0 for line in lines) == 2
 
 
+main_enter = False
+main_exit = False
+main_signal = 0
+worker_signals: SynchronizedArray
+
+
+@aiotools.main_context
+def mymain_user_main():
+    global main_enter, main_exit
+    main_enter = True
+    yield 987
+    main_exit = True
+
+
+@aiotools.server_context
+async def myworker_user_main(loop, proc_idx, args):
+    assert args[0] == 987  # first arg from user main
+    assert args[1] == 123  # second arg from start_server args
+    yield
+
+
 def test_server_user_main(set_timeout, restore_signal):
-    main_enter = False
-    main_exit = False
-
-    @aiotools.main
-    def mymain_user_main():
-        nonlocal main_enter, main_exit
-        main_enter = True
-        yield 987
-        main_exit = True
-
-    @aiotools.server  # type: ignore
-    async def myworker_user_main(loop, proc_idx, args):
-        assert args[0] == 987  # first arg from user main
-        assert args[1] == 123  # second arg from start_server args
-        yield
-
+    global main_enter, main_exit
     set_timeout(0.2, interrupt)
     aiotools.start_server(
         myworker_user_main,
@@ -249,31 +256,35 @@ def test_server_user_main(set_timeout, restore_signal):
     assert main_exit
 
 
+@aiotools.main_context
+def mymain_for_custom_stop_signals():
+    global main_enter, main_exit, main_signal
+    main_enter = True
+    main_signal = yield
+    main_exit = True
+
+
+@aiotools.server_context
+async def myworker_for_custom_stop_signals(loop, proc_idx, args):
+    global worker_signals
+    worker_signals = args[0]
+    worker_signals[proc_idx] = yield
+
+
 def test_server_user_main_custom_stop_signals(set_timeout, restore_signal):
+    global main_enter, main_exit, main_signal, worker_signals
     main_enter = False
     main_exit = False
-    main_signal = None
+    main_signal = 0
     worker_signals = mp.Array("i", 3)
-
-    @aiotools.main
-    def mymain():
-        nonlocal main_enter, main_exit, main_signal
-        main_enter = True
-        main_signal = yield
-        main_exit = True
-
-    @aiotools.server
-    async def myworker(loop, proc_idx, args):
-        worker_signals = args[0]
-        worker_signals[proc_idx] = yield
 
     def noop(signum, frame):
         pass
 
     set_timeout(0.2, interrupt_usr1)
     aiotools.start_server(
-        myworker,
-        mymain,
+        myworker_for_custom_stop_signals,
+        mymain_for_custom_stop_signals,
         num_workers=3,
         stop_signals={signal.SIGUSR1},
         args=(worker_signals,),
@@ -285,28 +296,31 @@ def test_server_user_main_custom_stop_signals(set_timeout, restore_signal):
     assert list(worker_signals) == [signal.SIGUSR1] * 3
 
 
+@aiotools.main_context
+def mymain_for_main_tuple():
+    global main_enter, main_exit
+    main_enter = True
+    yield 987, 654
+    main_exit = True
+
+
+@aiotools.server_context
+async def myworker_for_main_tuple(loop, proc_idx, args):
+    assert args[0] == 987  # first arg from user main
+    assert args[1] == 654  # second arg from user main
+    assert args[2] == 123  # third arg from start_server args
+    yield
+
+
 def test_server_user_main_tuple(set_timeout, restore_signal):
+    global main_enter, main_exit
     main_enter = False
     main_exit = False
 
-    @aiotools.main
-    def mymain():
-        nonlocal main_enter, main_exit
-        main_enter = True
-        yield 987, 654
-        main_exit = True
-
-    @aiotools.server
-    async def myworker(loop, proc_idx, args):
-        assert args[0] == 987  # first arg from user main
-        assert args[1] == 654  # second arg from user main
-        assert args[2] == 123  # third arg from start_server args
-        yield
-
     set_timeout(0.2, interrupt)
     aiotools.start_server(
-        myworker,
-        mymain,
+        myworker_for_main_tuple,
+        mymain_for_main_tuple,
         num_workers=3,
         args=(123,),
     )
@@ -315,33 +329,40 @@ def test_server_user_main_tuple(set_timeout, restore_signal):
     assert main_exit
 
 
+@aiotools.server_context
+async def myworker_for_extra_proc(loop, pidx, args):
+    yield
+
+
+extras: SynchronizedArray
+
+
+def extra_proc_plain(key, _, pidx, args):
+    global extras
+    assert _ is None
+    extras[key] = 980 + key
+    try:
+        while True:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        print(f"extra[{key}] interrupted", file=sys.stderr)
+    except Exception as e:
+        print(f"extra[{key}] exception", e, file=sys.stderr)
+    finally:
+        print(f"extra[{key}] finish", file=sys.stderr)
+        extras[key] = 990 + key
+
+
 def test_server_extra_proc(set_timeout, restore_signal):
+    global extras
     extras = mp.Array("i", [0, 0])
-
-    def extra_proc(key, _, pidx, args):
-        assert _ is None
-        extras[key] = 980 + key
-        try:
-            while True:
-                time.sleep(0.1)
-        except KeyboardInterrupt:
-            print(f"extra[{key}] interrupted", file=sys.stderr)
-        except Exception as e:
-            print(f"extra[{key}] exception", e, file=sys.stderr)
-        finally:
-            print(f"extra[{key}] finish", file=sys.stderr)
-            extras[key] = 990 + key
-
-    @aiotools.server
-    async def myworker(loop, pidx, args):
-        yield
 
     set_timeout(0.2, interrupt)
     aiotools.start_server(
-        myworker,
+        myworker_for_extra_proc,
         extra_procs=[
-            functools.partial(extra_proc, 0),
-            functools.partial(extra_proc, 1),
+            functools.partial(extra_proc_plain, 0),
+            functools.partial(extra_proc_plain, 1),
         ],
         num_workers=3,
         args=(123,),
@@ -351,27 +372,29 @@ def test_server_extra_proc(set_timeout, restore_signal):
     assert extras[1] == 991
 
 
+@aiotools.server_context
+async def myworker(loop, pidx, args):
+    yield
+
+
+def extra_proc_for_custom_stop_signal(key, _, pidx, args):
+    received_signals = args[0]
+    try:
+        while True:
+            time.sleep(0.1)
+    except aiotools.InterruptedBySignal as e:
+        received_signals[key] = e.args[0]
+
+
 def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
     received_signals = mp.Array("i", [0, 0])
-
-    def extra_proc(key, _, pidx, args):
-        received_signals = args[0]
-        try:
-            while True:
-                time.sleep(0.1)
-        except aiotools.InterruptedBySignal as e:
-            received_signals[key] = e.args[0]
-
-    @aiotools.server
-    async def myworker(loop, pidx, args):
-        yield
 
     set_timeout(0.3, interrupt_usr1)
     aiotools.start_server(
         myworker,
         extra_procs=[
-            functools.partial(extra_proc, 0),
-            functools.partial(extra_proc, 1),
+            functools.partial(extra_proc_for_custom_stop_signal, 0),
+            functools.partial(extra_proc_for_custom_stop_signal, 1),
         ],
         stop_signals={signal.SIGUSR1},
         args=(received_signals,),
