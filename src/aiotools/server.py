@@ -34,7 +34,7 @@ import signal
 import struct
 import sys
 import threading
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import AsyncIterator, Callable, Collection, Sequence
 from contextlib import AbstractContextManager, ContextDecorator
 from contextvars import ContextVar
 from typing import Any, Optional
@@ -184,9 +184,14 @@ class ServerMainContextManager(AbstractContextManager, ContextDecorator):
 # NOTE: only works in Python 3.5 or higher.
 
 
-def _server_ctxmgr(func):
+def _server_ctxmgr(
+    func: Callable[
+        [asyncio.AbstractEventLoop, int, Sequence[Any]],
+        AsyncIterator[None],
+    ],
+):
     @functools.wraps(func)
-    def helper(*args, **kwargs):
+    def helper(*args, **kwargs) -> AsyncServerContextManager:
         return AsyncServerContextManager(func, args, kwargs)
 
     return helper
@@ -221,7 +226,7 @@ def _main_ctxmgr(func):
     """
 
     @functools.wraps(func)
-    def helper(*args, **kwargs):
+    def helper(*args, **kwargs) -> ServerMainContextManager:
         return ServerMainContextManager(func, args, kwargs)
 
     return helper
