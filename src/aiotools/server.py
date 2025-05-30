@@ -384,7 +384,7 @@ def _worker_main(
 
 
 def _extra_main(
-    extra_func,
+    extra_func: Callable[[Optional[threading.Event], int, Sequence[Any]], None],
     stop_signals: Collection[signal.Signals],
     proc_idx: int,
     args: Sequence[Any],

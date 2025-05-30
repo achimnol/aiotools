@@ -7,10 +7,11 @@ import os
 import signal
 import sys
 import tempfile
+import threading
 import time
 from collections.abc import AsyncGenerator, Generator
 from multiprocessing.sharedctypes import SynchronizedArray
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 
 import pytest
 
@@ -361,12 +362,15 @@ async def myworker_for_extra_proc(
     yield
 
 
-extras: SynchronizedArray
-
-
-def extra_proc_plain(key, _, pidx, args):
-    global extras
-    assert _ is None
+def extra_proc_plain(
+    key: int,
+    /,
+    intr_event: Optional[threading.Event],
+    pidx: int,
+    args: Sequence[Any],
+) -> None:
+    assert intr_event is None  # unused with multiprocessing mode
+    extras = args[0]
     extras[key] = 980 + key
     try:
         while True:
@@ -381,9 +385,7 @@ def extra_proc_plain(key, _, pidx, args):
 
 
 def test_server_extra_proc(set_timeout, restore_signal):
-    global extras
     extras = mp.Array("i", [0, 0])
-
     set_timeout(0.2, interrupt)
     aiotools.start_server(
         myworker_for_extra_proc,
@@ -392,7 +394,7 @@ def test_server_extra_proc(set_timeout, restore_signal):
             functools.partial(extra_proc_plain, 1),
         ],
         num_workers=3,
-        args=(123,),
+        args=(extras,),
     )
 
     assert extras[0] == 990
@@ -408,7 +410,14 @@ async def myworker_with_extra_proc_for_custom_stop_signal(
     yield
 
 
-def extra_proc_for_custom_stop_signal(key, _, pidx, args):
+def extra_proc_for_custom_stop_signal(
+    key: int,
+    /,
+    intr_event: Optional[threading.Event],
+    pidx: int,
+    args: Sequence[Any],
+) -> None:
+    assert intr_event is None  # unused with multiprocessing mode
     received_signals = args[0]
     try:
         while True:
@@ -419,7 +428,6 @@ def extra_proc_for_custom_stop_signal(key, _, pidx, args):
 
 def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
     received_signals = mp.Array("i", [0, 0])
-
     set_timeout(0.3, interrupt_usr1)
     aiotools.start_server(
         myworker_with_extra_proc_for_custom_stop_signal,
