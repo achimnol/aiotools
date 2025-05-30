@@ -275,13 +275,17 @@ def _worker_main(
     intr_write_pipe: mpconn.Connection,
     proc_idx: int,
     args: Sequence[Any],
+    *,
+    prestart_hook: Optional[Callable[[int], None]] = None,
 ) -> int:
+    process_index.set(proc_idx)
+    if prestart_hook:
+        prestart_hook(proc_idx)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     setup_child_watcher(loop)
     interrupted = asyncio.Event()
     ctx = worker_actxmgr(loop, proc_idx, args)
-    process_index.set(proc_idx)
     forever_future = loop.create_future()
 
     def handle_stop_signal(signum):
@@ -341,9 +345,13 @@ def _extra_main(
     stop_signals: Collection[signal.Signals],
     proc_idx: int,
     args: Sequence[Any],
+    *,
+    prestart_hook: Optional[Callable[[int], None]] = None,
 ) -> int:
-    interrupted = threading.Event()
     process_index.set(proc_idx)
+    if prestart_hook:
+        prestart_hook(proc_idx)
+    interrupted = threading.Event()
 
     # Since signals only work for the main thread in Python,
     # extra processes in use_threading=True mode should check
@@ -390,6 +398,7 @@ def start_server(
     *,
     wait_timeout: Optional[float] = None,
     mp_context: Optional[MPContext] = None,
+    prestart_hook: Optional[Callable[[int], None]] = None,
 ) -> None:
     """
     Starts a multi-process server where each process has their own individual
@@ -452,6 +461,10 @@ def start_server(
                     processes.  If not specified, the default context is
                     used.
 
+        prestart_hook: A function to be called once before creating the
+                       event loop in the children.  The function should
+                       accept an int argument representing the process index.
+
     Returns:
         None
 
@@ -509,7 +522,7 @@ def start_server(
 
     .. versionadded:: 1.9.0
 
-        The **mp_context** argument.
+        The **mp_context** and **prestart_hook** argument.
     """
 
     @_main_ctxmgr
@@ -596,6 +609,7 @@ def start_server(
                             write_pipe,
                             i,
                             (*main_args, *args),
+                            prestart_hook=prestart_hook,
                         ),
                         mp_context=mp_context,
                     )
@@ -622,6 +636,7 @@ def start_server(
                             stop_signals,
                             num_workers + i,
                             (*main_args, *args),
+                            prestart_hook=prestart_hook,
                         ),
                         mp_context=mp_context,
                     )
