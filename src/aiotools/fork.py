@@ -13,11 +13,12 @@ import errno
 import logging
 import multiprocessing as mp
 import multiprocessing.connection as mpc
+import multiprocessing.context as mpctx
 import os
 import signal
 import traceback
 from abc import ABCMeta, abstractmethod
-from typing import Callable, Tuple
+from typing import Callable, Optional, Tuple, TypeAlias
 
 from .compat import get_running_loop
 
@@ -29,6 +30,13 @@ __all__ = (
 )
 
 logger = logging.getLogger(__name__)
+
+MPContext: TypeAlias = (
+    mpctx.DefaultContext
+    | mpctx.ForkContext
+    | mpctx.ForkServerContext
+    | mpctx.SpawnContext
+)
 
 _has_pidfd = False
 if hasattr(os, "pidfd_open"):
@@ -213,10 +221,11 @@ def _child_main(
     return ret
 
 
-async def _fork_posix(child_func: Callable[[], int]) -> int:
+async def _fork_posix(
+    child_func: Callable[[], int],
+    mp_ctx: MPContext,
+) -> int:
     loop = get_running_loop()
-
-    mp_ctx = mp.get_context("spawn")
     read_pipe, write_pipe = mp_ctx.Pipe()
     proc = mp_ctx.Process(
         target=_child_main,
@@ -237,10 +246,11 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
     return pid
 
 
-async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
+async def _clone_pidfd(
+    child_func: Callable[[], int],
+    mp_ctx: MPContext,
+) -> Tuple[int, int]:
     loop = get_running_loop()
-
-    mp_ctx = mp.get_context("spawn")
     read_pipe, write_pipe = mp_ctx.Pipe()
     proc = mp_ctx.Process(
         target=_child_main,
@@ -262,7 +272,11 @@ async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     return pid, fd
 
 
-async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
+async def afork(
+    child_func: Callable[[], int],
+    *,
+    mp_context: Optional[MPContext] = None,
+) -> AbstractChildProcess:
     """
     Fork the current process and execute the given function in the child.
     The return value of the function will become the exit code of the child
@@ -274,9 +288,10 @@ async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
                     Note that the function must set up a new event loop if it
                     wants to run asyncio codes.
     """
+    mp_ctx = mp.get_context() if mp_context is None else mp_context
     if _has_pidfd:
-        pid, pidfd = await _clone_pidfd(child_func)
+        pid, pidfd = await _clone_pidfd(child_func, mp_ctx)
         return PidfdChildProcess(pid, pidfd)
     else:
-        pid = await _fork_posix(child_func)
+        pid = await _fork_posix(child_func, mp_ctx)
         return PosixChildProcess(pid)
