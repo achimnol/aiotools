@@ -34,7 +34,13 @@ import signal
 import struct
 import sys
 import threading
-from collections.abc import AsyncIterator, Callable, Collection, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Callable,
+    Collection,
+    Iterator,
+    Sequence,
+)
 from contextlib import AbstractContextManager, ContextDecorator
 from contextvars import ContextVar
 from typing import Any, Optional
@@ -205,7 +211,7 @@ class _ServerModule(sys.modules[__name__].__class__):  # type: ignore
 sys.modules[__name__].__class__ = _ServerModule
 
 
-def _main_ctxmgr(func):
+def _main_ctxmgr(func: Callable[[], Iterator[None]]):
     """
     A decorator wrapper for :class:`ServerMainContextManager`
 
