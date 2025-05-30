@@ -11,8 +11,8 @@ so that the users may assume that the child process is completely interruptible 
 import asyncio
 import errno
 import logging
-import multiprocessing
-import multiprocessing.connection
+import multiprocessing as mp
+import multiprocessing.connection as mpc
 import os
 import signal
 import traceback
@@ -193,7 +193,7 @@ class PidfdChildProcess(AbstractChildProcess):
 
 
 def _child_main(
-    write_pipe: multiprocessing.connection.Connection,
+    write_pipe: mpc.Connection,
     child_func: Callable[[], int],
 ) -> int:
     ret = -255
@@ -216,9 +216,9 @@ def _child_main(
 async def _fork_posix(child_func: Callable[[], int]) -> int:
     loop = get_running_loop()
 
-    mp = multiprocessing.get_context("spawn")
-    read_pipe, write_pipe = mp.Pipe()
-    proc = mp.Process(
+    mp_ctx = mp.get_context("spawn")
+    read_pipe, write_pipe = mp_ctx.Pipe()
+    proc = mp_ctx.Process(
         target=_child_main,
         args=(write_pipe, child_func),
         daemon=True,
@@ -240,9 +240,9 @@ async def _fork_posix(child_func: Callable[[], int]) -> int:
 async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
     loop = get_running_loop()
 
-    mp = multiprocessing.get_context("spawn")
-    read_pipe, write_pipe = mp.Pipe()
-    proc = mp.Process(
+    mp_ctx = mp.get_context("spawn")
+    read_pipe, write_pipe = mp_ctx.Pipe()
+    proc = mp_ctx.Process(
         target=_child_main,
         args=(write_pipe, child_func),
         daemon=True,

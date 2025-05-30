@@ -27,6 +27,8 @@ import asyncio
 import functools
 import inspect
 import logging
+import multiprocessing as mp
+import multiprocessing.connection as mpc
 import os
 import signal
 import struct
@@ -270,7 +272,7 @@ def _worker_main(
         AsyncServerContextManager,
     ],
     stop_signals: Collection[signal.Signals],
-    intr_pipe_wfd: int,
+    intr_write_pipe: mpc.Connection,
     proc_idx: int,
     args: Sequence[Any],
 ) -> int:
@@ -316,7 +318,7 @@ def _worker_main(
                 log.exception(
                     f"Worker {proc_idx}: Error during context manager {err_ctx_str}"
                 )
-                os.write(intr_pipe_wfd, struct.pack("i", proc_idx))
+                intr_write_pipe.send_bytes(struct.pack("i", proc_idx))
             raise
 
     try:
@@ -554,16 +556,15 @@ def start_server(
 
     # build a reliable worker-to-main interrupt channel using a pipe
     # (workers have no idea whether the main interrupt is enabled/disabled)
-    def handle_child_interrupt(fd: int) -> None:
-        child_idx = struct.unpack("i", os.read(fd, 4))[0]  # noqa
+    def handle_child_interrupt(read_pipe: mpc.Connection) -> None:
+        child_idx = struct.unpack("i", read_pipe.recv_bytes(4))[0]  # noqa
         log.debug(f"Child {child_idx} has interrupted the main program.")
         # self-interrupt to initiate the main-to-worker interrupts
         signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
         os.kill(0, signal.SIGINT)
 
-    child_intr_pipe: tuple[int, int] = os.pipe()
-    rfd = child_intr_pipe[0]
-    main_loop.add_reader(rfd, handle_child_interrupt, rfd)
+    read_pipe, write_pipe = mp.Pipe()
+    main_loop.add_reader(read_pipe.fileno(), handle_child_interrupt, read_pipe)
 
     # start
     with main_ctx as main_args:
@@ -582,9 +583,9 @@ def start_server(
                             _worker_main,
                             worker_actxmgr,
                             stop_signals,
-                            child_intr_pipe[1],
+                            write_pipe,
                             i,
-                            main_args + args,
+                            (*main_args, *args),
                         )
                     )
                 )
@@ -609,7 +610,7 @@ def start_server(
                             f,
                             stop_signals,
                             num_workers + i,
-                            main_args + args,
+                            (*main_args, *args),
                         )
                     )
                 )
