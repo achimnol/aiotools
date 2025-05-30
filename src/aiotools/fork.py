@@ -17,7 +17,7 @@ import multiprocessing.context as mpctx
 import os
 import signal
 import traceback
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta, abstractmethod, abstractproperty
 from typing import Callable, Optional, Tuple, TypeAlias
 
 from .compat import get_running_loop
@@ -57,6 +57,13 @@ class AbstractChildProcess(metaclass=ABCMeta):
     The abstract interface to control and monitor a forked child process.
     """
 
+    @abstractproperty
+    def pid(self) -> int:
+        """
+        The process ID of the child process.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def send_signal(self, signum: int) -> None:
         """
@@ -85,6 +92,10 @@ class PosixChildProcess(AbstractChildProcess):
     def __init__(self, pid: int) -> None:
         self._pid = pid
         self._terminated = False
+
+    @property
+    def pid(self) -> int:
+        return self._pid
 
     def send_signal(self, signum: int) -> None:
         if self._terminated:
@@ -138,6 +149,10 @@ class PidfdChildProcess(AbstractChildProcess):
         self._terminated = False
         loop = get_running_loop()
         loop.add_reader(self._pidfd, self._do_wait)
+
+    @property
+    def pid(self) -> int:
+        return self._pid
 
     def send_signal(self, signum: int) -> None:
         if self._terminated:
