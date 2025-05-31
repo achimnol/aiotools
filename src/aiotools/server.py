@@ -35,6 +35,7 @@ import struct
 import sys
 import threading
 from collections.abc import (
+    AsyncGenerator,
     Callable,
     Collection,
     Generator,
@@ -45,8 +46,6 @@ from contextlib import AbstractContextManager, ContextDecorator
 from contextvars import ContextVar
 from types import TracebackType
 from typing import Any, Optional, ParamSpec, TypeVar
-
-from typing_extensions import AsyncGenerator
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
