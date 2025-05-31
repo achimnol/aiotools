@@ -11,7 +11,7 @@ from aiotools import fork as fork_mod
 from aiotools.fork import MPContext, PidfdChildProcess, _has_pidfd, afork
 
 target_mp_contexts = [
-    mp.get_context(method)
+    pytest.param(mp.get_context(method), id=method)
     for method in mp.get_all_start_methods()
     if method != "forkserver"
 ]
@@ -117,10 +117,7 @@ async def _do_test_fork_many(mp_context: MPContext):
 @pytest.mark.skipif(
     not _has_pidfd, reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
-@pytest.mark.parametrize(
-    "mp_context",
-    target_mp_contexts,
-)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork(mp_context: MPContext):
     await _do_test_fork(mp_context)
@@ -129,10 +126,7 @@ async def test_fork(mp_context: MPContext):
 @pytest.mark.skipif(
     not _has_pidfd, reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
-@pytest.mark.parametrize(
-    "mp_context",
-    target_mp_contexts,
-)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_already_terminated(mp_context: MPContext):
     await _do_test_fork_already_terminated(mp_context)
@@ -141,10 +135,7 @@ async def test_fork_already_terminated(mp_context: MPContext):
 @pytest.mark.skipif(
     not _has_pidfd, reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
-@pytest.mark.parametrize(
-    "mp_context",
-    target_mp_contexts,
-)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_signal(mp_context: MPContext):
     await _do_test_fork_signal(mp_context)
@@ -153,10 +144,7 @@ async def test_fork_signal(mp_context: MPContext):
 @pytest.mark.skipif(
     not _has_pidfd, reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
-@pytest.mark.parametrize(
-    "mp_context",
-    target_mp_contexts,
-)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_segfault(mp_context: MPContext):
     await _do_test_fork_segfault(mp_context)
@@ -165,19 +153,13 @@ async def test_fork_segfault(mp_context: MPContext):
 @pytest.mark.skipif(
     not _has_pidfd, reason="pidfd is supported in Python 3.9+ and Linux kernel 5.4+"
 )
-@pytest.mark.parametrize(
-    "mp_context",
-    target_mp_contexts,
-)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_many(mp_context: MPContext):
     await _do_test_fork_many(mp_context)
 
 
-@pytest.mark.parametrize(
-    "mp_context",
-    target_mp_contexts,
-)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_fallback(mp_context: MPContext):
     with mock.patch.object(
@@ -188,10 +170,7 @@ async def test_fork_fallback(mp_context: MPContext):
         await _do_test_fork(mp_context)
 
 
-@pytest.mark.parametrize(
-    "mp_context",
-    target_mp_contexts,
-)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_already_termination_fallback(mp_context: MPContext):
     with mock.patch.object(
@@ -202,10 +181,7 @@ async def test_fork_already_termination_fallback(mp_context: MPContext):
         await _do_test_fork_already_terminated(mp_context)
 
 
-@pytest.mark.parametrize(
-    "mp_context",
-    target_mp_contexts,
-)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_signal_fallback(mp_context: MPContext):
     with mock.patch.object(
@@ -216,10 +192,7 @@ async def test_fork_signal_fallback(mp_context: MPContext):
         await _do_test_fork_signal(mp_context)
 
 
-@pytest.mark.parametrize(
-    "mp_context",
-    target_mp_contexts,
-)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_segfault_fallback(mp_context: MPContext):
     with mock.patch.object(
@@ -230,10 +203,7 @@ async def test_fork_segfault_fallback(mp_context: MPContext):
         await _do_test_fork_segfault(mp_context)
 
 
-@pytest.mark.parametrize(
-    "mp_context",
-    target_mp_contexts,
-)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_many_fallback(mp_context: MPContext):
     with mock.patch.object(

@@ -10,18 +10,24 @@ import tempfile
 import threading
 import time
 from collections.abc import AsyncGenerator, Generator
-from multiprocessing.sharedctypes import SynchronizedArray
 from typing import Any, Optional, Sequence
 
 import pytest
 
 import aiotools
+from aiotools.fork import MPContext
 
 if os.environ.get("CI", "") and sys.version_info < (3, 9, 0):
     pytest.skip(
         "skipped to prevent kill CI agents due to signals on CI environments",
         allow_module_level=True,
     )
+
+target_mp_contexts = [
+    pytest.param(mp.get_context(method), id=method)
+    for method in mp.get_all_start_methods()
+    if method != "forkserver"
+]
 
 
 @pytest.fixture
@@ -104,12 +110,19 @@ async def myserver_simple(
     write_record(record_name, f"terminated:{proc_idx}")
 
 
-def test_server_singleproc(set_timeout, restore_signal, exec_recorder):
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
+def test_server_singleproc(
+    set_timeout,
+    restore_signal,
+    exec_recorder,
+    mp_context: MPContext,
+) -> None:
     record_name = exec_recorder
     set_timeout(0.2, interrupt)
     aiotools.start_server(
         myserver_simple,
         args=(record_name,),
+        mp_context=mp_context,
     )
     lines = set(read_records(record_name))
     assert "started:0" in lines
@@ -123,6 +136,7 @@ def test_server_multiproc(set_timeout, restore_signal, exec_recorder):
         myserver_simple,
         num_workers=3,
         args=(record_name,),
+        mp_context=mp.get_context("spawn"),
     )
     lines = set(read_records(record_name))
     assert lines == {
@@ -151,11 +165,13 @@ async def myserver_signal(
     write_record(record_name, f"terminated:{proc_idx}:{received_signum}")
 
 
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_multiproc_custom_stop_signals(
     set_timeout,
     restore_signal,
     exec_recorder,
-):
+    mp_context: MPContext,
+) -> None:
     record_name = exec_recorder
     set_timeout(0.2, interrupt_usr1)
     aiotools.start_server(
@@ -163,6 +179,7 @@ def test_server_multiproc_custom_stop_signals(
         num_workers=2,
         stop_signals={signal.SIGUSR1},
         args=(record_name,),
+        mp_context=mp_context,
     )
     lines = set(read_records(record_name))
     assert {"started:0", "started:1"} < lines
@@ -216,12 +233,18 @@ async def myserver_worker_init_error(loop, proc_idx, args):
     write_record(record_name, f"terminated:{proc_idx}")
 
 
-def test_server_worker_init_error(restore_signal, exec_recorder):
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
+def test_server_worker_init_error(
+    restore_signal,
+    exec_recorder,
+    mp_context: MPContext,
+) -> None:
     record_name = exec_recorder
     aiotools.start_server(
         myserver_worker_init_error,
         num_workers=4,
         args=(record_name,),
+        mp_context=mp_context,
     )
     lines = set(read_records(record_name))
     assert sum(1 if line.startswith("started:") else 0 for line in lines) == 4
@@ -236,7 +259,6 @@ def test_server_worker_init_error(restore_signal, exec_recorder):
 main_enter = False
 main_exit = False
 main_signal = 0
-worker_signals: SynchronizedArray
 
 
 @aiotools.main_context
@@ -258,16 +280,23 @@ async def myworker_user_main(
     yield
 
 
-def test_server_user_main(set_timeout, restore_signal):
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
+def test_server_user_main(
+    set_timeout,
+    restore_signal,
+    mp_context: MPContext,
+) -> None:
     global main_enter, main_exit
+    main_enter = False
+    main_exit = False
     set_timeout(0.2, interrupt)
     aiotools.start_server(
         myworker_user_main,
         mymain_user_main,
         num_workers=3,
         args=(123,),
+        mp_context=mp_context,
     )
-
     assert main_enter
     assert main_exit
 
@@ -286,17 +315,21 @@ async def myworker_for_custom_stop_signals(
     proc_idx: int,
     args: Sequence[Any],
 ) -> AsyncGenerator[None, signal.Signals]:
-    global worker_signals
     worker_signals = args[0]
     worker_signals[proc_idx] = yield
 
 
-def test_server_user_main_custom_stop_signals(set_timeout, restore_signal):
-    global main_enter, main_exit, main_signal, worker_signals
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
+def test_server_user_main_custom_stop_signals(
+    set_timeout,
+    restore_signal,
+    mp_context: MPContext,
+) -> None:
+    global main_enter, main_exit, main_signal
     main_enter = False
     main_exit = False
     main_signal = 0
-    worker_signals = mp.Array("i", 3)
+    worker_signals = mp_context.Array("i", 3)
 
     def noop(signum, frame):
         pass
@@ -308,12 +341,15 @@ def test_server_user_main_custom_stop_signals(set_timeout, restore_signal):
         num_workers=3,
         stop_signals={signal.SIGUSR1},
         args=(worker_signals,),
+        mp_context=mp_context,
     )
 
     assert main_enter
     assert main_exit
     assert main_signal == signal.SIGUSR1
-    assert list(worker_signals) == [signal.SIGUSR1] * 3
+    assert worker_signals[0] == signal.SIGUSR1
+    assert worker_signals[1] == signal.SIGUSR1
+    assert worker_signals[2] == signal.SIGUSR1
 
 
 @aiotools.main_context
@@ -336,7 +372,12 @@ async def myworker_for_main_tuple(
     yield
 
 
-def test_server_user_main_tuple(set_timeout, restore_signal):
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
+def test_server_user_main_tuple(
+    set_timeout,
+    restore_signal,
+    mp_context: MPContext,
+) -> None:
     global main_enter, main_exit
     main_enter = False
     main_exit = False
@@ -347,6 +388,7 @@ def test_server_user_main_tuple(set_timeout, restore_signal):
         mymain_for_main_tuple,
         num_workers=3,
         args=(123,),
+        mp_context=mp_context,
     )
 
     assert main_enter
@@ -384,8 +426,9 @@ def extra_proc_plain(
         extras[key] = 990 + key
 
 
-def test_server_extra_proc(set_timeout, restore_signal):
-    extras = mp.Array("i", [0, 0])
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
+def test_server_extra_proc(set_timeout, restore_signal, mp_context: MPContext) -> None:
+    extras = mp_context.Array("i", [0, 0])
     set_timeout(0.2, interrupt)
     aiotools.start_server(
         myworker_for_extra_proc,
@@ -395,6 +438,7 @@ def test_server_extra_proc(set_timeout, restore_signal):
         ],
         num_workers=3,
         args=(extras,),
+        mp_context=mp_context,
     )
 
     assert extras[0] == 990
@@ -426,8 +470,13 @@ def extra_proc_for_custom_stop_signal(
         received_signals[key] = e.args[0]
 
 
-def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
-    received_signals = mp.Array("i", [0, 0])
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
+def test_server_extra_proc_custom_stop_signal(
+    set_timeout,
+    restore_signal,
+    mp_context: MPContext,
+) -> None:
+    received_signals = mp_context.Array("i", [0, 0])
     set_timeout(0.3, interrupt_usr1)
     aiotools.start_server(
         myworker_with_extra_proc_for_custom_stop_signal,
@@ -438,6 +487,7 @@ def test_server_extra_proc_custom_stop_signal(set_timeout, restore_signal):
         stop_signals={signal.SIGUSR1},
         args=(received_signals,),
         num_workers=3,
+        mp_context=mp_context,
     )
 
     assert received_signals[0] == signal.SIGUSR1
