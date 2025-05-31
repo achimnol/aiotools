@@ -1,0 +1,1 @@
+Replace manual `os.fork()` with `multiprocessing` to use platform-specific recommended subprocess mechanisms (e.g., "spawn" in macOS to avoid undefined behavior of native frameworks)
