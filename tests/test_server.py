@@ -129,14 +129,20 @@ def test_server_singleproc(
     assert "terminated:0" in lines
 
 
-def test_server_multiproc(set_timeout, restore_signal, exec_recorder):
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
+def test_server_multiproc(
+    set_timeout,
+    restore_signal,
+    exec_recorder,
+    mp_context: MPContext,
+) -> None:
     record_name = exec_recorder
     set_timeout(0.2, interrupt)
     aiotools.start_server(
         myserver_simple,
         num_workers=3,
         args=(record_name,),
-        mp_context=mp.get_context("spawn"),
+        mp_context=mp_context,
     )
     lines = set(read_records(record_name))
     assert lines == {
