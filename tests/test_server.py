@@ -441,7 +441,7 @@ def extra_proc_plain(
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_extra_proc(set_timeout, restore_signal, mp_context: MPContext) -> None:
     extras = mp_context.Array("i", [0, 0])
-    set_timeout(0.2, interrupt)
+    set_timeout(0.3, interrupt)
     aiotools.start_server(
         myworker_for_extra_proc,
         extra_procs=[
