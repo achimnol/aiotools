@@ -13,7 +13,6 @@ from aiotools.fork import MPContext, PidfdChildProcess, _has_pidfd, afork
 target_mp_contexts = [
     pytest.param(mp.get_context(method), id=method)
     for method in mp.get_all_start_methods()
-    if method != "forkserver"
 ]
 
 
