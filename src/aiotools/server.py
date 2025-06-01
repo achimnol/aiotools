@@ -441,6 +441,7 @@ def start_server(
     wait_timeout: Optional[float] = None,
     mp_context: Optional[MPContext] = None,
     prestart_hook: Optional[Callable[[int], None]] = None,
+    ignore_child_interrupts: bool = False,
 ) -> None:
     """
     Starts a multi-process server where each process has their own individual
@@ -623,10 +624,11 @@ def start_server(
     # (workers have no idea whether the main interrupt is enabled/disabled)
     def handle_child_interrupt(read_pipe: mpconn.Connection) -> None:
         child_idx = struct.unpack("i", read_pipe.recv_bytes(4))[0]  # noqa
-        log.debug(f"Child {child_idx} has interrupted the main program.")
-        # self-interrupt to initiate the main-to-worker interrupts
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
-        os.kill(0, signal.SIGINT)
+        if not ignore_child_interrupts:
+            # self-interrupt to initiate the main-to-worker interrupts
+            log.debug(f"Child {child_idx} has interrupted the main program.")
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
+            os.kill(0, signal.SIGINT)
 
     read_pipe, write_pipe = mp.Pipe()
     main_loop.add_reader(read_pipe.fileno(), handle_child_interrupt, read_pipe)
@@ -721,6 +723,8 @@ def start_server(
                     for child in children:
                         child.send_signal(signal.SIGKILL)
         finally:
+            main_loop.remove_reader(read_pipe.fileno())
+            read_pipe.close()
             try:
                 main_loop.run_until_complete(cancel_all_tasks())
                 main_loop.run_until_complete(main_loop.shutdown_asyncgens())

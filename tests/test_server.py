@@ -228,8 +228,6 @@ async def myserver_worker_init_error(loop, proc_idx, args):
     write_record(record_name, f"started:{proc_idx}")
     log.debug("hello")
     if proc_idx in (0, 2):
-        # delay until other workers start normally.
-        await asyncio.sleep(0.1 * proc_idx)
         raise ZeroDivisionError("oops")
 
     yield
@@ -243,14 +241,20 @@ async def myserver_worker_init_error(loop, proc_idx, args):
 def test_server_worker_init_error(
     restore_signal,
     exec_recorder,
+    set_timeout,
     mp_context: MPContext,
 ) -> None:
     record_name = exec_recorder
+    set_timeout(0.3, interrupt)
     aiotools.start_server(
         myserver_worker_init_error,
         num_workers=4,
         args=(record_name,),
         mp_context=mp_context,
+        # Let it wait until all workers finish even when some of them raises unhandled exceptions
+        # Otherwise, any first received worker-to-main interrupt message via the intr-pipe will cancel
+        # the forever future and could cause race conditions.
+        ignore_child_interrupts=True,
     )
     lines = set(read_records(record_name))
     assert sum(1 if line.startswith("started:") else 0 for line in lines) == 4
@@ -269,6 +273,7 @@ main_signal = 0
 
 @aiotools.main_context
 def mymain_user_main() -> Generator[int, signal.Signals]:
+    # The main context manager is executed inside the main process.
     global main_enter, main_exit
     main_enter = True
     yield 987
@@ -309,6 +314,7 @@ def test_server_user_main(
 
 @aiotools.main_context
 def mymain_for_custom_stop_signals() -> Generator[None, signal.Signals]:
+    # The main context manager is executed inside the main process.
     global main_enter, main_exit, main_signal
     main_enter = True
     main_signal = yield

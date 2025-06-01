@@ -31,6 +31,9 @@ __all__ = (
 
 logger = logging.getLogger(__name__)
 
+MPProcess: TypeAlias = (
+    mpctx.Process | mpctx.SpawnProcess | mpctx.ForkProcess | mpctx.ForkServerProcess
+)
 MPContext: TypeAlias = (
     mpctx.DefaultContext
     | mpctx.ForkContext
@@ -89,9 +92,11 @@ class PosixChildProcess(AbstractChildProcess):
     A POSIX-compatible version of :class:`AbstractChildProcess`.
     """
 
-    def __init__(self, pid: int) -> None:
+    def __init__(self, proc: MPProcess, pid: int) -> None:
+        self._proc = proc
         self._pid = pid
         self._terminated = False
+        self._returncode: int | None = None
 
     @property
     def pid(self) -> int:
@@ -109,30 +114,34 @@ class PosixChildProcess(AbstractChildProcess):
             return
         if signum == signal.SIGKILL:
             logger.warning("Force-killed hanging child: %d", self._pid)
-        os.kill(self._pid, signum)
+        try:
+            os.kill(self._pid, signum)
+        except ProcessLookupError:
+            logger.warning(
+                "PosixChildProcess(%d).send_signal(%d): "
+                "The process has already terminated.",
+                self._pid,
+                signum,
+            )
 
     async def wait(self) -> int:
-        loop = get_running_loop()
-        try:
-            _, status = await loop.run_in_executor(None, os.waitpid, self._pid, 0)
-        except ChildProcessError:
-            # The child process is already reaped
-            # (may happen if waitpid() is called elsewhere).
-            self._returncode = 255
-            logger.warning(
-                "child process pid %d exit status already read: "
-                "it will report returncode 255",
-                self._pid,
-            )
-        else:
-            if os.WIFSIGNALED(status):
-                self._returncode = -os.WTERMSIG(status)
-            elif os.WIFEXITED(status):
-                self._returncode = os.WEXITSTATUS(status)
-            else:
-                self._returncode = status
-        finally:
-            self._terminated = True
+        status = 0
+        print(f"afork.PosixChildProcess.wait({self._pid}): begin")
+        while self._returncode is None:
+            try:
+                while True:
+                    pid, status = os.waitpid(self._pid, os.WNOHANG)
+                    if pid == self._pid:
+                        self._returncode = os.waitstatus_to_exitcode(status)
+                        break
+                    await asyncio.sleep(0.05)
+            except ChildProcessError:
+                # The child process is not yet created.
+                # See the multiprocessing.popen_fork module.
+                await asyncio.sleep(0.05)
+                continue
+        print(f"afork.PosixChildProcess.wait({self._pid}): {self._returncode=}")
+        self._terminated = True
         return self._returncode
 
 
@@ -141,7 +150,8 @@ class PidfdChildProcess(AbstractChildProcess):
     A PID file descriptor-based version of :class:`AbstractChildProcess`.
     """
 
-    def __init__(self, pid: int, pidfd: int) -> None:
+    def __init__(self, proc: MPProcess, pid: int, pidfd: int) -> None:
+        self._proc = proc
         self._pid = pid
         self._pidfd = pidfd
         self._returncode = None
@@ -239,7 +249,7 @@ def _child_main(
 async def _fork_posix(
     child_func: Callable[[], int],
     mp_context: MPContext,
-) -> int:
+) -> tuple[MPProcess, int]:
     loop = get_running_loop()
     read_pipe, write_pipe = mp_context.Pipe()
     proc = mp_context.Process(
@@ -258,13 +268,13 @@ async def _fork_posix(
     loop.remove_reader(read_pipe.fileno())
     read_pipe.recv_bytes(1)
     read_pipe.close()
-    return pid
+    return proc, pid
 
 
 async def _clone_pidfd(
     child_func: Callable[[], int],
     mp_context: MPContext,
-) -> Tuple[int, int]:
+) -> Tuple[MPProcess, int, int]:
     loop = get_running_loop()
     read_pipe, write_pipe = mp_context.Pipe()
     proc = mp_context.Process(
@@ -284,7 +294,7 @@ async def _clone_pidfd(
     loop.remove_reader(read_pipe.fileno())
     read_pipe.recv_bytes(1)
     read_pipe.close()
-    return pid, fd
+    return proc, pid, fd
 
 
 async def afork(
@@ -312,8 +322,8 @@ async def afork(
     if mp_context is None:
         mp_context = mp.get_context()
     if _has_pidfd:
-        pid, pidfd = await _clone_pidfd(child_func, mp_context)
-        return PidfdChildProcess(pid, pidfd)
+        proc, pid, pidfd = await _clone_pidfd(child_func, mp_context)
+        return PidfdChildProcess(proc, pid, pidfd)
     else:
-        pid = await _fork_posix(child_func, mp_context)
-        return PosixChildProcess(pid)
+        proc, pid = await _fork_posix(child_func, mp_context)
+        return PosixChildProcess(proc, pid)
