@@ -508,8 +508,9 @@ def start_server(
                        event loop in the children.  The function should
                        accept an int argument representing the process index.
 
-        ignore_child_interrupts: Any unhandled exceptions in the child functions
-                                 are translated as active SIGINT to shutdown.
+        ignore_child_interrupts: By default, any unhandled exceptions in the
+                                 child functions are translated as active
+                                 SIGINT to shutdown.
                                  This flag makes the main process to ignore them,
                                  which is useful to gather all worker's results
                                  even when some of them raises unhandled exceptions.
