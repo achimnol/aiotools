@@ -18,7 +18,7 @@ import os
 import signal
 import traceback
 from abc import ABCMeta, abstractmethod, abstractproperty
-from typing import Callable, Optional, Tuple, TypeAlias
+from typing import Callable, ClassVar, Optional, Tuple, TypeAlias
 
 from .compat import get_running_loop
 
@@ -92,6 +92,8 @@ class PosixChildProcess(AbstractChildProcess):
     A POSIX-compatible version of :class:`AbstractChildProcess`.
     """
 
+    poll_interval: ClassVar[float] = 0.05
+
     def __init__(self, proc: MPProcess, pid: int) -> None:
         self._proc = proc
         self._pid = pid
@@ -126,7 +128,6 @@ class PosixChildProcess(AbstractChildProcess):
 
     async def wait(self) -> int:
         status = 0
-        print(f"afork.PosixChildProcess.wait({self._pid}): begin")
         while self._returncode is None:
             try:
                 while True:
@@ -134,13 +135,12 @@ class PosixChildProcess(AbstractChildProcess):
                     if pid == self._pid:
                         self._returncode = os.waitstatus_to_exitcode(status)
                         break
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(self.poll_interval)
             except ChildProcessError:
                 # The child process is not yet created.
                 # See the multiprocessing.popen_fork module.
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(self.poll_interval)
                 continue
-        print(f"afork.PosixChildProcess.wait({self._pid}): {self._returncode=}")
         self._terminated = True
         return self._returncode
 

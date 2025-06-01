@@ -703,6 +703,9 @@ def start_server(
                         continue
                     raise
                 children.append(p)
+
+            write_pipe.close()
+
             # unblock the stop signals for user/external interrupts.
             signal.pthread_sigmask(signal.SIG_UNBLOCK, sigblock_mask)
 
