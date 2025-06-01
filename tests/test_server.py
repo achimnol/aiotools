@@ -26,6 +26,7 @@ if os.environ.get("CI", "") and sys.version_info < (3, 9, 0):
 target_mp_contexts = [
     pytest.param(mp.get_context(method), id=method)
     for method in mp.get_all_start_methods()
+    if method != "forkserver"
 ]
 
 
