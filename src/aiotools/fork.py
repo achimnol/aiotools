@@ -25,7 +25,7 @@ import multiprocessing.context as mpctx
 import os
 import signal
 import traceback
-from abc import ABCMeta, abstractmethod, abstractproperty
+from abc import ABCMeta, abstractmethod
 from typing import Callable, ClassVar, Optional, Tuple, TypeAlias
 
 from .compat import get_running_loop
