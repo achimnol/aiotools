@@ -461,69 +461,88 @@ def start_server(
     loop gracefully.
 
     Args:
-        worker_actxmgr: An asynchronous context manager that dicates the
-                        initialization and shutdown steps of each worker.
-                        It should accept the following three arguments:
+        worker_actxmgr:
+            An asynchronous context manager that dicates the
+            initialization and shutdown steps of each worker.
+            It should accept the following three arguments:
 
-                        * **loop**: the asyncio event loop created and set
-                          by aiotools
-                        * **pidx**: the 0-based index of the worker
-                          (use this for per-worker logging)
-                        * **args**: a concatenated tuple of values yielded by
-                          **main_ctxmgr** and the user-defined arguments in
-                          **args**.
+            * **loop**: the asyncio event loop created and set
+              by aiotools
+            * **pidx**: the 0-based index of the worker
+              (use this for per-worker logging)
+            * **args**: a concatenated tuple of values yielded by
+              **main_ctxmgr** and the user-defined arguments in
+              **args**.
 
-                        aiotools automatically installs an interruption handler
-                        that calls ``loop.stop()`` to the given event loop,
-                        regardless of using either threading or
-                        multiprocessing.
+            aiotools automatically installs an interruption handler
+            that calls ``loop.stop()`` to the given event loop,
+            regardless of using either threading or
+            multiprocessing.
 
-        main_ctxmgr: An optional context manager that performs global
-                     initialization and shutdown steps of the whole program.
-                     It may yield one or more values to be passed to worker
-                     processes along with **args** passed to this function.
-                     There is no arguments passed to those functions since
-                     you can directly access ``sys.argv`` to parse command
-                     line arguments and/or read user configurations.
+        main_ctxmgr:
+            An optional context manager that performs global
+            initialization and shutdown steps of the whole program.
+            It may yield one or more values to be passed to worker
+            processes along with **args** passed to this function.
+            There is no arguments passed to those functions since
+            you can directly access ``sys.argv`` to parse command
+            line arguments and/or read user configurations.
 
-        extra_procs: An iterable of functions that consist of extra processes
-                     whose lifecycles are synchronized with other workers.
-                     They should set up their own signal handlers.
+        extra_procs:
+            An iterable of functions that consist of extra processes
+            whose lifecycles are synchronized with other workers.
+            They should set up their own signal handlers.
 
-                     It should accept the following three arguments:
+            It should accept the following three arguments:
 
-                     * **intr_event**: Always ``None``, kept for legacy
-                     * **pidx**: same to **worker_actxmgr** argument
-                     * **args**: same to **worker_actxmgr** argument
+            * **intr_event**: Always ``None``, kept for legacy
+            * **pidx**: same to **worker_actxmgr** argument
+            * **args**: same to **worker_actxmgr** argument
 
-        stop_signals: A list of UNIX signals that the main program to
-                      recognize as termination signals.
+        stop_signals:
+            A list of UNIX signals that the main program to
+            recognize as termination signals.
 
         num_workers: The number of children workers.
 
-        args: The user-defined arguments passed to workers and extra
-              processes.  If **main_ctxmgr** yields one or more values,
-              they are *prepended* to this user arguments when passed to
-              workers and extra processes.
+        args:
+            The user-defined arguments passed to workers and extra
+            processes.  If **main_ctxmgr** yields one or more values,
+            they are *prepended* to this user arguments when passed to
+            workers and extra processes.
 
-        wait_timeout: The timeout in seconds before forcibly killing all
-                      remaining child processes after sending initial stop
-                      signals.
+        wait_timeout:
+            The timeout in seconds before forcibly killing all
+            remaining child processes after sending initial stop
+            signals.
 
-        mp_context: The multiprocessing context to use for creating child
-                    processes.  If not specified, the default context is
-                    used.
+        mp_context:
+            The multiprocessing context to use for creating child
+            processes.  If not specified, the default context is
+            used.
 
-        prestart_hook: A function to be called once before creating the
-                       event loop in the children.  The function should
-                       accept an int argument representing the process index.
+        prestart_hook:
+            A function to be called once before creating the
+            event loop in the children.  The function should
+            accept an int argument representing the process index.
+            You may use this hook to initialize the event loop
+            with custom settings (e.g., applying ``uvloop``)
+            or to perform any other necessary setup before the
+            main function is called.
 
-        ignore_child_interrupts: By default, any unhandled exceptions in the
-                                 child functions are translated as active
-                                 SIGINT to shutdown.
-                                 This flag makes the main process to ignore them,
-                                 which is useful to gather all worker's results
-                                 even when some of them raises unhandled exceptions.
+        ignore_child_interrupts:
+            By default, any unhandled exceptions in the
+            child functions are translated as active
+            SIGINT to the main and all other worker processes,
+            meaning a full shutdown.
+            This flag makes the main process to ignore them,
+            which is useful to gather all worker's results
+            even when some of them raises unhandled exceptions.
+
+        run_to_completion:
+            If True, the main/worker processes will NOT wait forever
+            until interrupted but *immediately exit* when the main
+            functions complete.  This flag implies **ignore_child_interrupts**.
 
     Returns:
         None
@@ -582,7 +601,8 @@ def start_server(
 
     .. versionadded:: 1.9.0
 
-        The **mp_context**, **prestart_hook**, and **ignore_child_interrupts* arguments.
+        The **mp_context**, **prestart_hook**, **ignore_child_interrupts**,
+        and **run_to_completion** arguments.
     """
 
     @_main_ctxmgr
