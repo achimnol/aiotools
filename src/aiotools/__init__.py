@@ -20,6 +20,7 @@ __all__ = (
     "__version__",
     # "@aiotools.server" still works,
     # but server_context is provided to silence typecheckers.
+    "main_context",
     "server_context",
 )
 
@@ -34,6 +35,7 @@ from .timeouts import *  # noqa
 from .timer import *  # noqa
 from .utils import *  # noqa
 
+main_context = server._main_ctxmgr
 server_context = server._server_ctxmgr
 
 __version__ = version("aiotools")
