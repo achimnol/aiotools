@@ -68,7 +68,8 @@ class AbstractChildProcess(metaclass=ABCMeta):
     The abstract interface to control and monitor a forked child process.
     """
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def pid(self) -> int:
         """
         The process ID of the child process.
