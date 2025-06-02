@@ -98,6 +98,13 @@ class AbstractChildProcess(metaclass=ABCMeta):
 class PosixChildProcess(AbstractChildProcess):
     """
     A POSIX-compatible version of :class:`AbstractChildProcess`.
+
+    .. versionchanged:: 1.9.0
+
+       The :meth:`wait()` method now polls the status of child process instead of
+       launching a separate thread that makes a blocking ``os.waitpid()`` syscall.
+       The polling interval may be adjusted using the class attribute
+       :attr:`poll_interval`, which defaults to 50 msec.
     """
 
     poll_interval: ClassVar[float] = 0.05
@@ -155,7 +162,13 @@ class PosixChildProcess(AbstractChildProcess):
 
 class PidfdChildProcess(AbstractChildProcess):
     """
-    A PID file descriptor-based version of :class:`AbstractChildProcess`.
+    A pidfd (PID file descriptor) based version of :class:`AbstractChildProcess`.
+
+    The main advantage of pidfd is that we no longer need to actively poll
+    the child status, making the whole operation async-native.
+
+    Note that pidfd may not be available on all Linux systems
+    depending on at which Linux kernel version your Python executable is built.
     """
 
     def __init__(self, proc: MPProcess, pid: int, pidfd: int) -> None:
