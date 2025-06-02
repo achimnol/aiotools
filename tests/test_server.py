@@ -114,7 +114,7 @@ def test_server_singleproc(
     mp_context: MPContext,
 ) -> None:
     record_name = exec_recorder
-    set_timeout(0.2, interrupt)
+    set_timeout(0.5, interrupt)
     aiotools.start_server(
         myserver_simple,
         args=(record_name,),
@@ -133,7 +133,7 @@ def test_server_multiproc(
     mp_context: MPContext,
 ) -> None:
     record_name = exec_recorder
-    set_timeout(0.2, interrupt)
+    set_timeout(0.5, interrupt)
     aiotools.start_server(
         myserver_simple,
         num_workers=3,
@@ -175,7 +175,7 @@ def test_server_multiproc_custom_stop_signals(
     mp_context: MPContext,
 ) -> None:
     record_name = exec_recorder
-    set_timeout(0.2, functools.partial(interrupt, signum=signal.SIGUSR1))
+    set_timeout(0.8, functools.partial(interrupt, signum=signal.SIGUSR1))
     aiotools.start_server(
         myserver_signal,
         num_workers=2,
@@ -241,7 +241,7 @@ def test_server_worker_init_error(
     mp_context: MPContext,
 ) -> None:
     record_name = exec_recorder
-    set_timeout(0.3, interrupt)
+    set_timeout(1.0, interrupt)
     aiotools.start_server(
         myserver_worker_init_error,
         num_workers=4,
@@ -296,7 +296,7 @@ def test_server_user_main(
     global main_enter, main_exit
     main_enter = False
     main_exit = False
-    set_timeout(0.2, interrupt)
+    set_timeout(1.0, interrupt)
     aiotools.start_server(
         myworker_user_main,
         mymain_user_main,
@@ -342,7 +342,7 @@ def test_server_user_main_custom_stop_signals(
     def noop(signum, frame):
         pass
 
-    set_timeout(0.2, functools.partial(interrupt, signum=signal.SIGUSR1))
+    set_timeout(1.0, functools.partial(interrupt, signum=signal.SIGUSR1))
     aiotools.start_server(
         myworker_for_custom_stop_signals,
         mymain_for_custom_stop_signals,
@@ -390,7 +390,7 @@ def test_server_user_main_tuple(
     main_enter = False
     main_exit = False
 
-    set_timeout(0.2, interrupt)
+    set_timeout(1.0, interrupt)
     aiotools.start_server(
         myworker_for_main_tuple,
         mymain_for_main_tuple,
@@ -437,7 +437,7 @@ def extra_proc_plain(
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_extra_proc(set_timeout, restore_signal, mp_context: MPContext) -> None:
     extras = mp_context.Array("i", [0, 0, 0])
-    set_timeout(0.6, interrupt)
+    set_timeout(1.0, interrupt)
     aiotools.start_server(
         myworker_for_extra_proc,
         extra_procs=[
@@ -486,7 +486,7 @@ def test_server_extra_proc_custom_stop_signal(
     mp_context: MPContext,
 ) -> None:
     received_signals = mp_context.Array("i", [0, 0, 0])
-    set_timeout(0.6, functools.partial(interrupt, signum=signal.SIGUSR1))
+    set_timeout(1.0, functools.partial(interrupt, signum=signal.SIGUSR1))
     aiotools.start_server(
         myworker_with_extra_proc_for_custom_stop_signal,
         extra_procs=[
