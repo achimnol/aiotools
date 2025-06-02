@@ -175,9 +175,12 @@ def test_server_multiproc_custom_stop_signals(
     aiotools.start_server(
         myserver_signal,
         num_workers=2,
-        stop_signals={signal.SIGUSR1},
+        stop_signals={signal.SIGUSR1, signal.SIGUSR2},
         args=(record_name,),
         mp_context=mp_context,
+        # When custom stop signals are set, the run-to-completion mode
+        # sets the yield's return value as the "first" stop signal by
+        # the numerical ascending order.
         run_to_completion=True,
     )
     lines = set(read_records(record_name))
@@ -477,6 +480,9 @@ def test_server_extra_proc_custom_stop_signal(
     restore_signal,
     mp_context: MPContext,
 ) -> None:
+    # In local tests, the timeout may be as short as 0.x seconds,
+    # but in GitHub Actions, we should assume more than 1 seconds of delay
+    # for each worker process spawned.
     set_timeout(3.0, functools.partial(interrupt, signum=signal.SIGUSR1))
     received_signals = mp_context.Array("i", [0, 0])
     aiotools.start_server(
@@ -491,5 +497,13 @@ def test_server_extra_proc_custom_stop_signal(
         mp_context=mp_context,
     )
 
+    # This test case will generate a warning:
+    #
+    #   UserWarning: resource_tracker: process died unexpectedly, relaunching. Some resources might leak.
+    #
+    # because multiprocessing's resource tracker process gets killed
+    # by the signal other than SIGINT or SIGTERM.
+    # The list of blocked signals are hard-coded in the stdlib,
+    # so there is nothing we can do here. :(
     assert received_signals[0] == signal.SIGUSR1
     assert received_signals[1] == signal.SIGUSR1
