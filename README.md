@@ -114,8 +114,7 @@ async def echo(reader, writer):
 
 @aiotools.server
 async def myworker(loop, pidx, args):
-   server = await asyncio.start_server(echo, '0.0.0.0', 8888,
-       reuse_port=True, loop=loop)
+   server = await asyncio.start_server(echo, '0.0.0.0', 8888, reuse_port=True)
    print(f'[{pidx}] started')
    yield  # wait until terminated
    server.close()
