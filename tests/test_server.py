@@ -86,12 +86,8 @@ def exec_recorder():
         os.unlink(path)
 
 
-def interrupt():
-    os.kill(0, signal.SIGINT)
-
-
-def interrupt_usr1():
-    os.kill(os.getpid(), signal.SIGUSR1)
+def interrupt(pid: int = 0, signum: signal.Signals = signal.SIGINT):
+    os.kill(pid, signum)
 
 
 @aiotools.server_context
@@ -179,7 +175,7 @@ def test_server_multiproc_custom_stop_signals(
     mp_context: MPContext,
 ) -> None:
     record_name = exec_recorder
-    set_timeout(0.2, interrupt_usr1)
+    set_timeout(0.2, functools.partial(interrupt, signum=signal.SIGUSR1))
     aiotools.start_server(
         myserver_signal,
         num_workers=2,
@@ -346,7 +342,7 @@ def test_server_user_main_custom_stop_signals(
     def noop(signum, frame):
         pass
 
-    set_timeout(0.2, interrupt_usr1)
+    set_timeout(0.2, functools.partial(interrupt, signum=signal.SIGUSR1))
     aiotools.start_server(
         myworker_for_custom_stop_signals,
         mymain_for_custom_stop_signals,
@@ -413,6 +409,7 @@ async def myworker_for_extra_proc(
     proc_idx: int,
     args: Sequence[Any],
 ) -> AsyncGenerator[None, signal.Signals]:
+    print(f"extra_proc_worker({proc_idx=})")
     yield
 
 
@@ -427,8 +424,7 @@ def extra_proc_plain(
     extras = args[0]
     extras[key] = 980 + key
     try:
-        while True:
-            time.sleep(0.1)
+        time.sleep(10)
     except KeyboardInterrupt:
         print(f"extra[{key}] interrupted", file=sys.stderr)
     except Exception as e:
@@ -440,13 +436,14 @@ def extra_proc_plain(
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_extra_proc(set_timeout, restore_signal, mp_context: MPContext) -> None:
-    extras = mp_context.Array("i", [0, 0])
-    set_timeout(0.3, interrupt)
+    extras = mp_context.Array("i", [0, 0, 0])
+    set_timeout(0.6, interrupt)
     aiotools.start_server(
         myworker_for_extra_proc,
         extra_procs=[
             functools.partial(extra_proc_plain, 0),
             functools.partial(extra_proc_plain, 1),
+            functools.partial(extra_proc_plain, 2),
         ],
         num_workers=3,
         args=(extras,),
@@ -455,6 +452,7 @@ def test_server_extra_proc(set_timeout, restore_signal, mp_context: MPContext) -
 
     assert extras[0] == 990
     assert extras[1] == 991
+    assert extras[2] == 992
 
 
 @aiotools.server_context
@@ -476,8 +474,7 @@ def extra_proc_for_custom_stop_signal(
     assert intr_event is None  # unused with multiprocessing mode
     received_signals = args[0]
     try:
-        while True:
-            time.sleep(0.1)
+        time.sleep(10)
     except aiotools.InterruptedBySignal as e:
         received_signals[key] = e.args[0]
 
@@ -488,13 +485,14 @@ def test_server_extra_proc_custom_stop_signal(
     restore_signal,
     mp_context: MPContext,
 ) -> None:
-    received_signals = mp_context.Array("i", [0, 0])
-    set_timeout(0.3, interrupt_usr1)
+    received_signals = mp_context.Array("i", [0, 0, 0])
+    set_timeout(0.6, functools.partial(interrupt, signum=signal.SIGUSR1))
     aiotools.start_server(
         myworker_with_extra_proc_for_custom_stop_signal,
         extra_procs=[
             functools.partial(extra_proc_for_custom_stop_signal, 0),
             functools.partial(extra_proc_for_custom_stop_signal, 1),
+            functools.partial(extra_proc_for_custom_stop_signal, 2),
         ],
         stop_signals={signal.SIGUSR1},
         args=(received_signals,),
@@ -504,3 +502,4 @@ def test_server_extra_proc_custom_stop_signal(
 
     assert received_signals[0] == signal.SIGUSR1
     assert received_signals[1] == signal.SIGUSR1
+    assert received_signals[2] == signal.SIGUSR1

@@ -137,10 +137,10 @@ class PosixChildProcess(AbstractChildProcess):
                         break
                     await asyncio.sleep(self.poll_interval)
             except ChildProcessError:
-                # The child process is not yet created.
-                # See the multiprocessing.popen_fork module.
-                await asyncio.sleep(self.poll_interval)
-                continue
+                # Since we have already checked for the process's existence,
+                # we can assume that the process has terminated.
+                self._returncode = 255
+        self._proc.join()  # let multiprocessing clean up itself
         self._terminated = True
         return self._returncode
 
@@ -216,6 +216,7 @@ class PidfdChildProcess(AbstractChildProcess):
         finally:
             loop.remove_reader(self._pidfd)
             os.close(self._pidfd)
+            self._proc.join()  # let multiprocessing clean up itself
             self._terminated = True
             self._wait_event.set()
 

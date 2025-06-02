@@ -611,7 +611,7 @@ def start_server(
     # to make subprocess working in child threads
     setup_child_watcher(main_loop)
 
-    # build a main-to-worker interrupt channel using signals
+    # Build a main-to-worker interrupt channel using signals
     def handle_stop_signal(signum: signal.Signals) -> None:
         main_ctx.yield_return = signum  # type: ignore
         for child in children:
@@ -627,10 +627,15 @@ def start_server(
             functools.partial(handle_stop_signal, signum),
         )
 
-    # build a reliable worker-to-main interrupt channel using a pipe
-    # (workers have no idea whether the main interrupt is enabled/disabled)
+    # Build a reliable worker-to-main interrupt channel using a pipe.
+    # This channel is used when the worker main functions raise an unhandled exception,
+    # so that the main program can be interrupted immediately.
     def handle_child_interrupt(read_pipe: mpconn.Connection) -> None:
-        child_idx = struct.unpack("i", read_pipe.recv_bytes(4))[0]  # noqa
+        try:
+            child_idx = struct.unpack("i", read_pipe.recv_bytes(4))[0]
+        except EOFError:
+            # read_pipe is already closed
+            return
         if not ignore_child_interrupts:
             # self-interrupt to initiate the main-to-worker interrupts
             log.debug(f"Child {child_idx} has interrupted the main program.")
