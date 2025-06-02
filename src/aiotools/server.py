@@ -29,6 +29,7 @@ import inspect
 import logging
 import multiprocessing as mp
 import multiprocessing.connection as mpconn
+import multiprocessing.resource_tracker
 import os
 import signal
 import struct
@@ -316,6 +317,7 @@ def _worker_main(
     stop_signals: Collection[signal.Signals],
     intr_write_pipe: mpconn.Connection,
     proc_idx: int,
+    run_to_completion: bool,
     args: Sequence[Any],
     *,
     prestart_hook: Optional[Callable[[int], None]] = None,
@@ -353,7 +355,10 @@ def _worker_main(
             async with ctx:
                 err_ctx = "body"
                 try:
-                    await forever_future
+                    if not run_to_completion:
+                        await forever_future
+                    else:
+                        ctx.yield_return = sorted(stop_signals)[0]
                 except asyncio.CancelledError:
                     pass
                 finally:
@@ -364,8 +369,13 @@ def _worker_main(
                 log.exception(
                     f"Worker {proc_idx}: Error during context manager {err_ctx_str}"
                 )
-                intr_write_pipe.send_bytes(struct.pack("i", proc_idx))
+                try:
+                    intr_write_pipe.send_bytes(struct.pack("i", proc_idx))
+                except BrokenPipeError:
+                    pass
             raise
+        finally:
+            intr_write_pipe.close()
 
     try:
         loop.run_until_complete(_wrapped_worker())
@@ -442,6 +452,7 @@ def start_server(
     mp_context: Optional[MPContext] = None,
     prestart_hook: Optional[Callable[[int], None]] = None,
     ignore_child_interrupts: bool = False,
+    run_to_completion: bool = False,
 ) -> None:
     """
     Starts a multi-process server where each process has their own individual
@@ -636,7 +647,7 @@ def start_server(
         except EOFError:
             # read_pipe is already closed
             return
-        if not ignore_child_interrupts:
+        if not ignore_child_interrupts and not run_to_completion:
             # self-interrupt to initiate the main-to-worker interrupts
             log.debug(f"Child {child_idx} has interrupted the main program.")
             signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
@@ -665,6 +676,7 @@ def start_server(
                                 stop_signals,
                                 write_pipe,
                                 i,
+                                run_to_completion,
                                 (*main_args, *args),
                                 prestart_hook=prestart_hook,
                             ),
@@ -716,13 +728,16 @@ def start_server(
 
             # run!
             try:
-                main_loop.run_until_complete(main_future)
+                if not run_to_completion:
+                    main_loop.run_until_complete(main_future)
+                else:
+                    main_ctx.yield_return = sorted(stop_signals)[0]
             except asyncio.CancelledError:
                 pass
             finally:
-                # if interrupted, wait for workers to finish.
+                # If interrupted or complete, wait for workers to finish.
                 try:
-                    main_loop.run_until_complete(
+                    worker_results = main_loop.run_until_complete(
                         asyncio.wait_for(
                             asyncio.gather(
                                 *[child.wait() for child in children],
@@ -731,6 +746,13 @@ def start_server(
                             wait_timeout,
                         )
                     )
+                    for child, result in zip(children, worker_results):
+                        if isinstance(result, Exception):
+                            log.error(
+                                "Waiting for a child process [%d] has failed by an error.",
+                                child.pid,
+                                exc_info=result,
+                            )
                 except asyncio.TimeoutError:
                     log.warning(
                         "Timeout during waiting for child processes; killing all",

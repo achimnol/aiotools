@@ -108,17 +108,16 @@ async def myserver_simple(
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_singleproc(
-    set_timeout,
     restore_signal,
     exec_recorder,
     mp_context: MPContext,
 ) -> None:
     record_name = exec_recorder
-    set_timeout(0.5, interrupt)
     aiotools.start_server(
         myserver_simple,
         args=(record_name,),
         mp_context=mp_context,
+        run_to_completion=True,
     )
     lines = set(read_records(record_name))
     assert "started:0" in lines
@@ -127,18 +126,17 @@ def test_server_singleproc(
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_multiproc(
-    set_timeout,
     restore_signal,
     exec_recorder,
     mp_context: MPContext,
 ) -> None:
     record_name = exec_recorder
-    set_timeout(0.5, interrupt)
     aiotools.start_server(
         myserver_simple,
         num_workers=3,
         args=(record_name,),
         mp_context=mp_context,
+        run_to_completion=True,
     )
     lines = set(read_records(record_name))
     assert lines == {
@@ -169,19 +167,18 @@ async def myserver_signal(
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_multiproc_custom_stop_signals(
-    set_timeout,
     restore_signal,
     exec_recorder,
     mp_context: MPContext,
 ) -> None:
     record_name = exec_recorder
-    set_timeout(0.8, functools.partial(interrupt, signum=signal.SIGUSR1))
     aiotools.start_server(
         myserver_signal,
         num_workers=2,
         stop_signals={signal.SIGUSR1},
         args=(record_name,),
         mp_context=mp_context,
+        run_to_completion=True,
     )
     lines = set(read_records(record_name))
     assert {"started:0", "started:1"} < lines
@@ -237,11 +234,9 @@ async def myserver_worker_init_error(loop, proc_idx, args):
 def test_server_worker_init_error(
     restore_signal,
     exec_recorder,
-    set_timeout,
     mp_context: MPContext,
 ) -> None:
     record_name = exec_recorder
-    set_timeout(1.0, interrupt)
     aiotools.start_server(
         myserver_worker_init_error,
         num_workers=4,
@@ -250,7 +245,7 @@ def test_server_worker_init_error(
         # Let it wait until all workers finish even when some of them raises unhandled exceptions
         # Otherwise, any first received worker-to-main interrupt message via the intr-pipe will cancel
         # the forever future and could cause race conditions.
-        ignore_child_interrupts=True,
+        run_to_completion=True,
     )
     lines = set(read_records(record_name))
     assert sum(1 if line.startswith("started:") else 0 for line in lines) == 4
@@ -289,20 +284,19 @@ async def myworker_user_main(
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_user_main(
-    set_timeout,
     restore_signal,
     mp_context: MPContext,
 ) -> None:
     global main_enter, main_exit
     main_enter = False
     main_exit = False
-    set_timeout(1.0, interrupt)
     aiotools.start_server(
         myworker_user_main,
         mymain_user_main,
         num_workers=3,
         args=(123,),
         mp_context=mp_context,
+        run_to_completion=True,
     )
     assert main_enter
     assert main_exit
@@ -329,7 +323,6 @@ async def myworker_for_custom_stop_signals(
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_user_main_custom_stop_signals(
-    set_timeout,
     restore_signal,
     mp_context: MPContext,
 ) -> None:
@@ -342,7 +335,6 @@ def test_server_user_main_custom_stop_signals(
     def noop(signum, frame):
         pass
 
-    set_timeout(1.0, functools.partial(interrupt, signum=signal.SIGUSR1))
     aiotools.start_server(
         myworker_for_custom_stop_signals,
         mymain_for_custom_stop_signals,
@@ -350,6 +342,7 @@ def test_server_user_main_custom_stop_signals(
         stop_signals={signal.SIGUSR1},
         args=(worker_signals,),
         mp_context=mp_context,
+        run_to_completion=True,
     )
 
     assert main_enter
@@ -424,7 +417,7 @@ def extra_proc_plain(
     extras = args[0]
     extras[key] = 980 + key
     try:
-        time.sleep(10)
+        time.sleep(0.1)
     except KeyboardInterrupt:
         print(f"extra[{key}] interrupted", file=sys.stderr)
     except Exception as e:
@@ -435,9 +428,8 @@ def extra_proc_plain(
 
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
-def test_server_extra_proc(set_timeout, restore_signal, mp_context: MPContext) -> None:
+def test_server_extra_proc(restore_signal, mp_context: MPContext) -> None:
     extras = mp_context.Array("i", [0, 0, 0])
-    set_timeout(1.0, interrupt)
     aiotools.start_server(
         myworker_for_extra_proc,
         extra_procs=[
@@ -448,6 +440,7 @@ def test_server_extra_proc(set_timeout, restore_signal, mp_context: MPContext) -
         num_workers=3,
         args=(extras,),
         mp_context=mp_context,
+        run_to_completion=True,
     )
 
     assert extras[0] == 990
@@ -485,8 +478,8 @@ def test_server_extra_proc_custom_stop_signal(
     restore_signal,
     mp_context: MPContext,
 ) -> None:
-    received_signals = mp_context.Array("i", [0, 0, 0])
     set_timeout(1.0, functools.partial(interrupt, signum=signal.SIGUSR1))
+    received_signals = mp_context.Array("i", [0, 0, 0])
     aiotools.start_server(
         myworker_with_extra_proc_for_custom_stop_signal,
         extra_procs=[
