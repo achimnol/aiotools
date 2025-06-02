@@ -29,7 +29,6 @@ import inspect
 import logging
 import multiprocessing as mp
 import multiprocessing.connection as mpconn
-import multiprocessing.resource_tracker
 import os
 import signal
 import struct

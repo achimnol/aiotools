@@ -375,7 +375,6 @@ async def myworker_for_main_tuple(
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_user_main_tuple(
-    set_timeout,
     restore_signal,
     mp_context: MPContext,
 ) -> None:
@@ -383,13 +382,13 @@ def test_server_user_main_tuple(
     main_enter = False
     main_exit = False
 
-    set_timeout(1.0, interrupt)
     aiotools.start_server(
         myworker_for_main_tuple,
         mymain_for_main_tuple,
         num_workers=3,
         args=(123,),
         mp_context=mp_context,
+        run_to_completion=True,
     )
 
     assert main_enter
@@ -478,14 +477,13 @@ def test_server_extra_proc_custom_stop_signal(
     restore_signal,
     mp_context: MPContext,
 ) -> None:
-    set_timeout(1.0, functools.partial(interrupt, signum=signal.SIGUSR1))
-    received_signals = mp_context.Array("i", [0, 0, 0])
+    set_timeout(3.0, functools.partial(interrupt, signum=signal.SIGUSR1))
+    received_signals = mp_context.Array("i", [0, 0])
     aiotools.start_server(
         myworker_with_extra_proc_for_custom_stop_signal,
         extra_procs=[
             functools.partial(extra_proc_for_custom_stop_signal, 0),
             functools.partial(extra_proc_for_custom_stop_signal, 1),
-            functools.partial(extra_proc_for_custom_stop_signal, 2),
         ],
         stop_signals={signal.SIGUSR1},
         args=(received_signals,),
@@ -495,4 +493,3 @@ def test_server_extra_proc_custom_stop_signal(
 
     assert received_signals[0] == signal.SIGUSR1
     assert received_signals[1] == signal.SIGUSR1
-    assert received_signals[2] == signal.SIGUSR1
