@@ -6,6 +6,14 @@ on Python 3.9 or higher and the Linux kernel 5.4 or higher.
 It internally synchronizes the beginning and readiness status of child processes
 so that the users may assume that the child process is completely interruptible after
 :func:`afork()` returns.
+
+.. versionchanged:: 1.9.0
+
+    The internal implementation has changed to use :py:mod:`multiprocessing` to embrace
+    ``posix_spawn()`` in macOS and Windows platforms.
+    This introduces a potential BREAKING CHANGE that users now must pass module-level
+    functions or class methods as the target function of :func:`afork()`, so that they
+    can be imported in the new subprocess.
 """
 
 import asyncio
