@@ -19,12 +19,11 @@ if hasattr(asyncio, "TaskGroup"):
     from . import persistent
     from .base import *  # noqa
     from .persistent import *  # noqa
-
-    has_contextvars = True
 else:
     from . import persistent_compat
     from .base_compat import *  # type: ignore  # noqa
-    from .base_compat import has_contextvars
     from .persistent_compat import *  # type: ignore  # noqa
 
 from .utils import as_completed_safe  # noqa
+
+has_contextvars = True  # As of aiotools 1.8.0 and Python 3.9, this is always true.

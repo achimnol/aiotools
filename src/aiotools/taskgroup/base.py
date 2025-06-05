@@ -12,7 +12,7 @@ __all__ = (
 current_taskgroup: ContextVar["TaskGroup"] = ContextVar("current_taskgroup")
 
 
-class TaskGroup(asyncio.TaskGroup):
+class TaskGroup(asyncio.TaskGroup):  # type: ignore[name-defined]
     def __init__(self, *, name=None):
         super().__init__()
         if name is None:

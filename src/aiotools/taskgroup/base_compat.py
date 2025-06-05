@@ -23,14 +23,8 @@
 # https://github.com/edgedb/edgedb-python/blob/bcbe005/edgedb/_taskgroup.py
 
 import asyncio
-
-try:
-    from contextvars import ContextVar
-
-    has_contextvars = True
-except ImportError:
-    has_contextvars = False
 import itertools
+from contextvars import ContextVar
 
 from ..compat import current_task, get_running_loop
 from .common import create_task_with_name, patch_task
@@ -41,9 +35,8 @@ __all__ = [
 ]
 
 
-if has_contextvars:
-    current_taskgroup: ContextVar["TaskGroup"] = ContextVar("current_taskgroup")
-    __all__.append("current_taskgroup")
+current_taskgroup: ContextVar["TaskGroup"] = ContextVar("current_taskgroup")
+__all__.append("current_taskgroup")
 
 
 class TaskGroup:
@@ -93,8 +86,7 @@ class TaskGroup:
         if self._parent_task is None:
             raise RuntimeError(f"TaskGroup {self!r} cannot determine the parent task")
         patch_task(self._parent_task)
-        if has_contextvars:
-            self._current_taskgroup_token = current_taskgroup.set(self)
+        self._current_taskgroup_token = current_taskgroup.set(self)
         return self
 
     async def __aexit__(self, et, exc, tb):
@@ -157,8 +149,7 @@ class TaskGroup:
 
         assert self._unfinished_tasks == 0
         self._on_completed_fut = None  # no longer needed
-        if has_contextvars:
-            current_taskgroup.reset(self._current_taskgroup_token)
+        current_taskgroup.reset(self._current_taskgroup_token)
 
         if self._base_error is not None:
             raise self._base_error

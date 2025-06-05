@@ -23,6 +23,8 @@ graceful shutdown steps.
        aiotools.start_server(myserver, ...)
 """
 
+from __future__ import annotations
+
 import asyncio
 import functools
 import inspect
@@ -45,7 +47,9 @@ from collections.abc import (
 from contextlib import AbstractContextManager, ContextDecorator
 from contextvars import ContextVar
 from types import TracebackType
-from typing import Any, Optional, ParamSpec, TypeVar
+from typing import Any, Optional, TypeVar
+
+from typing_extensions import ParamSpec
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager

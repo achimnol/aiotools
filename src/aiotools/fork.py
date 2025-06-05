@@ -16,6 +16,8 @@ so that the users may assume that the child process is completely interruptible 
     can be imported in the new subprocess.
 """
 
+from __future__ import annotations
+
 import asyncio
 import errno
 import logging
@@ -26,7 +28,9 @@ import os
 import signal
 import traceback
 from abc import ABCMeta, abstractmethod
-from typing import Callable, ClassVar, Optional, Tuple, TypeAlias
+from typing import Callable, ClassVar, Optional, Tuple, Union
+
+from typing_extensions import TypeAlias
 
 from .compat import get_running_loop
 
@@ -39,15 +43,15 @@ __all__ = (
 
 logger = logging.getLogger(__name__)
 
-MPProcess: TypeAlias = (
-    mpctx.Process | mpctx.SpawnProcess | mpctx.ForkProcess | mpctx.ForkServerProcess
-)
-MPContext: TypeAlias = (
-    mpctx.DefaultContext
-    | mpctx.ForkContext
-    | mpctx.ForkServerContext
-    | mpctx.SpawnContext
-)
+MPProcess: TypeAlias = Union[
+    mpctx.Process, mpctx.SpawnProcess, mpctx.ForkProcess, mpctx.ForkServerProcess
+]
+MPContext: TypeAlias = Union[
+    mpctx.DefaultContext,
+    mpctx.ForkContext,
+    mpctx.ForkServerContext,
+    mpctx.SpawnContext,
+]
 
 _has_pidfd = False
 if hasattr(os, "pidfd_open"):
@@ -221,6 +225,7 @@ class PidfdChildProcess(AbstractChildProcess):
                 self._pid,
             )
         else:
+            assert status_info is not None
             if status_info.si_code == os.CLD_KILLED:
                 self._returncode = -status_info.si_status  # signal number
             elif status_info.si_code == os.CLD_EXITED:
