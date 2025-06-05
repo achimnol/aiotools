@@ -16,6 +16,14 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.9.0 (2025-06-06)
+------------------
+
+### Fixes
+* Replace manual `os.fork()` with `multiprocessing` to use platform-specific recommended subprocess mechanisms (e.g., "spawn" in macOS to avoid undefined behavior of native frameworks) ([#79](https://github.com/achimnol/aiotools/issues/79))
+* Explicitly override `loop._clock_resolution` with a coarse-grained value to prevent getting stuck when using VirtualClock with a realistic timestamp due to the floating point precision issue ([#81](https://github.com/achimnol/aiotools/issues/81))
+
+
 1.8.2 (2025-01-23)
 ------------------
 

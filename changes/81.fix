@@ -1,1 +1,0 @@
-Explicitly override `loop._clock_resolution` with a coarse-grained value to prevent getting stuck when using VirtualClock with a realistic timestamp due to the floating point precision issue
