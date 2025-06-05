@@ -110,6 +110,11 @@ class VirtualClock:
             ),
             mock.patch.object(
                 loop,
+                "_clock_resolution",
+                new=0.001,
+            ),
+            mock.patch.object(
+                loop,
                 "time",
                 new=self.virtual_time,
             ),
