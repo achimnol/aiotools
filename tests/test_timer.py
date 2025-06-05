@@ -143,3 +143,13 @@ async def test_timer_leak_nocancel():
         assert spawn_count == cancel_count + done_count
         assert cancel_count == 0
         assert done_count == 10
+
+
+@pytest.mark.asyncio
+async def test_timer_stuck_forever():
+    # See achimnol/aiotools#69
+    # (https://github.com/achimnol/aiotools/issues/69)
+    vclock = aiotools.VirtualClock()
+    vclock.vtime = 1709591365
+    with vclock.patch_loop():
+        await asyncio.sleep(1)
