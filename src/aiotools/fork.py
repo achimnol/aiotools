@@ -24,6 +24,7 @@ import multiprocessing.connection as mpc
 import multiprocessing.context as mpctx
 import os
 import signal
+import sys
 import traceback
 from abc import ABCMeta, abstractmethod
 from typing import Callable, ClassVar, Optional, Tuple, TypeAlias
@@ -39,15 +40,20 @@ __all__ = (
 
 logger = logging.getLogger(__name__)
 
-MPProcess: TypeAlias = (
-    mpctx.Process | mpctx.SpawnProcess | mpctx.ForkProcess | mpctx.ForkServerProcess
-)
-MPContext: TypeAlias = (
-    mpctx.DefaultContext
-    | mpctx.ForkContext
-    | mpctx.ForkServerContext
-    | mpctx.SpawnContext
-)
+if sys.platform != "win32":
+    MPProcess: TypeAlias = (
+        mpctx.Process | mpctx.SpawnProcess | mpctx.ForkProcess | mpctx.ForkServerProcess
+    )
+    MPContext: TypeAlias = (
+        mpctx.DefaultContext
+        | mpctx.ForkContext
+        | mpctx.ForkServerContext
+        | mpctx.SpawnContext
+    )
+
+else:
+    MPProcess: TypeAlias = mpctx.Process | mpctx.SpawnProcess
+    MPContext: TypeAlias = mpctx.DefaultContext | mpctx.SpawnContext
 
 _has_pidfd = False
 if hasattr(os, "pidfd_open"):
