@@ -25,6 +25,12 @@ if os.environ.get("CI", "") and sys.version_info < (3, 9, 0):
         allow_module_level=True,
     )
 
+if sys.platform == "win32":
+    pytest.skip(
+        "server tests not supported on Windows",
+        allow_module_level=True,
+    )
+
 target_mp_contexts = [
     pytest.param(mp.get_context(method), id=method)
     for method in mp.get_all_start_methods()

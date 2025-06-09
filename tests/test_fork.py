@@ -4,6 +4,7 @@ import asyncio
 import multiprocessing as mp
 import os
 import signal
+import sys
 import time
 from unittest import mock
 
@@ -11,6 +12,13 @@ import pytest
 
 from aiotools import fork as fork_mod
 from aiotools.fork import MPContext, PidfdChildProcess, _has_pidfd, afork
+
+if sys.platform == "win32":
+    pytest.skip(
+        "forks tests not supported on Windows",
+        allow_module_level=True,
+    )
+
 
 target_mp_contexts = [
     pytest.param(mp.get_context(method), id=method)
