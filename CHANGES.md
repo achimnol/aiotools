@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.9.1 (2025-06-09)
+------------------
+
+### Fixes
+* Allow importing aiotools in the Windows CI by using Windows-specific type definitions while disabling fork/server tests ([#84](https://github.com/achimnol/aiotools/issues/84))
+
+
 1.9.0 (2025-06-06)
 ------------------
 
