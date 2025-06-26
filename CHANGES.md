@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+1.9.2 (2025-06-27)
+------------------
+
+### Fixes
+* Ensure the stop signal returned from the server context managers always have a valid value defaulting to SIGTERM ([#85](https://github.com/achimnol/aiotools/issues/85))
+
+
 1.9.1 (2025-06-09)
 ------------------
 
