@@ -92,7 +92,7 @@ class AsyncServerContextManager(AbstractAsyncContextManager[TYield]):
     async generator.
     """
 
-    yield_return: Optional[signal.Signals]
+    yield_return: signal.Signals = signal.SIGTERM
 
     def __init__(
         self,
@@ -106,7 +106,7 @@ class AsyncServerContextManager(AbstractAsyncContextManager[TYield]):
         self.func = func
         self.args = args
         self.kwargs = kwargs
-        self.yield_return = None
+        self.yield_return = signal.SIGTERM
 
     async def __aenter__(self) -> TYield:
         try:
@@ -122,7 +122,6 @@ class AsyncServerContextManager(AbstractAsyncContextManager[TYield]):
         /,
     ) -> Optional[bool]:
         if exc_type is None:
-            assert self.yield_return is not None
             try:
                 # Here is the modified part.
                 await self._agen.asend(self.yield_return)
@@ -160,7 +159,7 @@ class ServerMainContextManager(AbstractContextManager[TYield], ContextDecorator)
     generator.
     """
 
-    yield_return: Optional[signal.Signals]
+    yield_return: signal.Signals = signal.SIGTERM
 
     def __init__(
         self,
@@ -172,7 +171,7 @@ class ServerMainContextManager(AbstractContextManager[TYield], ContextDecorator)
         self.func = func
         self.args = args
         self.kwargs = kwargs
-        self.yield_return = None
+        self.yield_return = signal.SIGTERM
 
     def __enter__(self) -> TYield:
         del self.args, self.kwargs, self.func
@@ -189,7 +188,6 @@ class ServerMainContextManager(AbstractContextManager[TYield], ContextDecorator)
         /,
     ) -> Optional[bool]:
         if exc_type is None:
-            assert self.yield_return is not None
             try:
                 self.gen.send(self.yield_return)
             except StopIteration:
@@ -308,6 +306,14 @@ async def cancel_all_tasks() -> None:
             })
 
 
+def _get_default_stop_signal(
+    stop_signals: Collection[signal.Signals],
+) -> signal.Signals:
+    if signal.SIGTERM in stop_signals:  # prefer SIGTERM if included
+        return signal.SIGTERM
+    return sorted(stop_signals)[0]
+
+
 def _worker_main(
     worker_actxmgr: Callable[
         [asyncio.AbstractEventLoop, int, Sequence[Any]],
@@ -357,7 +363,7 @@ def _worker_main(
                     if not run_to_completion:
                         await forever_future
                     else:
-                        ctx.yield_return = sorted(stop_signals)[0]
+                        ctx.yield_return = _get_default_stop_signal(stop_signals)
                 except asyncio.CancelledError:
                     pass
                 finally:
@@ -750,7 +756,7 @@ def start_server(
                 if not run_to_completion:
                     main_loop.run_until_complete(main_future)
                 else:
-                    main_ctx.yield_return = sorted(stop_signals)[0]
+                    main_ctx.yield_return = _get_default_stop_signal(stop_signals)
             except asyncio.CancelledError:
                 pass
             finally:
