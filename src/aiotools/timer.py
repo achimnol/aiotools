@@ -67,7 +67,7 @@ def create_timer(
                     t = task_group.create_task(cb(interval))
                     fired_tasks.append(t)
                     await asyncio.sleep(interval)
-        except asyncio.CancelledError:
+        except Exception:
             pass
         finally:
             await asyncio.sleep(0)
