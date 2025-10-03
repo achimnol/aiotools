@@ -29,7 +29,7 @@ class DefaultErrorHandler(enum.Enum):
 
 class ErrorArg(TypedDict):
     # Intentionally designed as a typed dict to match with
-    # the asyncio stdlib's error callback handler.
+    # the signature of asyncio stdlib's error callback handler.
     message: str
     exception: BaseException
     task: asyncio.Task[Any]
@@ -64,7 +64,7 @@ class TaskContext:
 
     If you provide ``context``, it will be passed to :meth:`create_task()` by default.
 
-    .. versionadded:: 2.1
+    .. versionadded:: 2.0
     """
 
     _tasks: set[asyncio.Task[Any]]
