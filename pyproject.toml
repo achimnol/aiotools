@@ -110,7 +110,12 @@ line-length = 88
 preview = true
 
 [tool.pyright]
+include = ["src"]
 typeCheckingMode = "strict"
+executionEnvironments = [
+    { root = "tests", reportPrivateUsage = false },
+    { root = "src" }
+]
 
 [dependency-groups]
 dev = [
