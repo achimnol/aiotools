@@ -6,15 +6,30 @@ on Python 3.9 or higher and the Linux kernel 5.4 or higher.
 It internally synchronizes the beginning and readiness status of child processes
 so that the users may assume that the child process is completely interruptible after
 :func:`afork()` returns.
+
+.. versionchanged:: 1.9.0
+
+    The internal implementation has changed to use :py:mod:`multiprocessing` to embrace
+    ``posix_spawn()`` in macOS and Windows platforms.
+    This introduces a potential BREAKING CHANGE that users now must pass module-level
+    functions or class methods as the target function of :func:`afork()`, so that they
+    can be imported in the new subprocess.
 """
+
+from __future__ import annotations
 
 import asyncio
 import errno
 import logging
+import multiprocessing as mp
+import multiprocessing.connection as mpc
+import multiprocessing.context as mpctx
 import os
 import signal
+import sys
+import traceback
 from abc import ABCMeta, abstractmethod
-from typing import Callable, Tuple
+from typing import Callable, ClassVar, Optional, Tuple, TypeAlias
 
 from .compat import get_running_loop
 
@@ -26,6 +41,21 @@ __all__ = (
 )
 
 logger = logging.getLogger(__name__)
+
+if sys.platform != "win32":
+    MPProcess: TypeAlias = (
+        mpctx.Process | mpctx.SpawnProcess | mpctx.ForkProcess | mpctx.ForkServerProcess
+    )
+    MPContext: TypeAlias = (
+        mpctx.DefaultContext
+        | mpctx.ForkContext
+        | mpctx.ForkServerContext
+        | mpctx.SpawnContext
+    )
+
+else:
+    MPProcess: TypeAlias = mpctx.Process | mpctx.SpawnProcess
+    MPContext: TypeAlias = mpctx.DefaultContext | mpctx.SpawnContext
 
 _has_pidfd = False
 if hasattr(os, "pidfd_open"):
@@ -45,6 +75,14 @@ class AbstractChildProcess(metaclass=ABCMeta):
     """
     The abstract interface to control and monitor a forked child process.
     """
+
+    @property
+    @abstractmethod
+    def pid(self) -> int:
+        """
+        The process ID of the child process.
+        """
+        raise NotImplementedError
 
     @abstractmethod
     def send_signal(self, signum: int) -> None:
@@ -69,11 +107,26 @@ class AbstractChildProcess(metaclass=ABCMeta):
 class PosixChildProcess(AbstractChildProcess):
     """
     A POSIX-compatible version of :class:`AbstractChildProcess`.
+
+    .. versionchanged:: 1.9.0
+
+       The :meth:`wait()` method now polls the status of child process instead of
+       launching a separate thread that makes a blocking ``os.waitpid()`` syscall.
+       The polling interval may be adjusted using the class attribute
+       :attr:`poll_interval`, which defaults to 50 msec.
     """
 
-    def __init__(self, pid: int) -> None:
+    poll_interval: ClassVar[float] = 0.05
+
+    def __init__(self, proc: MPProcess, pid: int) -> None:
+        self._proc = proc
         self._pid = pid
         self._terminated = False
+        self._returncode: int | None = None
+
+    @property
+    def pid(self) -> int:
+        return self._pid
 
     def send_signal(self, signum: int) -> None:
         if self._terminated:
@@ -87,39 +140,48 @@ class PosixChildProcess(AbstractChildProcess):
             return
         if signum == signal.SIGKILL:
             logger.warning("Force-killed hanging child: %d", self._pid)
-        os.kill(self._pid, signum)
+        try:
+            os.kill(self._pid, signum)
+        except ProcessLookupError:
+            logger.warning(
+                "PosixChildProcess(%d).send_signal(%d): "
+                "The process has already terminated.",
+                self._pid,
+                signum,
+            )
 
     async def wait(self) -> int:
-        loop = get_running_loop()
-        try:
-            _, status = await loop.run_in_executor(None, os.waitpid, self._pid, 0)
-        except ChildProcessError:
-            # The child process is already reaped
-            # (may happen if waitpid() is called elsewhere).
-            self._returncode = 255
-            logger.warning(
-                "child process pid %d exit status already read: "
-                "it will report returncode 255",
-                self._pid,
-            )
-        else:
-            if os.WIFSIGNALED(status):
-                self._returncode = -os.WTERMSIG(status)
-            elif os.WIFEXITED(status):
-                self._returncode = os.WEXITSTATUS(status)
-            else:
-                self._returncode = status
-        finally:
-            self._terminated = True
+        status = 0
+        while self._returncode is None:
+            try:
+                while True:
+                    pid, status = os.waitpid(self._pid, os.WNOHANG)
+                    if pid == self._pid:
+                        self._returncode = os.waitstatus_to_exitcode(status)
+                        break
+                    await asyncio.sleep(self.poll_interval)
+            except ChildProcessError:
+                # Since we have already checked for the process's existence,
+                # we can assume that the process has terminated.
+                self._returncode = 255
+        self._proc.join()  # let multiprocessing clean up itself
+        self._terminated = True
         return self._returncode
 
 
 class PidfdChildProcess(AbstractChildProcess):
     """
-    A PID file descriptor-based version of :class:`AbstractChildProcess`.
+    A pidfd (PID file descriptor) based version of :class:`AbstractChildProcess`.
+
+    The main advantage of pidfd is that we no longer need to actively poll
+    the child status, making the whole operation async-native.
+
+    Note that pidfd may not be available on all Linux systems
+    depending on at which Linux kernel version your Python executable is built.
     """
 
-    def __init__(self, pid: int, pidfd: int) -> None:
+    def __init__(self, proc: MPProcess, pid: int, pidfd: int) -> None:
+        self._proc = proc
         self._pid = pid
         self._pidfd = pidfd
         self._returncode = None
@@ -127,6 +189,10 @@ class PidfdChildProcess(AbstractChildProcess):
         self._terminated = False
         loop = get_running_loop()
         loop.add_reader(self._pidfd, self._do_wait)
+
+    @property
+    def pid(self) -> int:
+        return self._pid
 
     def send_signal(self, signum: int) -> None:
         if self._terminated:
@@ -180,6 +246,7 @@ class PidfdChildProcess(AbstractChildProcess):
         finally:
             loop.remove_reader(self._pidfd)
             os.close(self._pidfd)
+            self._proc.join()  # let multiprocessing clean up itself
             self._terminated = True
             self._wait_event.set()
 
@@ -189,73 +256,89 @@ class PidfdChildProcess(AbstractChildProcess):
         return self._returncode
 
 
-def _child_main(init_func, init_pipe, child_func: Callable[[], int]) -> int:
-    if init_func is not None:
-        init_func()
-    # notify the parent that the child is ready to execute the requested function.
-    os.write(init_pipe, b"\0")
-    os.close(init_pipe)
-    return child_func()
+def _child_main(
+    write_pipe: mpc.Connection,
+    child_func: Callable[[], int],
+) -> int:
+    ret = -255
+    # Reset signal handlers to default for proper signal handling.
+    # Multiprocessing may set SIGINT to SIG_IGN to prevent KeyboardInterrupt
+    # in worker processes, but we want the default behavior where SIGINT
+    # raises KeyboardInterrupt so that child_func can handle it properly.
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    try:
+        # notify the parent that the child is ready to execute the requested function.
+        write_pipe.send_bytes(b"\0")
+        write_pipe.close()
+        ret = child_func()
+    except KeyboardInterrupt:
+        ret = -signal.SIGINT
+    except SystemExit:
+        ret = -signal.SIGTERM
+    except Exception:
+        traceback.print_exc()
+    finally:
+        os._exit(ret)
+    return ret
 
 
-async def _fork_posix(child_func: Callable[[], int]) -> int:
+async def _fork_posix(
+    child_func: Callable[[], int],
+    mp_context: MPContext,
+) -> tuple[MPProcess, int]:
     loop = get_running_loop()
-    init_pipe = os.pipe()
-
-    pid = os.fork()
-    if pid == 0:
-        os.close(init_pipe[0])
-        ret = 0
-        try:
-            ret = _child_main(None, init_pipe[1], child_func)
-        except KeyboardInterrupt:
-            ret = -signal.SIGINT
-        finally:
-            os._exit(ret)
-        return ret
-    os.close(init_pipe[1])
+    read_pipe, write_pipe = mp_context.Pipe()
+    proc = mp_context.Process(
+        target=_child_main,
+        args=(write_pipe, child_func),
+        daemon=True,
+    )
+    proc.start()
+    assert proc.pid is not None
+    pid = proc.pid
 
     # Wait for the child's readiness notification
     init_event = asyncio.Event()
-    loop.add_reader(init_pipe[0], init_event.set)
+    loop.add_reader(read_pipe.fileno(), init_event.set)
     await init_event.wait()
-    loop.remove_reader(init_pipe[0])
-    os.read(init_pipe[0], 1)
-    os.close(init_pipe[0])
-    return pid
+    loop.remove_reader(read_pipe.fileno())
+    read_pipe.recv_bytes(1)
+    read_pipe.close()
+    return proc, pid
 
 
-async def _clone_pidfd(child_func: Callable[[], int]) -> Tuple[int, int]:
+async def _clone_pidfd(
+    child_func: Callable[[], int],
+    mp_context: MPContext,
+) -> Tuple[MPProcess, int, int]:
     loop = get_running_loop()
-    init_pipe = os.pipe()
-
-    pid = os.fork()
-    if pid == 0:
-        os.close(init_pipe[0])
-        ret = 0
-        try:
-            ret = _child_main(None, init_pipe[1], child_func)
-        except KeyboardInterrupt:
-            ret = -signal.SIGINT
-        finally:
-            os._exit(ret)
-        return ret
-    os.close(init_pipe[1])
-
-    # Get the pidfd.
+    read_pipe, write_pipe = mp_context.Pipe()
+    proc = mp_context.Process(
+        target=_child_main,
+        args=(write_pipe, child_func),
+        daemon=True,
+    )
+    proc.start()
+    assert proc.pid is not None
+    pid = proc.pid
     fd = os.pidfd_open(pid, 0)  # type: ignore
 
     # Wait for the child's readiness notification
     init_event = asyncio.Event()
-    loop.add_reader(init_pipe[0], init_event.set)
+    loop.add_reader(read_pipe.fileno(), init_event.set)
     await init_event.wait()
-    loop.remove_reader(init_pipe[0])
-    os.read(init_pipe[0], 1)
-    os.close(init_pipe[0])
-    return pid, fd
+    loop.remove_reader(read_pipe.fileno())
+    read_pipe.recv_bytes(1)
+    read_pipe.close()
+    return proc, pid, fd
 
 
-async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
+async def afork(
+    child_func: Callable[[], int],
+    *,
+    mp_context: Optional[MPContext] = None,
+) -> AbstractChildProcess:
     """
     Fork the current process and execute the given function in the child.
     The return value of the function will become the exit code of the child
@@ -266,10 +349,18 @@ async def afork(child_func: Callable[[], int]) -> AbstractChildProcess:
                     returns an integer as its exit code.
                     Note that the function must set up a new event loop if it
                     wants to run asyncio codes.
+        mp_context: The multiprocessing context to use. If not provided, the default
+                    context will be used.
+
+    .. versionadded:: 1.9.0
+
+        The argument ``mp_context``.
     """
+    if mp_context is None:
+        mp_context = mp.get_context()
     if _has_pidfd:
-        pid, pidfd = await _clone_pidfd(child_func)
-        return PidfdChildProcess(pid, pidfd)
+        proc, pid, pidfd = await _clone_pidfd(child_func, mp_context)
+        return PidfdChildProcess(proc, pid, pidfd)
     else:
-        pid = await _fork_posix(child_func)
-        return PosixChildProcess(pid)
+        proc, pid = await _fork_posix(child_func, mp_context)
+        return PosixChildProcess(proc, pid)

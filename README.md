@@ -6,9 +6,7 @@ aiotools
 [![CI Status](https://github.com/achimnol/aiotools/actions/workflows/default.yml/badge.svg)](https://github.com/achimnol/aiotools/actions/workflows/default.yml)
 [![Code Coverage](https://codecov.io/gh/achimnol/aiotools/branch/master/graph/badge.svg)](https://codecov.io/gh/achimnol/aiotools)
 
-Idiomatic asyncio utilties
-
-*NOTE:* This project is under early stage of development. The public APIs may break version by version.
+Idiomatic asyncio utilities
 
 
 Modules
@@ -24,10 +22,12 @@ Modules
 * [Async Timer](http://aiotools.readthedocs.io/en/latest/aiotools.timer.html)
 * [High-level Coroutine Utilities](http://aiotools.readthedocs.io/en/latest/aiotools.utils.html)
 
-I also recommend to try the following asyncio libraries for your happier life.
 
-* [aiojobs](https://github.com/aio-libs/aiojobs): Provides a concurrency-limited scheduler for asyncio tasks with graceful shutdown.
-* [trio](https://github.com/python-trio/trio): An alternative implementation of asynchronous IO stack for Python, with focus on cancellation scopes and task groups called "nursery".
+See also
+--------
+
+* [aiojobs](https://github.com/aio-libs/aiojobs): A concurrency-limiting, task-shielding scheduler for asyncio tasks for graceful shutdown
+* [trio](https://github.com/python-trio/trio): An alternative implementation of asyncio focusing on structured concurrency
 
 
 Examples
@@ -115,8 +115,7 @@ async def echo(reader, writer):
 
 @aiotools.server
 async def myworker(loop, pidx, args):
-   server = await asyncio.start_server(echo, '0.0.0.0', 8888,
-       reuse_port=True, loop=loop)
+   server = await asyncio.start_server(echo, '0.0.0.0', 8888, reuse_port=True)
    print(f'[{pidx}] started')
    yield  # wait until terminated
    server.close()

@@ -102,13 +102,21 @@ class VirtualClock:
         so that sleep instantly returns while proceeding the virtual clock.
         """
         loop = get_running_loop()
-        with mock.patch.object(
-            loop._selector,
-            "select",
-            new=functools.partial(self._virtual_select, loop._selector.select),
-        ), mock.patch.object(
-            loop,
-            "time",
-            new=self.virtual_time,
+        with (
+            mock.patch.object(
+                loop._selector,
+                "select",
+                new=functools.partial(self._virtual_select, loop._selector.select),
+            ),
+            mock.patch.object(
+                loop,
+                "_clock_resolution",
+                new=0.001,
+            ),
+            mock.patch.object(
+                loop,
+                "time",
+                new=self.virtual_time,
+            ),
         ):
             yield

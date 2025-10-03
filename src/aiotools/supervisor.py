@@ -1,9 +1,9 @@
-__all__ = ["Supervisor"]
-
 import contextvars
 from typing import Optional
 
 from .taskscope import TaskScope
+
+__all__ = ("Supervisor",)
 
 
 class Supervisor(TaskScope):

@@ -76,7 +76,7 @@ def test_actxmgr_types():
 
 
 @pytest.mark.asyncio
-async def test_actxmgr(event_loop):
+async def test_actxmgr():
     step = 0
 
     @aiotools.actxmgr
@@ -115,7 +115,7 @@ async def test_actxmgr(event_loop):
     sys.version_info >= (3, 7, 0), reason="Deprecated in Python 3.7 or higher"
 )
 @pytest.mark.asyncio
-async def test_actxmgr_reuse(event_loop):
+async def test_actxmgr_reuse():
     @aiotools.actxmgr
     async def simple_ctx(msg):
         yield msg
@@ -333,7 +333,7 @@ async def test_actxmgr_exception_replaced():
 
 
 @pytest.mark.asyncio
-async def test_actxmgr_stopaiter(event_loop):
+async def test_actxmgr_stopaiter():
     @aiotools.actxmgr
     async def simple_ctx():
         await asyncio.sleep(0)
@@ -374,7 +374,7 @@ async def test_actxmgr_stopaiter(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_actxmgr_transparency(event_loop):
+async def test_actxmgr_transparency():
     step = 0
 
     @aiotools.actxmgr
@@ -469,7 +469,7 @@ async def test_actxmgr_transparency(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_actxmgr_no_stop(event_loop):
+async def test_actxmgr_no_stop():
     @aiotools.actxmgr
     async def simple_ctx(msg):
         await asyncio.sleep(0)
@@ -515,7 +515,7 @@ async def test_actxmgr_no_stop(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_actxmgr_no_yield(event_loop):
+async def test_actxmgr_no_yield():
     @aiotools.actxmgr
     async def no_yield_ctx1(msg):
         pass
@@ -540,7 +540,7 @@ async def test_actxmgr_no_yield(event_loop):
     sys.version_info >= (3, 7, 0), reason="Deprecated in Python 3.7 or higher"
 )
 @pytest.mark.asyncio
-async def test_actxdecorator(event_loop):
+async def test_actxdecorator():
     step = 0
 
     class myacontext(aiotools.AsyncContextDecorator):
@@ -591,7 +591,7 @@ async def test_actxdecorator(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_actxgroup(event_loop):
+async def test_actxgroup():
     # Test basic function.
     exit_count = 0
 
@@ -640,7 +640,7 @@ async def test_actxgroup(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_actxgroup_exception_from_cm(event_loop):
+async def test_actxgroup_exception_from_cm():
     @aiotools.actxmgr
     async def ctx1(a):
         await asyncio.sleep(0)
@@ -683,7 +683,7 @@ async def test_actxgroup_exception_from_cm(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_actxgroup_exception_from_body(event_loop):
+async def test_actxgroup_exception_from_body():
     exit_count = 0
 
     @aiotools.actxmgr
@@ -741,7 +741,7 @@ async def test_actxgroup_exception_from_body(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_aclosing(event_loop):
+async def test_aclosing():
     finalized = False
 
     async def myiter():
@@ -769,7 +769,7 @@ async def test_aclosing(event_loop):
         except asyncio.CancelledError:
             detect_cancellation = True
 
-    t = event_loop.create_task(mytask())
+    t = asyncio.create_task(mytask())
     await asyncio.sleep(0.3)
     t.cancel()
     await t

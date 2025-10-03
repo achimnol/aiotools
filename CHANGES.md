@@ -16,6 +16,21 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+2.0.0a3 (2025-01-18)
+------------------------------------------
+
+### Breaking Changes
+* Now it requires Python 3.11 or later to ensure safety and structured concurrency ([#53](https://github.com/achimnol/aiotools/issues/53))
+### Features
+* Add higher-level coroutine aggregation utilities: `as_completed_safe()`, `gather_safe()`, and `race()` based on a modified version of @DontPanicO's `Supervisor` implementation ([#53](https://github.com/achimnol/aiotools/issues/53))
+* Add `aiotools.context.resetting()` as a sync/async context manager to auto-reset the given context variable ([#62](https://github.com/achimnol/aiotools/issues/62))
+* Add type checker support - now includes py.typed in the package to indicate to type checkers like mypy that typing is supported. ([#63](https://github.com/achimnol/aiotools/issues/63))
+* Add Python 3.12 support ([#64](https://github.com/achimnol/aiotools/issues/64))
+* Add Python 3.13 compatibility ([#71](https://github.com/achimnol/aiotools/issues/71))
+### Fixes
+* Correct the type annotation of the callback argument in `create_timer()` ([#61](https://github.com/achimnol/aiotools/issues/61))
+
+
 1.6.1 (2023-05-02)
 ------------------
 

@@ -1,12 +1,9 @@
 import asyncio
 import logging
 import os
-from typing import (
-    Any,
-    AsyncIterator,
-    Sequence,
-    Set,
-)
+import signal
+from collections.abc import AsyncGenerator, Sequence
+from typing import Any
 
 import zmq
 import zmq.asyncio
@@ -15,7 +12,7 @@ import aiotools
 
 num_workers = 4
 
-log_init_states: Set[str] = set()
+log_init_states: set[str] = set()
 
 
 def get_logger(name: str, pid: int) -> logging.Logger:
@@ -68,7 +65,7 @@ async def worker_main(
     loop: asyncio.AbstractEventLoop,
     pidx: int,
     args: Sequence[Any],
-) -> AsyncIterator[None]:
+) -> AsyncGenerator[None, signal.Signals]:
     log = get_logger("examples.zmqserver.worker", pidx)
     zctx = zmq.asyncio.Context()
     router = zctx.socket(zmq.PULL)
@@ -84,13 +81,14 @@ async def worker_main(
     task = loop.create_task(process_incoming(router))
     log.info("started")
 
+    sig = None
     try:
-        yield
+        sig = yield
     finally:
         await task
         router.close()
         zctx.term()
-        log.info("terminated")
+        log.info(f"terminated with {sig=}")
 
 
 if __name__ == "__main__":

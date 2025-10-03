@@ -46,6 +46,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
 
 # Translations
 *.mo
@@ -94,9 +95,13 @@ ENV/
 
 # Vim extras
 .exrc
-.*.swp
 .swp
-/.vim
+.swo
+.*.swp
+.*.swo
+.vim/
+.zed/
+
 
 # macOS extras
 .DS_Store

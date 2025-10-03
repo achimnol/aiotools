@@ -27,18 +27,29 @@ import asyncio
 import functools
 import inspect
 import logging
+import multiprocessing as mp
+import multiprocessing.connection as mpconn
 import os
 import signal
 import struct
 import sys
 import threading
+from collections.abc import (
+    AsyncGenerator,
+    Callable,
+    Collection,
+    Generator,
+    Mapping,
+    Sequence,
+)
 from contextlib import AbstractContextManager, ContextDecorator
 from contextvars import ContextVar
-from typing import Any, Callable, Iterable, List, Optional, Sequence, Set, Tuple
+from types import TracebackType
+from typing import Any, Optional, ParamSpec, TypeVar
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
-from .fork import AbstractChildProcess, _has_pidfd, afork
+from .fork import AbstractChildProcess, MPContext, _has_pidfd, afork
 
 __all__ = (
     "main",
@@ -52,6 +63,9 @@ __all__ = (
 log = logging.getLogger(__name__)
 
 process_index: ContextVar[int] = ContextVar("process_index")
+
+TYield = TypeVar("TYield")
+PArgs = ParamSpec("PArgs")
 
 
 class InterruptedBySignal(BaseException):
@@ -69,7 +83,7 @@ class InterruptedBySignal(BaseException):
     pass
 
 
-class AsyncServerContextManager(AbstractAsyncContextManager):
+class AsyncServerContextManager(AbstractAsyncContextManager[TYield]):
     """
     A modified version of :func:`contextlib.asynccontextmanager`.
 
@@ -78,37 +92,48 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
     async generator.
     """
 
-    yield_return: Optional[signal.Signals]
+    yield_return: signal.Signals = signal.SIGTERM
 
-    def __init__(self, func: Callable[..., Any], args, kwargs):
+    def __init__(
+        self,
+        func: Callable[..., AsyncGenerator[Any, signal.Signals]],
+        args: Sequence[Any],
+        kwargs: Mapping[str, Any],
+    ) -> None:
         if not inspect.isasyncgenfunction(func):
             raise RuntimeError("Context manager function must be an async-generator")
         self._agen = func(*args, **kwargs)
         self.func = func
         self.args = args
         self.kwargs = kwargs
-        self.yield_return = None
+        self.yield_return = signal.SIGTERM
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> TYield:
         try:
             return await self._agen.__anext__()
         except StopAsyncIteration:
             raise RuntimeError("async-generator didn't yield") from None
 
-    async def __aexit__(self, exc_type, exc_value, tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+        /,
+    ) -> Optional[bool]:
         if exc_type is None:
             try:
                 # Here is the modified part.
                 await self._agen.asend(self.yield_return)
             except StopAsyncIteration:
-                return
+                return None
             else:
                 raise RuntimeError("async-generator didn't stop") from None
         else:
             if exc_value is None:
                 exc_value = exc_type()
             try:
-                await self._agen.athrow(exc_type, exc_value, tb)
+                await self._agen.athrow(exc_type, exc_value, traceback)
                 raise RuntimeError("async-generator didn't stop after athrow()")
             except StopAsyncIteration as exc_new_value:
                 return exc_new_value is not exc_value
@@ -122,9 +147,10 @@ class AsyncServerContextManager(AbstractAsyncContextManager):
             except (BaseException, asyncio.CancelledError) as exc:
                 if exc is not exc_value:
                     raise
+        return None
 
 
-class ServerMainContextManager(AbstractContextManager, ContextDecorator):
+class ServerMainContextManager(AbstractContextManager[TYield], ContextDecorator):
     """
     A modified version of :func:`contextlib.contextmanager`.
 
@@ -133,24 +159,35 @@ class ServerMainContextManager(AbstractContextManager, ContextDecorator):
     generator.
     """
 
-    yield_return: Optional[signal.Signals]
+    yield_return: signal.Signals = signal.SIGTERM
 
-    def __init__(self, func, args, kwargs):
+    def __init__(
+        self,
+        func: Callable[..., Generator[Any, signal.Signals]],
+        args: Sequence[Any],
+        kwargs: Mapping[str, Any],
+    ) -> None:
         self.gen = func(*args, **kwargs)
         self.func = func
         self.args = args
         self.kwargs = kwargs
-        self.yield_return = None
+        self.yield_return = signal.SIGTERM
 
-    def __enter__(self):
+    def __enter__(self) -> TYield:
         del self.args, self.kwargs, self.func
         try:
             return next(self.gen)
         except StopIteration:
             raise RuntimeError("generator didn't yield") from None
 
-    def __exit__(self, type, value, traceback):
-        if type is None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+        /,
+    ) -> Optional[bool]:
+        if exc_type is None:
             try:
                 self.gen.send(self.yield_return)
             except StopIteration:
@@ -158,32 +195,38 @@ class ServerMainContextManager(AbstractContextManager, ContextDecorator):
             else:
                 raise RuntimeError("generator didn't stop")
         else:
-            if value is None:
-                value = type()
+            if exc_value is None:
+                exc_value = exc_type()
             try:
-                self.gen.throw(type, value, traceback)
+                self.gen.throw(exc_type, exc_value, traceback)
             except StopIteration as exc:
-                return exc is not value
+                return exc is not exc_value
             except RuntimeError as exc:
-                if exc is value:
+                if exc is exc_value:
                     return False
-                if type is StopIteration and exc.__cause__ is value:
+                if exc_type is StopIteration and exc.__cause__ is exc_value:
                     return False
                 raise
             except:  # noqa
-                if sys.exc_info()[1] is value:
+                if sys.exc_info()[1] is exc_value:
                     return False
                 raise
             raise RuntimeError("generator didn't stop after throw()")
+        return None
 
 
 # This is a dirty hack to implement "module callable".
 # NOTE: only works in Python 3.5 or higher.
 
 
-def _server_ctxmgr(func):
+def _server_ctxmgr(
+    func: Callable[
+        [asyncio.AbstractEventLoop, int, Sequence[Any]],
+        AsyncGenerator[None, signal.Signals],
+    ],
+):
     @functools.wraps(func)
-    def helper(*args, **kwargs):
+    def helper(*args, **kwargs) -> AsyncServerContextManager:
         return AsyncServerContextManager(func, args, kwargs)
 
     return helper
@@ -197,7 +240,7 @@ class _ServerModule(sys.modules[__name__].__class__):  # type: ignore
 sys.modules[__name__].__class__ = _ServerModule
 
 
-def _main_ctxmgr(func):
+def _main_ctxmgr(func: Callable[[], Generator[TYield, signal.Signals]]):
     """
     A decorator wrapper for :class:`ServerMainContextManager`
 
@@ -205,8 +248,8 @@ def _main_ctxmgr(func):
 
     .. code:: python
 
-       @aiotools.main
-       def mymain():
+       @aiotools.main_context
+       def mymain() -> Generator[TServerArgs, signal.Signals]:
            server_args = do_init()
            stop_sig = yield server_args
            if stop_sig == signal.SIGINT:
@@ -218,7 +261,7 @@ def _main_ctxmgr(func):
     """
 
     @functools.wraps(func)
-    def helper(*args, **kwargs):
+    def helper(*args, **kwargs) -> ServerMainContextManager[TYield]:
         return ServerMainContextManager(func, args, kwargs)
 
     return helper
@@ -256,13 +299,19 @@ async def cancel_all_tasks() -> None:
         if task.cancelled():
             continue
         if task.exception() is not None:
-            loop.call_exception_handler(
-                {
-                    "message": "unhandled exception during loop shutdown",
-                    "exception": task.exception(),
-                    "task": task,
-                }
-            )
+            loop.call_exception_handler({
+                "message": "unhandled exception during loop shutdown",
+                "exception": task.exception(),
+                "task": task,
+            })
+
+
+def _get_default_stop_signal(
+    stop_signals: Collection[signal.Signals],
+) -> signal.Signals:
+    if signal.SIGTERM in stop_signals:  # prefer SIGTERM if included
+        return signal.SIGTERM
+    return sorted(stop_signals)[0]
 
 
 def _worker_main(
@@ -270,17 +319,22 @@ def _worker_main(
         [asyncio.AbstractEventLoop, int, Sequence[Any]],
         AsyncServerContextManager,
     ],
-    stop_signals: Set[signal.Signals],
-    intr_pipe_wfd: int,
+    stop_signals: Collection[signal.Signals],
+    intr_write_pipe: mpconn.Connection,
     proc_idx: int,
+    run_to_completion: bool,
     args: Sequence[Any],
+    *,
+    prestart_hook: Optional[Callable[[int], None]] = None,
 ) -> int:
+    process_index.set(proc_idx)
+    if prestart_hook:
+        prestart_hook(proc_idx)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     setup_child_watcher(loop)
     interrupted = asyncio.Event()
     ctx = worker_actxmgr(loop, proc_idx, args)
-    process_index.set(proc_idx)
     forever_future = loop.create_future()
 
     def handle_stop_signal(signum):
@@ -306,7 +360,10 @@ def _worker_main(
             async with ctx:
                 err_ctx = "body"
                 try:
-                    await forever_future
+                    if not run_to_completion:
+                        await forever_future
+                    else:
+                        ctx.yield_return = _get_default_stop_signal(stop_signals)
                 except asyncio.CancelledError:
                     pass
                 finally:
@@ -317,8 +374,13 @@ def _worker_main(
                 log.exception(
                     f"Worker {proc_idx}: Error during context manager {err_ctx_str}"
                 )
-                os.write(intr_pipe_wfd, struct.pack("i", proc_idx))
+                try:
+                    intr_write_pipe.send_bytes(struct.pack("i", proc_idx))
+                except BrokenPipeError:
+                    pass
             raise
+        finally:
+            intr_write_pipe.close()
 
     try:
         loop.run_until_complete(_wrapped_worker())
@@ -336,13 +398,17 @@ def _worker_main(
 
 
 def _extra_main(
-    extra_func,
-    stop_signals: Set[signal.Signals],
+    extra_func: Callable[[Optional[threading.Event], int, Sequence[Any]], None],
+    stop_signals: Collection[signal.Signals],
     proc_idx: int,
     args: Sequence[Any],
+    *,
+    prestart_hook: Optional[Callable[[int], None]] = None,
 ) -> int:
-    interrupted = threading.Event()
     process_index.set(proc_idx)
+    if prestart_hook:
+        prestart_hook(proc_idx)
+    interrupted = threading.Event()
 
     # Since signals only work for the main thread in Python,
     # extra processes in use_threading=True mode should check
@@ -382,11 +448,16 @@ def start_server(
         [asyncio.AbstractEventLoop, int, Sequence[Any]], AsyncServerContextManager
     ],
     main_ctxmgr: Optional[Callable[[], ServerMainContextManager]] = None,
-    extra_procs: Iterable[Callable] = tuple(),
-    stop_signals: Iterable[signal.Signals] = (signal.SIGINT, signal.SIGTERM),
+    extra_procs: Collection[Callable] = tuple(),
+    stop_signals: Collection[signal.Signals] = (signal.SIGINT, signal.SIGTERM),
     num_workers: int = 1,
-    args: Iterable[Any] = tuple(),
+    args: Sequence[Any] = tuple(),
+    *,
     wait_timeout: Optional[float] = None,
+    mp_context: Optional[MPContext] = None,
+    prestart_hook: Optional[Callable[[int], None]] = None,
+    ignore_child_interrupts: bool = False,
+    run_to_completion: bool = False,
 ) -> None:
     """
     Starts a multi-process server where each process has their own individual
@@ -396,54 +467,88 @@ def start_server(
     loop gracefully.
 
     Args:
-        worker_actxmgr: An asynchronous context manager that dicates the
-                        initialization and shutdown steps of each worker.
-                        It should accept the following three arguments:
+        worker_actxmgr:
+            An asynchronous context manager that dicates the
+            initialization and shutdown steps of each worker.
+            It should accept the following three arguments:
 
-                        * **loop**: the asyncio event loop created and set
-                          by aiotools
-                        * **pidx**: the 0-based index of the worker
-                          (use this for per-worker logging)
-                        * **args**: a concatenated tuple of values yielded by
-                          **main_ctxmgr** and the user-defined arguments in
-                          **args**.
+            * **loop**: the asyncio event loop created and set
+              by aiotools
+            * **pidx**: the 0-based index of the worker
+              (use this for per-worker logging)
+            * **args**: a concatenated tuple of values yielded by
+              **main_ctxmgr** and the user-defined arguments in
+              **args**.
 
-                        aiotools automatically installs an interruption handler
-                        that calls ``loop.stop()`` to the given event loop,
-                        regardless of using either threading or
-                        multiprocessing.
+            aiotools automatically installs an interruption handler
+            that calls ``loop.stop()`` to the given event loop,
+            regardless of using either threading or
+            multiprocessing.
 
-        main_ctxmgr: An optional context manager that performs global
-                     initialization and shutdown steps of the whole program.
-                     It may yield one or more values to be passed to worker
-                     processes along with **args** passed to this function.
-                     There is no arguments passed to those functions since
-                     you can directly access ``sys.argv`` to parse command
-                     line arguments and/or read user configurations.
+        main_ctxmgr:
+            An optional context manager that performs global
+            initialization and shutdown steps of the whole program.
+            It may yield one or more values to be passed to worker
+            processes along with **args** passed to this function.
+            There is no arguments passed to those functions since
+            you can directly access ``sys.argv`` to parse command
+            line arguments and/or read user configurations.
 
-        extra_procs: An iterable of functions that consist of extra processes
-                     whose lifecycles are synchronized with other workers.
-                     They should set up their own signal handlers.
+        extra_procs:
+            An iterable of functions that consist of extra processes
+            whose lifecycles are synchronized with other workers.
+            They should set up their own signal handlers.
 
-                     It should accept the following three arguments:
+            It should accept the following three arguments:
 
-                     * **intr_event**: Always ``None``, kept for legacy
-                     * **pidx**: same to **worker_actxmgr** argument
-                     * **args**: same to **worker_actxmgr** argument
+            * **intr_event**: Always ``None``, kept for legacy
+            * **pidx**: same to **worker_actxmgr** argument
+            * **args**: same to **worker_actxmgr** argument
 
-        stop_signals: A list of UNIX signals that the main program to
-                      recognize as termination signals.
+        stop_signals:
+            A list of UNIX signals that the main program to
+            recognize as termination signals.
 
         num_workers: The number of children workers.
 
-        args: The user-defined arguments passed to workers and extra
-              processes.  If **main_ctxmgr** yields one or more values,
-              they are *prepended* to this user arguments when passed to
-              workers and extra processes.
+        args:
+            The user-defined arguments passed to workers and extra
+            processes.  If **main_ctxmgr** yields one or more values,
+            they are *prepended* to this user arguments when passed to
+            workers and extra processes.
 
-        wait_timeout: The timeout in seconds before forcibly killing all
-                      remaining child processes after sending initial stop
-                      signals.
+        wait_timeout:
+            The timeout in seconds before forcibly killing all
+            remaining child processes after sending initial stop
+            signals.
+
+        mp_context:
+            The multiprocessing context to use for creating child
+            processes.  If not specified, the default context is
+            used.
+
+        prestart_hook:
+            A function to be called once before creating the
+            event loop in the children.  The function should
+            accept an int argument representing the process index.
+            You may use this hook to initialize the event loop
+            with custom settings (e.g., applying ``uvloop``)
+            or to perform any other necessary setup before the
+            main function is called.
+
+        ignore_child_interrupts:
+            By default, any unhandled exceptions in the
+            child functions are translated as active
+            SIGINT to the main and all other worker processes,
+            meaning a full shutdown.
+            This flag makes the main process to ignore them,
+            which is useful to gather all worker's results
+            even when some of them raises unhandled exceptions.
+
+        run_to_completion:
+            If True, the main/worker processes will NOT wait forever
+            until interrupted but *immediately exit* when the main
+            functions complete.  This flag implies **ignore_child_interrupts**.
 
     Returns:
         None
@@ -499,6 +604,11 @@ def start_server(
     .. versionadded:: 1.5.5
 
        The **wait_timeout** argument.
+
+    .. versionadded:: 1.9.0
+
+        The **mp_context**, **prestart_hook**, **ignore_child_interrupts**,
+        and **run_to_completion** arguments.
     """
 
     @_main_ctxmgr
@@ -522,7 +632,7 @@ def start_server(
     if main_ctxmgr is None:
         main_ctxmgr = noop_main_ctxmgr
 
-    children: List[AbstractChildProcess] = []
+    children: list[AbstractChildProcess] = []
     sigblock_mask = frozenset(stop_signals)
 
     main_ctx = main_ctxmgr()
@@ -537,7 +647,7 @@ def start_server(
     # to make subprocess working in child threads
     setup_child_watcher(main_loop)
 
-    # build a main-to-worker interrupt channel using signals
+    # Build a main-to-worker interrupt channel using signals
     def handle_stop_signal(signum: signal.Signals) -> None:
         main_ctx.yield_return = signum  # type: ignore
         for child in children:
@@ -553,90 +663,106 @@ def start_server(
             functools.partial(handle_stop_signal, signum),
         )
 
-    # build a reliable worker-to-main interrupt channel using a pipe
-    # (workers have no idea whether the main interrupt is enabled/disabled)
-    def handle_child_interrupt(fd: int) -> None:
-        child_idx = struct.unpack("i", os.read(fd, 4))[0]  # noqa
-        log.debug(f"Child {child_idx} has interrupted the main program.")
-        # self-interrupt to initiate the main-to-worker interrupts
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
-        os.kill(0, signal.SIGINT)
+    # Build a reliable worker-to-main interrupt channel using a pipe.
+    # This channel is used when the worker main functions raise an unhandled exception,
+    # so that the main program can be interrupted immediately.
+    def handle_child_interrupt(read_pipe: mpconn.Connection) -> None:
+        try:
+            child_idx = struct.unpack("i", read_pipe.recv_bytes(4))[0]
+        except EOFError:
+            # read_pipe is already closed
+            return
+        if not ignore_child_interrupts and not run_to_completion:
+            # self-interrupt to initiate the main-to-worker interrupts
+            log.debug(f"Child {child_idx} has interrupted the main program.")
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
+            os.kill(0, signal.SIGINT)
 
-    child_intr_pipe: Tuple[int, int] = os.pipe()
-    rfd = child_intr_pipe[0]
-    main_loop.add_reader(rfd, handle_child_interrupt, rfd)
+    read_pipe, write_pipe = mp.Pipe()
+    main_loop.add_reader(read_pipe.fileno(), handle_child_interrupt, read_pipe)
 
     # start
-    with main_ctx as main_args:
-        # retrieve args generated by the user-defined main
-        if main_args is None:
-            main_args = tuple()
-        if not isinstance(main_args, tuple):
-            main_args = (main_args,)
+    try:
+        with main_ctx as main_args:
+            # retrieve args generated by the user-defined main
+            if main_args is None:
+                main_args = tuple()
+            if not isinstance(main_args, tuple):
+                main_args = (main_args,)
 
-        # spawn managed async workers
-        for i in range(num_workers):
-            try:
-                p = main_loop.run_until_complete(
-                    afork(
-                        functools.partial(
-                            _worker_main,
-                            worker_actxmgr,
-                            stop_signals,
-                            child_intr_pipe[1],
+            # spawn managed async workers
+            for i in range(num_workers):
+                try:
+                    p = main_loop.run_until_complete(
+                        afork(
+                            functools.partial(
+                                _worker_main,
+                                worker_actxmgr,
+                                stop_signals,
+                                write_pipe,
+                                i,
+                                run_to_completion,
+                                (*main_args, *args),
+                                prestart_hook=prestart_hook,
+                            ),
+                            mp_context=mp_context,
+                        )
+                    )
+                except RuntimeError as e:
+                    if "loop stopped" in e.args[0]:
+                        log.warning(
+                            "skipping spawning of child[worker]:%d due to "
+                            "async failure(s) of other child process",
                             i,
-                            main_args + args,
                         )
-                    )
-                )
-            except RuntimeError as e:
-                if "loop stopped" in e.args[0]:
-                    log.warning(
-                        "skipping spawning of child[worker]:%d due to "
-                        "async failure(s) of other child process",
-                        i,
-                    )
-                    continue
-                raise
-            children.append(p)
+                        continue
+                    raise
+                children.append(p)
 
-        # spawn extra workers
-        for i, f in enumerate(extra_procs):
-            try:
-                p = main_loop.run_until_complete(
-                    afork(
-                        functools.partial(
-                            _extra_main,
-                            f,
-                            stop_signals,
-                            num_workers + i,
-                            main_args + args,
+            # spawn extra workers
+            for i, f in enumerate(extra_procs):
+                try:
+                    p = main_loop.run_until_complete(
+                        afork(
+                            functools.partial(
+                                _extra_main,
+                                f,
+                                stop_signals,
+                                num_workers + i,
+                                (*main_args, *args),
+                                prestart_hook=prestart_hook,
+                            ),
+                            mp_context=mp_context,
                         )
                     )
-                )
-            except RuntimeError as e:
-                if "loop stopped" in e.args[0]:
-                    log.warning(
-                        "skipping spawning of child[extra]:%d due to "
-                        "async failure(s) of other child process",
-                        num_workers + i,
-                    )
-                    continue
-                raise
-            children.append(p)
-        try:
+                except RuntimeError as e:
+                    if "loop stopped" in e.args[0]:
+                        log.warning(
+                            "skipping spawning of child[extra]:%d due to "
+                            "async failure(s) of other child process",
+                            num_workers + i,
+                        )
+                        continue
+                    raise
+                children.append(p)
+
+            write_pipe.close()
+
             # unblock the stop signals for user/external interrupts.
             signal.pthread_sigmask(signal.SIG_UNBLOCK, sigblock_mask)
 
             # run!
             try:
-                main_loop.run_until_complete(main_future)
+                if not run_to_completion:
+                    main_loop.run_until_complete(main_future)
+                else:
+                    main_ctx.yield_return = _get_default_stop_signal(stop_signals)
             except asyncio.CancelledError:
                 pass
             finally:
-                # if interrupted, wait for workers to finish.
+                # If interrupted or complete, wait for workers to finish.
                 try:
-                    main_loop.run_until_complete(
+                    worker_results = main_loop.run_until_complete(
                         asyncio.wait_for(
                             asyncio.gather(
                                 *[child.wait() for child in children],
@@ -645,20 +771,29 @@ def start_server(
                             wait_timeout,
                         )
                     )
+                    for child, result in zip(children, worker_results):
+                        if isinstance(result, Exception):
+                            log.error(
+                                "Waiting for a child process [%d] has failed by an error.",
+                                child.pid,
+                                exc_info=result,
+                            )
                 except asyncio.TimeoutError:
                     log.warning(
                         "Timeout during waiting for child processes; killing all",
                     )
                     for child in children:
                         child.send_signal(signal.SIGKILL)
-        finally:
+    finally:
+        main_loop.remove_reader(read_pipe.fileno())
+        read_pipe.close()
+        try:
+            main_loop.run_until_complete(cancel_all_tasks())
+            main_loop.run_until_complete(main_loop.shutdown_asyncgens())
             try:
-                main_loop.run_until_complete(cancel_all_tasks())
-                main_loop.run_until_complete(main_loop.shutdown_asyncgens())
-                try:
-                    main_loop.run_until_complete(main_loop.shutdown_default_executor())
-                except (AttributeError, NotImplementedError):  # for uvloop
-                    pass
-            finally:
-                main_loop.close()
-                asyncio.set_event_loop(None)
+                main_loop.run_until_complete(main_loop.shutdown_default_executor())
+            except (AttributeError, NotImplementedError):  # for uvloop
+                pass
+        finally:
+            main_loop.close()
+            asyncio.set_event_loop(None)
