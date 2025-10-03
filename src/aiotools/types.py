@@ -24,5 +24,5 @@ if sys.version_info >= (3, 12):
     AwaitableLike: TypeAlias = Awaitable[_T_co]  # noqa: Y047
     CoroutineLike: TypeAlias = Coroutine[Any, Any, _T_co]  # noqa: Y047
 else:
-    AwaitableLike: TypeAlias = Generator[Any, None, _T] | Awaitable[_T]
-    CoroutineLike: TypeAlias = Generator[Any, None, _T] | Coroutine[Any, Any, _T]
+    AwaitableLike: TypeAlias = Generator[Any, None, _T_co] | Awaitable[_T_co]
+    CoroutineLike: TypeAlias = Generator[Any, None, _T_co] | Coroutine[Any, Any, _T_co]
