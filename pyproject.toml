@@ -1,3 +1,32 @@
+[project]
+name = "aiotools"
+dynamic = ["version"]
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    {name = "Joongi Kim", email = "me@daybreaker.info"},
+]
+description = "Idiomatic asyncio utilities"
+readme = "REAMDE.md"
+keywords = ["asyncio"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Framework :: AsyncIO",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+]
+
+[project.urls]
+Documentation = "https://aiotools.readthedocs.io"
+Tracker = "https://github.com/achimnol/aiotools/issues"
+Source = "https://github.com/achimnol/aiotools"
+"Code Coverage" = "https://codecov.io/github/achimnol/aiotools"
+
 [build-system]
 requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
@@ -69,6 +98,38 @@ known-first-party = ["aiotools"]
 known-local-folder = ["src"]
 split-on-trailing-comma = true
 
+[tool.pytest]
+testpaths = ["tests"]
+
+[tool.mypy]
+mypy_path = ["src", "tests"]
+ignore_missing_imports = true
+
 [tool.black]
 line-length = 88
 preview = true
+
+[tool.pyright]
+include = ["src"]
+typeCheckingMode = "strict"
+executionEnvironments = [
+    { root = "tests", reportPrivateUsage = false },
+    { root = "src" }
+]
+
+[dependency-groups]
+dev = [
+    "codecov>=2.1.13",
+    "mypy>=1.18.2",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.13.3",
+    "towncrier>=25.8.0",
+    "twine>=6.2.0",
+]
+docs = [
+    "sphinx>=8.2.3",
+    "sphinx-rtd-theme>=3.0.2",
+]

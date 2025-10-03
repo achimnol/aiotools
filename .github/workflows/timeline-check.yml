@@ -10,23 +10,21 @@ jobs:
     if: |
       !contains(github.event.pull_request.labels.*.name, 'skip:changelog')
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout the source tree
+      uses: actions/checkout@v5
       with:
         fetch-depth: 0
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: "3.13"
-        cache: "pip"
-        cache-dependency-path: |
-          requirements/timeline-check.txt
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
     - name: Install dependencies
-      run: |
-        python -m pip install -U pip setuptools wheel
-        pip install -U -r requirements/timeline-check.txt
+      run: uv sync --locked --all-extras --dev
     - name: Check existence of news fragment
       run: |
         git fetch --no-tags origin +refs/heads/${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}
-        python -m towncrier.check --compare-with=origin/${BASE_BRANCH}
+        uv run python -m towncrier.check --compare-with=origin/${BASE_BRANCH}
       env:
         BASE_BRANCH: ${{ github.base_ref }}
