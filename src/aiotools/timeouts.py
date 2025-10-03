@@ -4,10 +4,12 @@ which looks into :class:`BaseExceptionGroup` if raised from the inner block of t
 timeout context manager.
 """
 
+from __future__ import annotations
+
 import enum
 from asyncio import events, exceptions, tasks
 from types import TracebackType
-from typing import Optional, Type, final
+from typing import Any, Optional, Self, Type, final
 
 __all__ = (
     "Timeout",
@@ -16,7 +18,7 @@ __all__ = (
 )
 
 
-class _State(enum.Enum):
+class _State(enum.StrEnum):
     CREATED = "created"
     ENTERED = "active"
     EXPIRING = "expiring"
@@ -41,7 +43,7 @@ class Timeout:
         self._state = _State.CREATED
 
         self._timeout_handler: Optional[events.TimerHandle] = None
-        self._task: Optional[tasks.Task] = None
+        self._task: Optional[tasks.Task[Any]] = None
         self._when = when
 
     def when(self) -> Optional[float]:
@@ -82,7 +84,7 @@ class Timeout:
         info_str = " ".join(info)
         return f"<Timeout [{self._state.value}]{info_str}>"
 
-    async def __aenter__(self) -> "Timeout":
+    async def __aenter__(self) -> Self:
         self._state = _State.ENTERED
         self._task = tasks.current_task()
         assert self._task is not None

@@ -1,9 +1,10 @@
-__all__ = ("TaskScope",)
+from __future__ import annotations
 
 import asyncio
 import contextvars
 from asyncio import events, exceptions, tasks
 from contextvars import Context
+from types import TracebackType
 from typing import (
     Any,
     Optional,
@@ -16,6 +17,8 @@ from .taskcontext import DefaultErrorHandler, ErrorCallback, TaskContext
 from .types import CoroutineLike
 
 T = TypeVar("T")
+
+__all__ = ("TaskScope",)
 
 
 class TaskScope(TaskContext):
@@ -42,7 +45,7 @@ class TaskScope(TaskContext):
     """
 
     _tasks: set[asyncio.Task[Any]]
-    _on_completed_fut: Optional[asyncio.Future]
+    _on_completed_fut: Optional[asyncio.Future[Any]]
     _base_error: Optional[BaseException]
 
     def __init__(
@@ -81,7 +84,12 @@ class TaskScope(TaskContext):
 
         return self
 
-    async def __aexit__(self, et, exc, tb) -> Optional[bool]:
+    async def __aexit__(
+        self,
+        et: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> Optional[bool]:
         assert self._loop is not None
         assert self._parent_task is not None
         self._exiting = True
@@ -130,7 +138,7 @@ class TaskScope(TaskContext):
             self._has_errors = True
         return None
 
-    async def _wait_completion(self):
+    async def _wait_completion(self) -> BaseException | None:
         # We use while-loop here because "self._on_completed_fut"
         # can be cancelled multiple times if our parent task
         # is being cancelled repeatedly (or even once, when

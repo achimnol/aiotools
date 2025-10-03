@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import asyncio
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import pytest
 
-from aiotools import VirtualClock
-from aiotools.supervisor import Supervisor
+from aiotools import Supervisor, VirtualClock
 
 T = TypeVar("T")
 
@@ -16,14 +17,14 @@ async def do_job(delay: float, result: T) -> T:
 
 async def fail_job(delay: float) -> None:
     await asyncio.sleep(delay)
-    1 / 0
+    raise ZeroDivisionError()
 
 
 @pytest.mark.asyncio
-async def test_supervisor_partial_failure():
-    results = []
-    errors = []
-    tasks = []
+async def test_supervisor_partial_failure() -> None:
+    results: list[int] = []
+    errors: list[BaseException] = []
+    tasks: list[asyncio.Task[Any]] = []
     with VirtualClock().patch_loop():
         async with Supervisor() as supervisor:
             tasks.append(supervisor.create_task(do_job(0.1, 1)))
@@ -40,11 +41,11 @@ async def test_supervisor_partial_failure():
 
 
 @pytest.mark.asyncio
-async def test_supervisor_timeout_before_failure():
-    results = []
-    errors = []
+async def test_supervisor_timeout_before_failure() -> None:
+    results: list[int] = []
+    errors: list[BaseException] = []
     cancelled = 0
-    tasks = []
+    tasks: list[asyncio.Task[Any]] = []
     with VirtualClock().patch_loop():
         with pytest.raises(TimeoutError):
             async with (
@@ -68,11 +69,11 @@ async def test_supervisor_timeout_before_failure():
 
 
 @pytest.mark.asyncio
-async def test_supervisor_timeout_after_failure():
-    results = []
-    errors = []
+async def test_supervisor_timeout_after_failure() -> None:
+    results: list[int] = []
+    errors: list[BaseException] = []
     cancelled = 0
-    tasks = []
+    tasks: list[asyncio.Task[Any]] = []
     with VirtualClock().patch_loop():
         with pytest.raises(TimeoutError):
             async with (
