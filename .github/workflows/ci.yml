@@ -24,23 +24,20 @@ jobs:
         - "3.13"
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout the source tree
+      uses: actions/checkout@v5
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: "pip"
-        cache-dependency-path: |
-          setup.cfg
-          requirements/test.txt
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
     - name: Install dependencies
-      run: |
-        python -m pip install -U pip setuptools wheel
-        python -m pip install -U -r requirements/test.txt
+      run: uv sync --locked --all-extras --dev
     - name: Test with pytest
       timeout-minutes: 3
       run: |
-        python -m pytest -v --cov=src tests
+        uv run pytest -v --cov=src tests
     - name: Send code coverage report
       uses: codecov/codecov-action@v3
       with:
@@ -64,21 +61,18 @@ jobs:
     permissions:
       id-token: write
     steps:
-    - name: Checkout sources
-      uses: actions/checkout@v4
+    - name: Checkout the source tree
+      uses: actions/checkout@v5
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-        cache: "pip"
-        cache-dependency-path: |
-          requirements/build.txt
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
     - name: Install dependencies
-      run: |
-        python -m pip install -U pip setuptools
-        pip install -U -r requirements/build.txt
+      run: uv sync --locked --all-extras --dev
     - name: Build sdist and wheel
       run: |
-        python -m build -s -w
+        uv build
     - name: Publish
       uses: pypa/gh-action-pypi-publish@release/v1
