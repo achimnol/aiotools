@@ -1,5 +1,11 @@
+# mypy: disable-error-code="deprecated"
+# pyright: reportDeprecated=false
+
+from __future__ import annotations
+
 import asyncio
 import sys
+from types import TracebackType
 from unittest import mock
 
 import pytest
@@ -13,7 +19,7 @@ import aiotools
 
 
 @pytest.mark.asyncio
-async def test_ptaskgroup_naming():
+async def test_ptaskgroup_naming() -> None:
     async def subtask():
         pass
 
@@ -25,7 +31,7 @@ async def test_ptaskgroup_naming():
 
 
 @pytest.mark.asyncio
-async def test_ptaskgroup_all_done():
+async def test_ptaskgroup_all_done() -> None:
     done_count = 0
 
     async def subtask():
@@ -36,7 +42,7 @@ async def test_ptaskgroup_all_done():
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
         async with aiotools.PersistentTaskGroup() as tg:
-            for idx in range(10):
+            for _ in range(10):
                 tg.create_task(subtask())
             assert tg._unfinished_tasks == 10
             # wait until all is done
@@ -51,7 +57,7 @@ async def test_ptaskgroup_all_done():
 
 
 @pytest.mark.asyncio
-async def test_ptaskgroup_as_obj_attr():
+async def test_ptaskgroup_as_obj_attr() -> None:
     done_count = 0
 
     async def subtask():
@@ -74,7 +80,7 @@ async def test_ptaskgroup_as_obj_attr():
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
         obj = LongLivedObject()
-        for idx in range(10):
+        for _ in range(10):
             await obj.work()
         assert obj.tg._unfinished_tasks == 10
 
@@ -88,7 +94,7 @@ async def test_ptaskgroup_as_obj_attr():
 
         done_count = 0
         obj = LongLivedObject()
-        for idx in range(10):
+        for _ in range(10):
             await obj.work()
         assert obj.tg._unfinished_tasks == 10
 
@@ -101,24 +107,24 @@ async def test_ptaskgroup_as_obj_attr():
 
 
 @pytest.mark.asyncio
-async def test_ptaskgroup_shutdown_from_different_task():
+async def test_ptaskgroup_shutdown_from_different_task() -> None:
     done_count = 0
     exec_after_termination = False
 
-    async def subtask(idx):
+    async def subtask(idx: int) -> None:
         nonlocal done_count
         await asyncio.sleep(0.1 * idx)
         done_count += 1
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-        outer_myself = aiotools.compat.current_task()
+        outer_myself = aiotools.current_task()
         tg = aiotools.PersistentTaskGroup()
         assert tg._parent_task is outer_myself
 
         async def _main_task():
             nonlocal exec_after_termination
-            myself = aiotools.compat.current_task()
+            myself = aiotools.current_task()
             async with tg:
                 # The parent task is overriden when
                 # using "async with", to keep consistency with
@@ -147,13 +153,13 @@ async def test_ptaskgroup_shutdown_from_different_task():
 
 
 @pytest.mark.asyncio
-async def test_ptaskgroup_cancel_after_schedule():
+async def test_ptaskgroup_cancel_after_schedule() -> None:
     done_count = 0
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
 
-        async def subtask():
+        async def subtask() -> None:
             nonlocal done_count
             await asyncio.sleep(0.1)
             done_count += 1
@@ -173,10 +179,10 @@ async def test_ptaskgroup_cancel_after_schedule():
 
 
 @pytest.mark.asyncio
-async def test_ptaskgroup_cancel_before_schedule():
+async def test_ptaskgroup_cancel_before_schedule() -> None:
     done_count = 0
 
-    async def subtask():
+    async def subtask() -> None:
         nonlocal done_count
         await asyncio.sleep(0.1)
         done_count += 1
@@ -200,10 +206,10 @@ async def test_ptaskgroup_cancel_before_schedule():
     # We don't fix this -- 3.6 is EoL as of December 2021.
 )
 @pytest.mark.asyncio
-async def test_ptaskgroup_await_result():
+async def test_ptaskgroup_await_result() -> None:
     done_count = 0
 
-    async def subtask():
+    async def subtask() -> str:
         nonlocal done_count
         await asyncio.sleep(0.1)
         done_count += 1
@@ -211,7 +217,7 @@ async def test_ptaskgroup_await_result():
 
     vclock = aiotools.VirtualClock()
     with vclock.patch_loop():
-        results = []
+        results: list[str] = []
 
         async with aiotools.PersistentTaskGroup() as tg:
             ret = await tg.create_task(subtask())
@@ -250,17 +256,21 @@ async def test_ptaskgroup_await_result():
     # We don't fix this -- 3.6 is EoL as of December 2021.
 )
 @pytest.mark.asyncio
-async def test_ptaskgroup_await_exception():
+async def test_ptaskgroup_await_exception() -> None:
     done_count = 0
     error_count = 0
 
-    async def subtask():
+    async def subtask() -> None:
         nonlocal done_count
         await asyncio.sleep(0.1)
-        1 / 0
+        raise ZeroDivisionError()
         done_count += 1
 
-    async def handler(exc_type, exc_obj, exc_tb):
+    async def handler(
+        exc_type: type[BaseException],
+        exc_obj: BaseException,
+        exc_tb: TracebackType,
+    ) -> None:
         nonlocal error_count
         assert issubclass(exc_type, ZeroDivisionError)
         error_count += 1
@@ -299,17 +309,21 @@ async def test_ptaskgroup_await_exception():
 
 
 @pytest.mark.asyncio
-async def test_ptaskgroup_exc_handler_swallow():
+async def test_ptaskgroup_exc_handler_swallow() -> None:
     done_count = 0
     error_count = 0
 
-    async def subtask():
+    async def subtask() -> None:
         nonlocal done_count
         await asyncio.sleep(0.1)
-        1 / 0
+        raise ZeroDivisionError()
         done_count += 1
 
-    async def handler(exc_type, exc_obj, exc_tb):
+    async def handler(
+        exc_type: type[BaseException],
+        exc_obj: BaseException,
+        exc_tb: TracebackType,
+    ) -> None:
         nonlocal error_count
         assert issubclass(exc_type, ZeroDivisionError)
         error_count += 1
@@ -323,7 +337,9 @@ async def test_ptaskgroup_exc_handler_swallow():
         except ExceptionGroup as eg:
             # All non-base exceptions must be swallowed by
             # our exception handler.
-            assert len(eg.subgroup(ZeroDivisionError).exceptions) == 0
+            subgroup = eg.subgroup(ZeroDivisionError)
+            assert subgroup is not None
+            assert len(subgroup.exceptions) == 0
 
         assert done_count == 0
         assert error_count == 10
@@ -336,23 +352,27 @@ async def test_ptaskgroup_exc_handler_swallow():
     reason="Requires Python 3.8 or higher",
 )
 @pytest.mark.asyncio
-async def test_ptaskgroup_error_in_exc_handlers():
+async def test_ptaskgroup_error_in_exc_handlers() -> None:
     done_count = 0
     error_count = 0
 
-    async def subtask():
+    async def subtask() -> None:
         nonlocal done_count
         await asyncio.sleep(0.1)
-        1 / 0
+        raise ZeroDivisionError()
         done_count += 1
 
-    async def handler(exc_type, exc_obj, exc_tb):
+    async def handler(
+        exc_type: type[BaseException],
+        exc_obj: BaseException,
+        exc_tb: TracebackType,
+    ) -> None:
         nonlocal error_count
         assert issubclass(exc_type, ZeroDivisionError)
         error_count += 1
         raise ValueError("something wrong in exception handler")
 
-    loop = aiotools.compat.get_running_loop()
+    loop = asyncio.get_running_loop()
     vclock = aiotools.VirtualClock()
     with (
         vclock.patch_loop(),
@@ -360,7 +380,7 @@ async def test_ptaskgroup_error_in_exc_handlers():
             loop,
             "call_exception_handler",
             mock.MagicMock(),
-        ),
+        ) as mocked_exc_handler,
     ):
         # Errors in exception handlers are covered by the event loop's exception
         # handler, so that they can be reported as soon as possible when they occur.
@@ -381,11 +401,11 @@ async def test_ptaskgroup_error_in_exc_handlers():
             assert False, "should not reach here"
 
         # Check if the event loop exception handler is called.
-        loop.call_exception_handler.assert_called()
-        calls = loop.call_exception_handler.mock_calls
+        mocked_exc_handler.assert_called()
+        calls = mocked_exc_handler.mock_calls
         for idx in range(10):
             assert isinstance(calls[idx].args[0]["exception"], ValueError)
-        loop.call_exception_handler.reset_mock()  # to clean up task refs
+        mocked_exc_handler.reset_mock()  # to clean up task refs
         del calls  # to clean up task refs
         assert done_count == 0
         assert error_count == 10
@@ -402,11 +422,11 @@ async def test_ptaskgroup_error_in_exc_handlers():
             assert False, "should not reach here"
 
         # Check if the event loop exception handler is called.
-        loop.call_exception_handler.assert_called()
-        calls = loop.call_exception_handler.mock_calls
+        mocked_exc_handler.assert_called()
+        calls = mocked_exc_handler.mock_calls
         for idx in range(10):
             assert isinstance(calls[idx].args[0]["exception"], ValueError)
-        loop.call_exception_handler.reset_mock()  # to clean up task refs
+        mocked_exc_handler.reset_mock()  # to clean up task refs
         del calls  # to clean up task refs
         assert done_count == 0
         assert error_count == 10
@@ -450,7 +470,7 @@ async def test_ptaskgroup_cancel_with_await():
 )
 @pytest.mark.asyncio
 async def test_ptaskgroup_current():
-    names = []
+    names: list[str] = []
 
     async def subtask():
         await asyncio.sleep(1)

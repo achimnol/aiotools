@@ -5,9 +5,10 @@ import warnings
 from typing import Any
 
 __all__ = (
-    "get_running_loop",
     "all_tasks",
+    "get_running_loop",
     "current_task",
+    "set_task_name",
 )
 
 get_running_loop = asyncio.get_running_loop

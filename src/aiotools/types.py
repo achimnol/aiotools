@@ -10,6 +10,12 @@ from typing import (
     runtime_checkable,
 )
 
+__all__ = (
+    "AsyncClosable",
+    "AwaitableLike",
+    "CoroutineLike",
+)
+
 _T = TypeVar("_T")
 _T_co = TypeVar("_T_co", covariant=True)
 

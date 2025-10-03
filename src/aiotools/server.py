@@ -52,7 +52,8 @@ from .context import AbstractAsyncContextManager
 from .fork import AbstractChildProcess, MPContext, _has_pidfd, afork
 
 __all__ = (
-    "main",
+    "main_context",
+    "server_context",
     "start_server",
     "process_index",
     "AsyncServerContextManager",
@@ -219,7 +220,7 @@ class ServerMainContextManager(AbstractContextManager[TYield], ContextDecorator)
 # NOTE: only works in Python 3.5 or higher.
 
 
-def _server_ctxmgr(
+def server_context(
     func: Callable[
         [asyncio.AbstractEventLoop, int, Sequence[Any]],
         AsyncGenerator[None, signal.Signals],
@@ -234,13 +235,13 @@ def _server_ctxmgr(
 
 class _ServerModule(sys.modules[__name__].__class__):  # type: ignore
     def __call__(self, func):
-        return _server_ctxmgr(func)
+        return server_context(func)
 
 
 sys.modules[__name__].__class__ = _ServerModule
 
 
-def _main_ctxmgr(func: Callable[[], Generator[TYield, signal.Signals]]):
+def main_context(func: Callable[[], Generator[TYield, signal.Signals]]):
     """
     A decorator wrapper for :class:`ServerMainContextManager`
 
@@ -265,9 +266,6 @@ def _main_ctxmgr(func: Callable[[], Generator[TYield, signal.Signals]]):
         return ServerMainContextManager(func, args, kwargs)
 
     return helper
-
-
-main = _main_ctxmgr
 
 
 def setup_child_watcher(loop: asyncio.AbstractEventLoop) -> None:
@@ -611,7 +609,7 @@ def start_server(
         and **run_to_completion** arguments.
     """
 
-    @_main_ctxmgr
+    @main_context
     def noop_main_ctxmgr():
         yield
 

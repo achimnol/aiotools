@@ -1,4 +1,5 @@
 # mypy: disable-error-code="deprecated"
+# pyright: reportDeprecated=false
 
 from __future__ import annotations
 
