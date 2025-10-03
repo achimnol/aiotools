@@ -15,10 +15,12 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ruff" },
-    { name = "sphinx" },
-    { name = "sphinx-rtd-theme" },
     { name = "towncrier" },
     { name = "twine" },
+]
+docs = [
+    { name = "sphinx" },
+    { name = "sphinx-rtd-theme" },
 ]
 
 [package.metadata]
@@ -32,10 +34,12 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=1.2.0" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "ruff", specifier = ">=0.13.3" },
-    { name = "sphinx", specifier = ">=8.2.3" },
-    { name = "sphinx-rtd-theme", specifier = ">=3.0.2" },
     { name = "towncrier", specifier = ">=25.8.0" },
     { name = "twine", specifier = ">=6.2.0" },
+]
+docs = [
+    { name = "sphinx", specifier = ">=8.2.3" },
+    { name = "sphinx-rtd-theme", specifier = ">=3.0.2" },
 ]
 
 [[package]]
