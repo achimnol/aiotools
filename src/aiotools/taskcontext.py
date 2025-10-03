@@ -1,4 +1,4 @@
-__all__ = ["ErrorArg", "ErrorCallback", "TaskContext"]
+from __future__ import annotations
 
 import asyncio
 import contextvars
@@ -16,12 +16,20 @@ from typing import (
     TypeVar,
 )
 
+__all__ = (
+    "ErrorArg",
+    "ErrorCallback",
+    "TaskContext",
+)
+
 
 class DefaultErrorHandler(enum.Enum):
     TOKEN = 0
 
 
 class ErrorArg(TypedDict):
+    # Intentionally designed as a typed dict to match with
+    # the asyncio stdlib's error callback handler.
     message: str
     exception: BaseException
     task: asyncio.Task[Any]
