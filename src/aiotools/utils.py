@@ -8,8 +8,6 @@ import asyncio
 from collections.abc import (
     AsyncGenerator,
     Awaitable,
-    Coroutine,
-    Generator,
     Iterable,
     Sequence,
 )
@@ -18,6 +16,7 @@ from contextvars import Context
 from typing import Any, Optional, TypeVar
 
 from .supervisor import Supervisor
+from .types import CoroutineLike
 
 __all__ = (
     "cancel_and_wait",
@@ -50,7 +49,7 @@ async def cancel_and_wait(
 
 
 async def as_completed_safe(
-    coros: Iterable[Coroutine[Any, None, T] | Generator[None, None, T]],
+    coros: Iterable[CoroutineLike[T]],
     *,
     context: Optional[Context] = None,
 ) -> AsyncGenerator[Awaitable[T], None]:
@@ -97,7 +96,7 @@ async def as_completed_safe(
 
 
 async def gather_safe(
-    coros: Iterable[Coroutine[Any, None, T] | Generator[None, None, T]],
+    coros: Iterable[CoroutineLike[T]],
     *,
     context: Optional[Context] = None,
 ) -> list[T | BaseException]:
@@ -124,7 +123,7 @@ async def gather_safe(
 
 
 async def race(
-    coros: Iterable[Coroutine[Any, None, T] | Generator[None, None, T]],
+    coros: Iterable[CoroutineLike[T]],
     *,
     continue_on_error: bool = False,
     context: Optional[Context] = None,

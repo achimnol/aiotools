@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 import warnings
-from collections.abc import Awaitable, Coroutine, Generator
-from typing import Any, TypeAlias, TypeVar
+from typing import Any
 
 __all__ = (
     "get_running_loop",
@@ -43,13 +41,3 @@ def set_task_name(task: asyncio.Task[Any], name: str | None) -> None:
             )
         else:
             set_name(name)
-
-
-_T_co = TypeVar("_T_co", covariant=True)
-
-if sys.version_info >= (3, 12):
-    AwaitableLike: TypeAlias = Awaitable[_T_co]  # noqa: Y047
-    CoroutineLike: TypeAlias = Coroutine[Any, Any, _T_co]  # noqa: Y047
-else:
-    AwaitableLike: TypeAlias = Generator[Any, None, _T_co] | Awaitable[_T_co]
-    CoroutineLike: TypeAlias = Generator[Any, None, _T_co] | Coroutine[Any, Any, _T_co]

@@ -14,7 +14,7 @@ from typing import (
     TypeVar,
 )
 
-from .compat import CoroutineLike
+from .types import CoroutineLike
 
 __all__ = (
     "ErrorArg",

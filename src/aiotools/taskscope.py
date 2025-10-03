@@ -12,8 +12,8 @@ from typing import (
     TypeVar,
 )
 
-from .compat import CoroutineLike
 from .taskcontext import DefaultErrorHandler, ErrorCallback, TaskContext
+from .types import CoroutineLike
 
 T = TypeVar("T")
 
