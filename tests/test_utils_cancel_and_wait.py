@@ -28,6 +28,7 @@ import asyncio
 import pytest
 
 from aiotools import TaskScope, VirtualClock, cancel_and_wait
+from aiotools.taskcontext import ErrorArg
 
 
 @pytest.mark.asyncio
@@ -409,6 +410,10 @@ async def test_cancel_and_wait_taskscope_long_cancellation() -> None:
     """
     child_started = asyncio.Event()
     sibling_cancelled_after_cleanup = False
+    errors: list[BaseException] = []
+
+    def error_callback(info: ErrorArg) -> None:
+        errors.append(info["exception"])
 
     async def failing_child() -> None:
         child_started.set()
@@ -426,7 +431,7 @@ async def test_cancel_and_wait_taskscope_long_cancellation() -> None:
             raise  # this raised-up cancellation is absorbed by taskscope
 
     async def parent_task_with_tg() -> None:
-        async with TaskScope() as ts:
+        async with TaskScope(delegate_errors=error_callback) as ts:
             ts.create_task(failing_child())
             ts.create_task(sibling_child())
 
@@ -443,6 +448,8 @@ async def test_cancel_and_wait_taskscope_long_cancellation() -> None:
 
         assert sibling_cancelled_after_cleanup
         assert parent_task.cancelled()
+        assert len(errors) == 1
+        assert isinstance(errors[0], ValueError)
 
 
 @pytest.mark.asyncio
