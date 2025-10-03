@@ -6,14 +6,13 @@ from asyncio import events, exceptions, tasks
 from contextvars import Context
 from typing import (
     Any,
-    Coroutine,
-    Generator,
     Optional,
     Self,
     TypeGuard,
     TypeVar,
 )
 
+from .compat import CoroutineLike
 from .taskcontext import DefaultErrorHandler, ErrorCallback, TaskContext
 
 T = TypeVar("T")
@@ -167,7 +166,7 @@ class TaskScope(TaskContext):
 
     def create_task(
         self,
-        coro: Generator[None, None, T] | Coroutine[Any, None, T],
+        coro: CoroutineLike[T],
         *,
         name: Optional[str] = None,
         context: Optional[Context] = None,
