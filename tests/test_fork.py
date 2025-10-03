@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import multiprocessing as mp
 import os
@@ -9,7 +11,13 @@ from unittest import mock
 import pytest
 
 from aiotools import fork as fork_mod
-from aiotools.fork import MPContext, PidfdChildProcess, _has_pidfd, afork
+from aiotools.fork import (
+    AbstractChildProcess,
+    MPContext,
+    PidfdChildProcess,
+    _has_pidfd,
+    afork,
+)
 
 if sys.platform == "win32":
     pytest.skip(
@@ -31,7 +39,7 @@ def child_for_fork() -> int:
     return 99
 
 
-async def _do_test_fork(mp_context: MPContext):
+async def _do_test_fork(mp_context: MPContext) -> None:
     proc = await afork(child_for_fork, mp_context=mp_context)
     assert proc.pid > 0
     if isinstance(proc, PidfdChildProcess):
@@ -45,7 +53,7 @@ def child_for_fork_already_terminated() -> int:
     return 99
 
 
-async def _do_test_fork_already_terminated(mp_context: MPContext):
+async def _do_test_fork_already_terminated(mp_context: MPContext) -> None:
     proc = await afork(child_for_fork_already_terminated, mp_context=mp_context)
     assert proc.pid > 0
     if isinstance(proc, PidfdChildProcess):
@@ -63,7 +71,7 @@ def child_for_fork_signal() -> int:
     return 100
 
 
-async def _do_test_fork_signal(mp_context: MPContext):
+async def _do_test_fork_signal(mp_context: MPContext) -> None:
     os.setpgrp()
     proc = await afork(child_for_fork_signal, mp_context=mp_context)
     assert proc.pid > 0
@@ -84,7 +92,7 @@ def child_for_fork_segfault() -> int:
     return 0
 
 
-async def _do_test_fork_segfault(mp_context: MPContext):
+async def _do_test_fork_segfault(mp_context: MPContext) -> None:
     os.setpgrp()
     proc = await afork(child_for_fork_segfault, mp_context=mp_context)
     assert proc.pid > 0
@@ -102,9 +110,9 @@ def child_for_fork_many() -> int:
     return 100
 
 
-async def _do_test_fork_many(mp_context: MPContext):
+async def _do_test_fork_many(mp_context: MPContext) -> None:
     os.setpgrp()
-    proc_list = []
+    proc_list: list[AbstractChildProcess] = []
     for _ in range(32):
         proc = await afork(child_for_fork_many, mp_context=mp_context)
         proc_list.append(proc)
@@ -127,7 +135,7 @@ async def _do_test_fork_many(mp_context: MPContext):
 )
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
-async def test_fork(mp_context: MPContext):
+async def test_fork(mp_context: MPContext) -> None:
     await _do_test_fork(mp_context)
 
 
@@ -136,7 +144,7 @@ async def test_fork(mp_context: MPContext):
 )
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
-async def test_fork_already_terminated(mp_context: MPContext):
+async def test_fork_already_terminated(mp_context: MPContext) -> None:
     await _do_test_fork_already_terminated(mp_context)
 
 
@@ -145,7 +153,7 @@ async def test_fork_already_terminated(mp_context: MPContext):
 )
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
-async def test_fork_signal(mp_context: MPContext):
+async def test_fork_signal(mp_context: MPContext) -> None:
     await _do_test_fork_signal(mp_context)
 
 
@@ -154,7 +162,7 @@ async def test_fork_signal(mp_context: MPContext):
 )
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
-async def test_fork_segfault(mp_context: MPContext):
+async def test_fork_segfault(mp_context: MPContext) -> None:
     await _do_test_fork_segfault(mp_context)
 
 
@@ -163,13 +171,13 @@ async def test_fork_segfault(mp_context: MPContext):
 )
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
-async def test_fork_many(mp_context: MPContext):
+async def test_fork_many(mp_context: MPContext) -> None:
     await _do_test_fork_many(mp_context)
 
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
-async def test_fork_fallback(mp_context: MPContext):
+async def test_fork_fallback(mp_context: MPContext) -> None:
     with mock.patch.object(
         fork_mod,
         "_has_pidfd",
@@ -180,7 +188,7 @@ async def test_fork_fallback(mp_context: MPContext):
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
-async def test_fork_already_termination_fallback(mp_context: MPContext):
+async def test_fork_already_termination_fallback(mp_context: MPContext) -> None:
     with mock.patch.object(
         fork_mod,
         "_has_pidfd",
@@ -191,7 +199,7 @@ async def test_fork_already_termination_fallback(mp_context: MPContext):
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
-async def test_fork_signal_fallback(mp_context: MPContext):
+async def test_fork_signal_fallback(mp_context: MPContext) -> None:
     with mock.patch.object(
         fork_mod,
         "_has_pidfd",
@@ -202,7 +210,7 @@ async def test_fork_signal_fallback(mp_context: MPContext):
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
-async def test_fork_segfault_fallback(mp_context: MPContext):
+async def test_fork_segfault_fallback(mp_context: MPContext) -> None:
     with mock.patch.object(
         fork_mod,
         "_has_pidfd",
@@ -213,7 +221,7 @@ async def test_fork_segfault_fallback(mp_context: MPContext):
 
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
-async def test_fork_many_fallback(mp_context: MPContext):
+async def test_fork_many_fallback(mp_context: MPContext) -> None:
     with mock.patch.object(
         fork_mod,
         "_has_pidfd",

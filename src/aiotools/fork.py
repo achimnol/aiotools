@@ -16,6 +16,8 @@ so that the users may assume that the child process is completely interruptible 
     can be imported in the new subprocess.
 """
 
+from __future__ import annotations
+
 import asyncio
 import errno
 import logging
@@ -259,6 +261,12 @@ def _child_main(
     child_func: Callable[[], int],
 ) -> int:
     ret = -255
+    # Reset signal handlers to default for proper signal handling.
+    # Multiprocessing may set SIGINT to SIG_IGN to prevent KeyboardInterrupt
+    # in worker processes, but we want the default behavior where SIGINT
+    # raises KeyboardInterrupt so that child_func can handle it properly.
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
     try:
         # notify the parent that the child is ready to execute the requested function.
         write_pipe.send_bytes(b"\0")
