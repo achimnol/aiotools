@@ -8,8 +8,6 @@ from contextvars import Context
 from typing import (
     Any,
     Callable,
-    Coroutine,
-    Generator,
     Optional,
     TypeAlias,
     TypedDict,
@@ -76,7 +74,7 @@ class TaskContext:
     def __init__(
         self,
         delegate_errors: Optional[
-            ErrorCallback | DefaultErrorHandler
+            ErrorCallback | DefaultErrorHandler | None
         ] = DefaultErrorHandler.TOKEN,
         context: Optional[contextvars.Context] = None,
     ) -> None:
@@ -129,7 +127,7 @@ class TaskContext:
 
     def create_task(
         self,
-        coro: Generator[None, None, T] | Coroutine[Any, None, T],
+        coro: CoroutineLike[T],
         *,
         name: Optional[str] = None,
         context: Optional[Context] = None,
@@ -209,3 +207,5 @@ class TaskContext:
                     "exception": exc,
                     "task": task,
                 })
+            case _:
+                raise RuntimeError(f"Invalid error handler: {self._delegate_errors!r}")
