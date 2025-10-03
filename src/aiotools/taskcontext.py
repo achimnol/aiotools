@@ -67,6 +67,10 @@ class TaskContext:
     .. versionadded:: 2.0
     """
 
+    # We need to keep track of strong references as the event loop keeps weak references to
+    # fire-and-forget tasks until Python 3.13. In Python 3.14, it will be changed as
+    # per-thread doubly-linked lists to support free-threaded (nogil) setups to avoid
+    # lock contention in the weakref subsystem.
     _tasks: set[asyncio.Task[Any]]
     _parent_task: Optional[asyncio.Task[Any]]
     _loop: Optional[asyncio.AbstractEventLoop]
