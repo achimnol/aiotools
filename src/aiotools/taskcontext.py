@@ -182,24 +182,20 @@ class TaskContext:
             case None:
                 pass  # deliberately set to ignore errors
             case func if callable(func):
-                func(
-                    {
-                        "message": (
-                            f"Task {task!r} has errored inside the parent "
-                            f"task {self._parent_task}"
-                        ),
-                        "exception": exc,
-                        "task": task,
-                    }
-                )
+                func({
+                    "message": (
+                        f"Task {task!r} has errored inside the parent "
+                        f"task {self._parent_task}"
+                    ),
+                    "exception": exc,
+                    "task": task,
+                })
             case DefaultErrorHandler():
-                self._loop.call_exception_handler(
-                    {
-                        "message": (
-                            f"Task {task!r} has errored inside the parent "
-                            f"task {self._parent_task}"
-                        ),
-                        "exception": exc,
-                        "task": task,
-                    }
-                )
+                self._loop.call_exception_handler({
+                    "message": (
+                        f"Task {task!r} has errored inside the parent "
+                        f"task {self._parent_task}"
+                    ),
+                    "exception": exc,
+                    "task": task,
+                })
