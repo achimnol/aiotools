@@ -16,6 +16,8 @@ from typing import (
     TypeVar,
 )
 
+from .compat import CoroutineLike
+
 __all__ = (
     "ErrorArg",
     "ErrorCallback",
@@ -150,7 +152,7 @@ class TaskContext:
 
     def _create_task(
         self,
-        coro: Generator[None, None, T] | Coroutine[Any, None, T],
+        coro: CoroutineLike[T],
         *,
         name: Optional[str] = None,
         context: Optional[Context] = None,
