@@ -355,6 +355,49 @@ async def test_cancel_and_wait_taskgroup_long_cancellation() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cancel_and_wait_taskgroup_error_during_cancellation() -> None:
+    """
+    Test cancel_and_wait() when there is a child failing during cancellation
+    with a taskgroup.
+    """
+    child_started = asyncio.Event()
+
+    async def failing_child() -> None:
+        child_started.set()
+        await asyncio.sleep(0.1)
+        raise ValueError("child error")
+
+    async def sibling_child() -> None:
+        try:
+            await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.5)
+            raise ZeroDivisionError()
+
+    async def parent_task_with_tg() -> None:
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(failing_child())
+            tg.create_task(sibling_child())
+
+    with VirtualClock().patch_loop():
+        parent_task = asyncio.create_task(parent_task_with_tg())
+
+        # Wait for child to start and fail
+        await child_started.wait()
+        await asyncio.sleep(0.15)
+
+        # Unhandled exceptions during cancellation is captured by taskgroup.
+        with pytest.raises(ExceptionGroup) as exc_info:
+            await cancel_and_wait(parent_task)
+
+        assert parent_task.done()
+        # Check errors captured by taskgroup
+        assert len(exc_info.value.exceptions) == 2
+        assert isinstance(exc_info.value.exceptions[0], ValueError)
+        assert isinstance(exc_info.value.exceptions[1], ZeroDivisionError)
+
+
+@pytest.mark.asyncio
 async def test_cancel_and_wait_taskscope_child_exception() -> None:
     """
     Test cancel_and_wait() when a child task raises a non-CancelledError exception.
@@ -448,8 +491,56 @@ async def test_cancel_and_wait_taskscope_long_cancellation() -> None:
 
         assert sibling_cancelled_after_cleanup
         assert parent_task.cancelled()
+        # Check captured taskscope errors
         assert len(errors) == 1
         assert isinstance(errors[0], ValueError)
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_taskscope_error_during_cancellation() -> None:
+    """
+    Test cancel_and_wait() when there is a child failing during cancellation
+    with a taskscope.
+    """
+    child_started = asyncio.Event()
+    errors: list[BaseException] = []
+
+    def error_callback(info: ErrorArg) -> None:
+        errors.append(info["exception"])
+
+    async def failing_child() -> None:
+        child_started.set()
+        await asyncio.sleep(0.1)
+        raise ValueError("child error")
+
+    async def sibling_child() -> None:
+        try:
+            await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            # simulate a failure during async resource cleanup
+            await asyncio.sleep(0.5)
+            raise ZeroDivisionError()
+
+    async def parent_task_with_tg() -> None:
+        async with TaskScope(delegate_errors=error_callback) as ts:
+            ts.create_task(failing_child())
+            ts.create_task(sibling_child())
+
+    with VirtualClock().patch_loop():
+        parent_task = asyncio.create_task(parent_task_with_tg())
+
+        # Wait for child to start and fail
+        await child_started.wait()
+        await asyncio.sleep(0.15)
+
+        # Unhandled exceptions during cancellation is captured by taskscope.
+        await cancel_and_wait(parent_task)
+
+        assert parent_task.cancelled()
+        # Check captured taskscope errors
+        assert len(errors) == 2
+        assert isinstance(errors[0], ValueError)
+        assert isinstance(errors[1], ZeroDivisionError)
 
 
 @pytest.mark.asyncio
