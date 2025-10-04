@@ -50,12 +50,12 @@ class TaskScope(TaskContext):
 
     def __init__(
         self,
-        delegate_errors: Optional[
+        exception_handler: Optional[
             ErrorCallback | DefaultErrorHandler
         ] = DefaultErrorHandler.TOKEN,
         context: Optional[contextvars.Context] = None,
     ) -> None:
-        super().__init__(exception_handler=delegate_errors, context=context)
+        super().__init__(exception_handler=exception_handler, context=context)
         # status flags
         self._entered = False
         self._exiting = False

@@ -473,7 +473,7 @@ async def test_cancel_and_wait_taskscope_long_cancellation() -> None:
             raise  # this raised-up cancellation is absorbed by taskscope
 
     async def parent_task_with_tg() -> None:
-        async with TaskScope(delegate_errors=error_callback) as ts:
+        async with TaskScope(exception_handler=error_callback) as ts:
             ts.create_task(failing_child())
             ts.create_task(sibling_child())
 
@@ -521,7 +521,7 @@ async def test_cancel_and_wait_taskscope_error_during_cancellation() -> None:
             raise ZeroDivisionError()
 
     async def parent_task_with_tg() -> None:
-        async with TaskScope(delegate_errors=error_callback) as ts:
+        async with TaskScope(exception_handler=error_callback) as ts:
             ts.create_task(failing_child())
             ts.create_task(sibling_child())
 

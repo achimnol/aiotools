@@ -43,4 +43,4 @@ class Supervisor(TaskScope):
     """  # noqa: E501
 
     def __init__(self, context: Optional[contextvars.Context] = None) -> None:
-        super().__init__(delegate_errors=None, context=context)
+        super().__init__(exception_handler=None, context=context)
