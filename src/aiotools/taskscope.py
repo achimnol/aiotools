@@ -27,21 +27,21 @@ class TaskScope(TaskContext):
     concurrency, i.e., "scoped" cancellation, over a set of child tasks.
     It terminates when all child tasks make conclusion (either results or exceptions).
 
-    TaskScope subclasses TaskContext, but it mandates use of ``async with`` blocks
-    to clarify which task is the parent of the child tasks spawned via
-    :meth:`create_task()`.
+    :class:`TaskScope` subclasses :class:`TaskContext`, but it mandates use of
+    ``async with`` blocks to clarify which task is the parent of the child tasks
+    spawned via :meth:`create_task()`.
 
     The key difference to :class:`asyncio.TaskGroup` is that it allows
     customization of the exception handling logic for unhandled child
     task exceptions, instead cancelling all pending child tasks upon any
-    unhandled child task exceptions.
+    unhandled child task exceptions and collecting them as an :exc:`ExceptionGroup`.
 
     Refer :class:`TaskContext` for the descriptions about the constructor arguments.
 
-    Based on this customizability, :class:`Supervisor` is a mere alias of TaskScope
-    with ``delegate_errors=None``.
+    Based on this customizability, :class:`Supervisor` is a mere alias of
+    :class:`TaskScope` with ``exception_handler=None``.
 
-    .. versionadded:: 2.1
+    .. versionadded:: 2.0
     """
 
     _tasks: set[asyncio.Task[Any]]

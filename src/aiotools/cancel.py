@@ -19,6 +19,8 @@ async def cancel_and_wait(
     those cancellations are transparently raised up.
 
     See the discussion in https://github.com/python/cpython/issues/103486 for details.
+
+    .. versionadded:: 2.0
     """
     if task.done():
         return
