@@ -37,6 +37,35 @@ async def test_timer() -> None:
 
 
 @pytest.mark.asyncio
+async def test_timer_unhandled_tick_exception() -> None:
+    """
+    Test if the timer task is NOT cancelled when the timer-fired tick tasks
+    raises an unhandled exception.
+    """
+
+    tick_count = 0
+
+    vclock = aiotools.VirtualClock()
+    with vclock.patch_loop():
+
+        async def failing_tick(interval: float) -> None:
+            nonlocal tick_count
+            tick_count += 1
+            await asyncio.sleep(0.1)
+            raise ZeroDivisionError()
+
+        timer = aiotools.create_timer(failing_tick, 1)
+        await asyncio.sleep(5)
+
+        # the tick task must be executed more than once.
+        assert tick_count > 1
+        # the timer task should be alive.
+        assert not timer.done()
+
+        await aiotools.cancel_and_wait(timer)
+
+
+@pytest.mark.asyncio
 async def test_timer_leak_default() -> None:
     """
     Test if the timer-fired tasks are claned up properly
