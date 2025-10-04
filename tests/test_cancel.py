@@ -53,6 +53,35 @@ async def test_cancel_and_wait_simple_task_already_done() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cancel_and_wait_cancelled_by_another() -> None:
+    """
+    Test cancel_and_wait() on a task that's already completed.
+    Should return immediately without any action.
+    """
+
+    async def simple_task() -> None:
+        try:
+            await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.1)
+
+    async def cancel_task() -> None:
+        inner_task = asyncio.create_task(simple_task())
+        await asyncio.sleep(0.01)  # let inner task proceed
+        try:
+            await cancel_and_wait(inner_task)  # waiting for inner cleanup
+        finally:
+            assert inner_task.cancelled()
+
+    with VirtualClock().patch_loop():
+        task = asyncio.create_task(cancel_task())
+        await asyncio.sleep(0.05)
+        await cancel_and_wait(task)  # cancel outer waiting for inner cleanup
+        assert task.done()
+        assert task.cancelled()
+
+
+@pytest.mark.asyncio
 async def test_cancel_and_wait_simple_task_long_cancellation() -> None:
     """
     Test cancellation on a task that has long cleanup upon cancellation.
