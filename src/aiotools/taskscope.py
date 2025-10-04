@@ -60,11 +60,9 @@ class TaskScope(TaskContext):
         self._entered = False
         self._exiting = False
         self._aborting = False
-        self._parent_cancel_requested = False
         # taskscope-specifics
         self._base_error = None
         self._on_completed_fut = None
-        self._has_errors = False
 
     async def __aenter__(self) -> Self:
         if self._entered:
@@ -98,12 +96,6 @@ class TaskScope(TaskContext):
             self._base_error = exc
 
         propagate_cancellation_error = exc if et is exceptions.CancelledError else None
-        if self._parent_cancel_requested:
-            # If this flag is set we *must* call uncancel().
-            if self._parent_task.uncancel() == 0:
-                # If there are no pending cancellations left,
-                # don't propagate CancelledError.
-                propagate_cancellation_error = None
 
         if et is not None:
             if not self._aborting:
@@ -134,8 +126,6 @@ class TaskScope(TaskContext):
         if propagate_cancellation_error:
             raise propagate_cancellation_error
 
-        if et is not None and et is not exceptions.CancelledError:
-            self._has_errors = True
         return None
 
     async def _wait_completion(self) -> BaseException | None:
@@ -219,7 +209,7 @@ class TaskScope(TaskContext):
         if exc is None:
             return
 
-        self._has_errors = True
+        # Instead of adding to ExceptionGroup, call the configured exception handler.
         self._handle_task_exception(task)
 
         is_base_error = self._is_base_error(exc)
@@ -239,25 +229,15 @@ class TaskScope(TaskContext):
             })
             return
 
-        if is_base_error:
-            # If parent task *is not* being cancelled, it means that we want
-            # to manually cancel it to abort whatever is being run right now
-            # in the TaskGroup.  But we want to mark parent task as
-            # "not cancelled" later in __aexit__.  Example situation that
-            # we need to handle:
-            #
-            #    async def foo():
-            #        try:
-            #            async with TaskGroup() as g:
-            #                g.create_task(crash_soon())
-            #                await something  # <- this needs to be canceled
-            #                                 #    by the TaskGroup, e.g.
-            #                                 #    foo() needs to be cancelled
-            #        except Exception:
-            #            # Ignore any exceptions raised in the TaskGroup
-            #            pass
-            #        await something_else     # this line has to be called
-            #                                 # after TaskGroup is finished.
-            self.abort()
-            self._parent_cancel_requested = True
-            self._parent_task.cancel()
+        # If parent task *is not* being cancelled, we should just keep
+        # running, unlike TaskGroup:
+        #
+        #    async def foo():
+        #        try:
+        #            async with TaskScope() as ts:
+        #                ts.create_task(crash_soon())
+        #                await something  # <- this should keep running
+        #        except Exception:
+        #            # Ignore any exceptions raised in the TaskScope
+        #            pass
+        #        await something_else     # <- unaffected as well
