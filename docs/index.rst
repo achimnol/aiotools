@@ -11,12 +11,15 @@ aiotools Documentation
 .. toctree::
    :maxdepth: 2
 
+   aiotools.cancel
    aiotools.context
    aiotools.defer
    aiotools.fork
    aiotools.func
    aiotools.iter
    aiotools.server
+   aiotools.taskcontext
+   aiotools.taskscope
    aiotools.supervisor
    aiotools.taskgroup
    aiotools.timer

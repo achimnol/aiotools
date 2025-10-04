@@ -33,6 +33,11 @@ target_mp_contexts = [
     pytest.param(mp.get_context(method), id=method)
     for method in mp.get_all_start_methods()
 ]
+target_mp_contexts_without_forkserver = [
+    pytest.param(mp.get_context(method), id=method)
+    for method in mp.get_all_start_methods()
+    if method != "forkserver"
+]
 
 
 @pytest.fixture
@@ -479,7 +484,7 @@ def extra_proc_for_custom_stop_signal(
         received_signals[key] = e.args[0]
 
 
-@pytest.mark.parametrize("mp_context", target_mp_contexts)
+@pytest.mark.parametrize("mp_context", target_mp_contexts_without_forkserver)
 def test_server_extra_proc_custom_stop_signal(
     set_timeout,
     restore_signal,
@@ -488,6 +493,10 @@ def test_server_extra_proc_custom_stop_signal(
     # In local tests, the timeout may be as short as 0.x seconds,
     # but in GitHub Actions, we should assume more than 1 seconds of delay
     # for each worker process spawned.
+
+    # Known issue:
+    # The forkserver frequently hangs with custom stop signals
+    # as multirpocessing resource tracker is not protected from them.
     set_timeout(3.0, functools.partial(interrupt, signum=signal.SIGUSR1))
     received_signals = mp_context.Array("i", [0, 0])
     aiotools.start_server(
