@@ -81,9 +81,10 @@ async def gather_safe(
     context: Optional[Context] = None,
 ) -> list[T | BaseException]:
     """
-    A safer version of :func:`asyncio.gather()`.  It wraps the passed coroutines
-    with a :class:`~aiotools.taskscope.TaskScope` to ensure the termination of them
-    when returned.
+    A safer version of :func:`asyncio.gather(*, return_exceptions=True)
+    <asyncio.gather>`. It wraps the passed coroutines with a
+    :class:`~aiotools.taskscope.TaskScope` to ensure the termination of them when
+    returned.
 
     Additionally, it supports manually setting the context of each subtask.
 
