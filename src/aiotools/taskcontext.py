@@ -52,7 +52,7 @@ class TaskContext:
     You may replace existing patterns using :class:`weakref.WeakSet` to keep track
     of child tasks for a long-running server application with TaskContext.
 
-    If ``delegate_errors`` is not set (the default behavior), it will run
+    If ``exception_handler`` is not set (the default behavior), it will run
     :meth:`loop.call_exception_handler() <asyncio.loop.call_exception_handler>`
     with the context argument consisting of the ``message``, ``task`` (the child task
     that raised the exception), and ``exception`` (the exception object) fields.
@@ -78,7 +78,7 @@ class TaskContext:
 
     def __init__(
         self,
-        delegate_errors: Optional[
+        exception_handler: Optional[
             ErrorCallback | DefaultErrorHandler | None
         ] = DefaultErrorHandler.TOKEN,
         context: Optional[contextvars.Context] = None,
@@ -86,7 +86,7 @@ class TaskContext:
         self._loop = None
         self._tasks = set()
         self._parent_task = None
-        self._delegate_errors = delegate_errors
+        self._exception_handler = exception_handler
         self._default_context = context
         # status flags
         self._entered = False
@@ -114,7 +114,7 @@ class TaskContext:
         info_str = " ".join(info)
         return f"<{type(self).__name__} {info_str}>"
 
-    async def shutdown(self) -> None:
+    async def aclose(self) -> None:
         """
         Triggers cancellation and waits for completion.
         """
@@ -189,7 +189,7 @@ class TaskContext:
         assert self._loop is not None
         exc = task.exception()
         assert exc is not None
-        match self._delegate_errors:
+        match self._exception_handler:
             case None:
                 pass  # deliberately set to ignore errors
             case func if callable(func):
@@ -211,4 +211,6 @@ class TaskContext:
                     "task": task,
                 })
             case _:
-                raise RuntimeError(f"Invalid error handler: {self._delegate_errors!r}")
+                raise RuntimeError(
+                    f"Invalid error handler: {self._exception_handler!r}"
+                )
