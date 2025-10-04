@@ -54,6 +54,10 @@ Task Group
       All existing codes should run without any issues, but it is
       recommended to test thoroughly.
 
+   .. deprecated:: 2.0
+
+      It is recommended to use stdlib's :class:`asyncio.TaskGroup`
+      because aiotools now requires Python 3.11 or higher.
 
 .. class:: PersistentTaskGroup(*, name=None, exception_handler=None)
 
@@ -149,6 +153,13 @@ Task Group
       long-running persistent task groups.  The users must register explicit
       exception handlers or task done callbacks to report or process such
       unhandled exceptions.
+
+   .. deprecated:: 2.0
+
+      Please use :class:`~aiotools.taskscope.TaskScope` instead, which
+      provides more transparent operation without wrapping tasks using
+      extra futures and an implementation more consistent with the stdlib
+      :class:`asyncio.TaskGroup`.
 
 .. exception:: TaskGroupError
 
