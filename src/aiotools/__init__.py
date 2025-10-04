@@ -5,6 +5,9 @@ from importlib.metadata import version
 
 __version__ = version("aiotools")
 
+from .cancel import (
+    cancel_and_wait,
+)
 from .compat import (
     all_tasks,
     current_task,
@@ -78,7 +81,6 @@ from .types import (
 )
 from .utils import (
     as_completed_safe,
-    cancel_and_wait,
     gather_safe,
     race,
 )
@@ -86,6 +88,8 @@ from .utils import (
 main = main_context
 
 __all__ = (
+    # .cancel
+    "cancel_and_wait",
     # .compat
     "all_tasks",
     "get_running_loop",
@@ -153,7 +157,6 @@ __all__ = (
     "AwaitableLike",
     "CoroutineLike",
     # .utils
-    "cancel_and_wait",
     "as_completed_safe",
     "gather_safe",
     "race",

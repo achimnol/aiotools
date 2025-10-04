@@ -14,6 +14,7 @@ from typing import (
     TypeVar,
 )
 
+from .cancel import cancel_and_wait
 from .types import CoroutineLike
 
 __all__ = (
@@ -119,13 +120,11 @@ class TaskContext:
         """
         self._aborting = True
         try:
-            for t in {*self._tasks}:
-                if not t.done():
-                    t.cancel()
-                    try:
-                        await t
-                    except asyncio.CancelledError:
-                        pass
+            # NOTE: unhandled exceptions are captured by our own task-done handler.
+            await asyncio.gather(
+                (cancel_and_wait(t) for t in self._tasks),
+                return_exceptions=True,
+            )
         finally:
             self._exited = True
 

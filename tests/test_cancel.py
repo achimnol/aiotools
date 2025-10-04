@@ -27,8 +27,7 @@ import asyncio
 
 import pytest
 
-from aiotools import TaskScope, VirtualClock, cancel_and_wait
-from aiotools.taskcontext import ErrorArg
+from aiotools import ErrorArg, TaskScope, VirtualClock, cancel_and_wait
 
 
 @pytest.mark.asyncio
