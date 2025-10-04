@@ -35,4 +35,6 @@ async def cancel_and_wait(
         else:
             return  # this is the only non-exceptional return
     else:
-        raise asyncio.InvalidStateError("Cancelled task did not end with an exception")
+        raise asyncio.InvalidStateError(
+            f"The cancelled task {task!r} did not raise up cancellation."
+        )
