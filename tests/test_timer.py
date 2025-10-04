@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 
 import pytest
@@ -6,7 +8,7 @@ import aiotools
 
 
 @pytest.mark.asyncio
-async def test_timer():
+async def test_timer() -> None:
     """
     Test the timer functionality.
     """
@@ -14,7 +16,7 @@ async def test_timer():
     with vclock.patch_loop():
         count = 0
 
-        async def counter(interval):
+        async def counter(interval: float) -> None:
             assert interval == 0.1
             nonlocal count
             await asyncio.sleep(0)
@@ -23,21 +25,19 @@ async def test_timer():
         count = 0
         timer = aiotools.create_timer(counter, 0.1)
         await asyncio.sleep(0.22)
-        timer.cancel()
-        await timer
+        await aiotools.cancel_and_wait(timer)
         assert count == 3
 
         count = 0
         timer = aiotools.create_timer(counter, 0.1, aiotools.TimerDelayPolicy.CANCEL)
         await asyncio.sleep(0.22)
-        timer.cancel()
-        await timer
+        await aiotools.cancel_and_wait(timer)
         # should have same results
         assert count == 3
 
 
 @pytest.mark.asyncio
-async def test_timer_leak_default():
+async def test_timer_leak_default() -> None:
     """
     Test if the timer-fired tasks are claned up properly
     even when each timer-fired task takes longer than the timer interval.
@@ -49,7 +49,7 @@ async def test_timer_leak_default():
         cancel_count = 0
         done_count = 0
 
-        async def delayed(interval):
+        async def delayed(interval: float) -> None:
             nonlocal spawn_count, cancel_count, done_count
             spawn_count += 1
             try:
@@ -61,8 +61,7 @@ async def test_timer_leak_default():
         task_count = len(aiotools.compat.all_tasks())
         timer = aiotools.create_timer(delayed, 1)
         await asyncio.sleep(9.9)
-        timer.cancel()
-        await timer
+        await aiotools.cancel_and_wait(timer)
         assert task_count + 1 >= len(aiotools.compat.all_tasks())
         assert spawn_count == done_count + cancel_count
         assert spawn_count == 10
@@ -81,7 +80,7 @@ async def test_timer_leak_cancel():
         cancel_count = 0
         done_count = 0
 
-        async def delayed(interval):
+        async def delayed(interval: float) -> None:
             nonlocal spawn_count, cancel_count, done_count
             spawn_count += 1
             try:
@@ -98,9 +97,7 @@ async def test_timer_leak_cancel():
             aiotools.TimerDelayPolicy.CANCEL,
         )
         await asyncio.sleep(0.1)
-        timer.cancel()
-        await timer
-        await asyncio.sleep(0)
+        await aiotools.cancel_and_wait(timer)
         assert task_count + 1 >= len(aiotools.compat.all_tasks())
         assert spawn_count == cancel_count + done_count
         assert cancel_count == 10
@@ -108,7 +105,7 @@ async def test_timer_leak_cancel():
 
 
 @pytest.mark.asyncio
-async def test_timer_leak_nocancel():
+async def test_timer_leak_nocancel() -> None:
     """
     Test the effect of TimerDelayPolicy.CANCEL which always
     cancels any pending previous tasks on each interval.
@@ -119,7 +116,7 @@ async def test_timer_leak_nocancel():
         cancel_count = 0
         done_count = 0
 
-        async def delayed(interval):
+        async def delayed(interval: float) -> None:
             nonlocal spawn_count, cancel_count, done_count
             spawn_count += 1
             try:
@@ -136,9 +133,7 @@ async def test_timer_leak_nocancel():
             aiotools.TimerDelayPolicy.CANCEL,
         )
         await asyncio.sleep(0.096)
-        timer.cancel()
-        await timer
-        await asyncio.sleep(0)
+        await aiotools.cancel_and_wait(timer)
         assert task_count + 1 >= len(aiotools.compat.all_tasks())
         assert spawn_count == cancel_count + done_count
         assert cancel_count == 0
@@ -146,7 +141,7 @@ async def test_timer_leak_nocancel():
 
 
 @pytest.mark.asyncio
-async def test_timer_stuck_forever():
+async def test_timer_stuck_forever() -> None:
     # See achimnol/aiotools#69
     # (https://github.com/achimnol/aiotools/issues/69)
     vclock = aiotools.VirtualClock()

@@ -6,11 +6,12 @@ import asyncio
 import contextlib
 import enum
 import functools
-from typing import Callable, Optional
+from typing import Callable, Optional, TypeVar
 from unittest import mock
 
+from .cancel import cancel_and_wait
 from .compat import get_running_loop
-from .taskgroup import TaskGroup
+from .taskscope import TaskScope
 from .types import CoroutineLike
 
 __all__ = (
@@ -18,6 +19,8 @@ __all__ = (
     "TimerDelayPolicy",
     "VirtualClock",
 )
+
+T_SelectorRet = TypeVar("T_SelectorRet")
 
 
 class TimerDelayPolicy(enum.Enum):
@@ -35,7 +38,7 @@ def create_timer(
     interval: float,
     delay_policy: TimerDelayPolicy = TimerDelayPolicy.DEFAULT,
     loop: Optional[asyncio.AbstractEventLoop] = None,
-) -> asyncio.Task:
+) -> asyncio.Task[None]:
     """
     Schedule a timer with the given callable and the interval in seconds.
     The interval value is also passed to the callable.
@@ -51,25 +54,24 @@ def create_timer(
     if loop is None:
         loop = get_running_loop()
 
-    async def _timer():
-        fired_tasks = []
+    async def _timer() -> None:
+        fired_tasks: list[asyncio.Task[None]] = []
         try:
-            async with TaskGroup() as task_group:
+            async with TaskScope() as ts:
                 while True:
                     if delay_policy == TimerDelayPolicy.CANCEL:
-                        for t in fired_tasks:
-                            if not t.done():
-                                t.cancel()
-                        await asyncio.gather(*fired_tasks, return_exceptions=True)
+                        await asyncio.gather(
+                            *(cancel_and_wait(t) for t in fired_tasks),
+                            return_exceptions=True,
+                        )
                         fired_tasks.clear()
                     else:
                         fired_tasks[:] = [t for t in fired_tasks if not t.done()]
-                    t = task_group.create_task(cb(interval))
+                    t = ts.create_task(cb(interval))
                     fired_tasks.append(t)
                     await asyncio.sleep(interval)
-        except Exception:
-            pass
         finally:
+            # proceed a tick.
             await asyncio.sleep(0)
 
     return loop.create_task(_timer())
@@ -90,7 +92,11 @@ class VirtualClock:
         """
         return self.vtime
 
-    def _virtual_select(self, orig_select, timeout):
+    def _virtual_select(
+        self,
+        orig_select: Callable[[float | None], T_SelectorRet],
+        timeout: float | None,
+    ) -> T_SelectorRet:
         if timeout is not None:
             self.vtime += timeout
         return orig_select(0)  # override the timeout to zero
@@ -102,6 +108,11 @@ class VirtualClock:
         so that sleep instantly returns while proceeding the virtual clock.
         """
         loop = get_running_loop()
+        # Both SelectorEventLoop and ProactorEventLoop has "_selector" with "select()"
+        # method which accepts a timeout value until the next wake-up point.
+        assert hasattr(loop, "_selector"), (
+            "Only stdlib's SelectorEventLoop or ProactorEventLoop is supported."
+        )
         with (
             mock.patch.object(
                 loop._selector,

@@ -15,9 +15,8 @@ async def cancel_and_wait(
     Safely cancels and waits until the given task is concluded as cancelled.
     If the task is already terminated, it does nothing.
 
-    When cancellation is triggered from the task itself or its inner subtasks,
-    or the caller of this function is cancelled during waiting,
-    those cancellations are transparently raised up.
+    When the caller of this function is cancelled during waiting,
+    cancellation is transparently raised up.
 
     See the discussion in https://github.com/python/cpython/issues/103486 for details.
 
