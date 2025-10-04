@@ -86,6 +86,12 @@ from .utils import (
 main = main_context
 
 __all__ = (
+    # .compat
+    "all_tasks",
+    "get_running_loop",
+    "current_task",
+    "set_task_name",
+    # .context
     "resetting",
     "AsyncContextManager",
     "async_ctx_manager",
@@ -95,52 +101,61 @@ __all__ = (
     "AsyncContextGroup",
     "actxgroup",
     "AsyncExitStack",
-    "all_tasks",
-    "get_running_loop",
-    "current_task",
-    "set_task_name",
-    "defer",
+    # .defer
     "adefer",
+    "defer",
+    # .fork
     "AbstractChildProcess",
     "PosixChildProcess",
     "PidfdChildProcess",
     "afork",
+    # .func
     "apartial",
     "lru_cache",
+    # .iter
     "aiter",
+    # .server
     "main",
+    "main_context",
+    # NOTE: "@aiotools.server" still works,
+    #       but server_context is provided to silence typecheckers.
+    "server_context",
     "start_server",
     "process_index",
     "AsyncServerContextManager",
     "ServerMainContextManager",
     "InterruptedBySignal",
+    # .supervisor
     "Supervisor",
+    # .taskcontext
     "ErrorArg",
     "ErrorCallback",
     "TaskContext",
+    # .taskgroup
     "MultiError",
     "TaskGroup",
     "TaskGroupError",
     "current_taskgroup",
     "PersistentTaskGroup",
     "current_ptaskgroup",
+    # .taskscope
     "TaskScope",
+    # .timeouts
     "Timeout",
     "timeout",
     "timeout_at",
-    "create_timer",
+    # .timer
     "TimerDelayPolicy",
     "VirtualClock",
+    "create_timer",
+    # .types
     "AsyncClosable",
     "AwaitableLike",
     "CoroutineLike",
+    # .utils
     "cancel_and_wait",
     "as_completed_safe",
     "gather_safe",
     "race",
     "__version__",
-    # "@aiotools.server" still works,
-    # but server_context is provided to silence typecheckers.
-    "main_context",
-    "server_context",
 )
