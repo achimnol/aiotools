@@ -41,6 +41,7 @@ jobs:
     - name: Send code coverage report
       uses: codecov/codecov-action@v5
       with:
+        token: ${{ secrets.CODECOV_TOKEN }}
         env_vars: GHA_OS,GHA_PYTHON
 
   required-checks:
