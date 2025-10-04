@@ -34,7 +34,8 @@ async def as_completed_safe(
 ) -> AsyncGenerator[Awaitable[T], None]:
     """
     This is a safer version of :func:`asyncio.as_completed()` which uses
-    :class:`aiotools.TaskScope` as an underlying coroutine lifecycle keeper.
+    :class:`~aiotools.taskscope.TaskScope` as an underlying coroutine lifecycle
+    keeper.
 
     This requires Python 3.11 or higher to work properly with timeouts.
 
@@ -42,8 +43,8 @@ async def as_completed_safe(
 
     .. versionchanged:: 2.0
 
-       It now uses :class:`aiotools.TaskScope` internally and handles
-       timeouts in a bettery way.
+       It now uses :class:`~aiotools.taskscope.TaskScope` internally and handles
+       timeouts in a better way.
     """
     q: asyncio.Queue[asyncio.Task[Any]] = asyncio.Queue()
     remaining = 0
@@ -70,7 +71,7 @@ async def as_completed_safe(
                 # CancelledError: injected when a timeout occurs
                 #                 (i.e., the outer scope cancels the inner)
                 # BaseException: injected when the process is going to terminate
-                await ts.shutdown()
+                await ts.aclose()
                 raise
 
 
@@ -81,7 +82,8 @@ async def gather_safe(
 ) -> list[T | BaseException]:
     """
     A safer version of :func:`asyncio.gather()`.  It wraps the passed coroutines
-    with a :class:`TaskScope` to ensure the termination of them when returned.
+    with a :class:`~aiotools.taskscope.TaskScope` to ensure the termination of them
+    when returned.
 
     Additionally, it supports manually setting the context of each subtask.
 

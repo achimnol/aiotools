@@ -11,7 +11,7 @@ class Supervisor(TaskScope):
     Supervisor is a primitive structure to provide a long-lived context manager scope
     for an indefinite set of subtasks.  During its lifetime, it is free to spawn new
     subtasks at any time.  If the supervisor itself is cancelled from outside or
-    :meth:`shutdown()` is called, it will cancel all running tasks immediately, wait
+    :meth:`aclose()` is called, it will cancel all running tasks immediately, wait
     for their completion, and then exit the context manager block.
 
     The main difference to :class:`asyncio.TaskGroup` is that it keeps running

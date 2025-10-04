@@ -27,25 +27,25 @@ class TaskScope(TaskContext):
     concurrency, i.e., "scoped" cancellation, over a set of child tasks.
     It terminates when all child tasks make conclusion (either results or exceptions).
 
-    :class:`TaskScope` subclasses :class:`TaskContext`, but it mandates use of
-    ``async with`` blocks to clarify which task is the parent of the child tasks
-    spawned via :meth:`create_task()`.
+    :class:`TaskScope` subclasses :class:`~aiotools.taskcontext.TaskContext`, but it
+    mandates use of ``async with`` blocks to clarify which task is the parent of the
+    child tasks spawned via :meth:`create_task()`.
 
     The key difference to :class:`asyncio.TaskGroup` is that it allows
     customization of the exception handling logic for unhandled child
     task exceptions, instead cancelling all pending child tasks upon any
     unhandled child task exceptions and collecting them as an :exc:`ExceptionGroup`.
 
-    Since :class:`TaskScope` may be used for a long-running server context,
-    unhandled child exceptions are NOT stored at all, but passed to the exception handler
-    directly and immediately.
-    If you want to collect results and exceptions, please use :func:`as_completed_safe()`
-    or :func:`gather_safe()`.
+    Since :class:`TaskScope` may be used for a long-running server context, unhandled
+    child exceptions are NOT stored at all, but passed to the exception handler
+    directly and immediately.  If you want to collect results and exceptions, please
+    use :func:`~aiotools.utils.as_completed_safe()` or
+    :func:`~aiotools.utils.gather_safe()`.
 
     Refer :class:`TaskContext` for the descriptions about the constructor arguments.
 
-    Based on this customizability, :class:`Supervisor` is a mere alias of
-    :class:`TaskScope` with ``exception_handler=None``.
+    Based on this customizability, :class:`~aiotools.supervisor.Supervisor` is a mere
+    alias of :class:`TaskScope` with ``exception_handler=None``.
 
     .. versionadded:: 2.0
     """
@@ -162,11 +162,11 @@ class TaskScope(TaskContext):
             self._on_completed_fut = None
         return propagate_cancellation_error
 
-    async def shutdown(self) -> None:
+    async def aclose(self) -> None:
         """
         Triggers cancellation and waits for completion.
         """
-        self.abort(r"{self!r} is shutdown")
+        self.abort(r"{self!r} is closed")
         await self._wait_completion()
 
     def create_task(
