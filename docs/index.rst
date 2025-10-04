@@ -11,6 +11,7 @@ aiotools Documentation
 .. toctree::
    :maxdepth: 2
 
+   aiotools.cancel
    aiotools.context
    aiotools.defer
    aiotools.fork
