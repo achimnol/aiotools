@@ -5,7 +5,7 @@ from typing import Any, TypeVar
 
 import pytest
 
-from aiotools import Supervisor, VirtualClock
+from aiotools import Supervisor, TaskScope, VirtualClock
 
 T = TypeVar("T")
 
@@ -18,6 +18,24 @@ async def do_job(delay: float, result: T) -> T:
 async def fail_job(delay: float) -> None:
     await asyncio.sleep(delay)
     raise ZeroDivisionError()
+
+
+@pytest.mark.asyncio
+async def test_taskscope_keep_running() -> None:
+    results: list[str] = []
+
+    async def parent() -> None:
+        async with TaskScope() as ts:
+            ts.create_task(fail_job(0.2))
+            await asyncio.sleep(0.5)
+            results.append("context-final")  # kept running
+        await asyncio.sleep(0.5)
+        results.append("parent-final")  # unaffected
+
+    with VirtualClock().patch_loop():
+        parent_task = asyncio.create_task(parent())
+        await parent_task
+        assert results == ["context-final", "parent-final"]
 
 
 @pytest.mark.asyncio

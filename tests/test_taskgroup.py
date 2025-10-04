@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 import warnings
 from typing import TypeVar
 
@@ -133,7 +132,7 @@ async def test_taskgroup_cancellation() -> None:
 
 
 @pytest.mark.asyncio
-async def test_subtask_cancellation() -> None:
+async def test_taskgroup_subtask_cancellation() -> None:
     results: list[str] = []
 
     async def do_job():
@@ -149,6 +148,7 @@ async def test_subtask_cancellation() -> None:
             t1 = tg.create_task(do_job())
             t2 = tg.create_task(do_cancel())
             t3 = tg.create_task(do_job())
+        # subtask's self-cancellation does not affect siblings.
         assert t1.done()
         assert t2.cancelled()
         assert t3.done()
@@ -156,30 +156,32 @@ async def test_subtask_cancellation() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "cancel_msg",
-    (["MISSING", None, "msg"] if sys.version_info >= (3, 9, 0) else ["MISSING"]),
-)
-async def test_cancel_parent_task(cancel_msg: str) -> None:
+async def test_cancel_parent_task_like_siblings() -> None:
     results: list[str] = []
 
-    async def do_job():
-        await asyncio.sleep(1)
-        results.append("a")
+    async def fail_job(delay: float) -> None:
+        await asyncio.sleep(delay)
+        raise ZeroDivisionError()
 
     async def parent():
-        async with TaskGroup() as tg:
-            tg.create_task(do_job())
+        try:
+            async with TaskGroup() as tg:
+                tg.create_task(fail_job(0.2))
+                await asyncio.sleep(0.5)
+                results.append("context-final")  # cancelled like siblings
+        except TaskGroupError as eg:
+            # TaskGroupError is a subclass compatible with ExceptionGroup.
+            # If used vanilla asyncio.TaskGroup, it will be ExceptionGroup.
+            assert isinstance(eg.exceptions[0], ZeroDivisionError)
+        # If TaskGroupError is caught and processed,
+        # the rest of parent task should continue.
+        await asyncio.sleep(0.5)
+        results.append("parent-final")  # resumed via uncancel() upon context exit
 
     with VirtualClock().patch_loop():
-        parent_task = asyncio.ensure_future(parent())
-        await asyncio.sleep(0.1)
-        if cancel_msg == "MISSING":
-            parent_task.cancel()
-        else:
-            parent_task.cancel(cancel_msg)
-        await asyncio.gather(parent_task, return_exceptions=True)
-        assert results == []
+        parent_task = asyncio.create_task(parent())
+        await parent_task
+        assert results == ["parent-final"]
 
 
 @pytest.mark.asyncio

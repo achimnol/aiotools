@@ -398,6 +398,29 @@ async def test_cancel_and_wait_taskgroup_error_during_cancellation() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cancel_and_wait_taskgroup_outer_cancelled() -> None:
+    results: list[str] = []
+
+    async def failing_child(delay: float) -> None:
+        await asyncio.sleep(delay)
+        raise ZeroDivisionError
+
+    async def parent() -> None:
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(failing_child(0.2))
+            await asyncio.sleep(0.5)
+            results.append("context-final")  # cancelled as taskgroup is cancelled
+        await asyncio.sleep(0.5)
+        results.append("parent-final")  # cancelled as parent is cancelled
+
+    with VirtualClock().patch_loop():
+        parent_task = asyncio.create_task(parent())
+        await asyncio.sleep(0.1)  # trigger cancellation before child fails
+        await cancel_and_wait(parent_task)  # no error as it's successful cancellation
+        assert results == []
+
+
+@pytest.mark.asyncio
 async def test_cancel_and_wait_taskscope_child_exception() -> None:
     """
     Test cancel_and_wait() when a child task raises a non-CancelledError exception.
@@ -541,6 +564,29 @@ async def test_cancel_and_wait_taskscope_error_during_cancellation() -> None:
         assert len(errors) == 2
         assert isinstance(errors[0], ValueError)
         assert isinstance(errors[1], ZeroDivisionError)
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_taskscope_outer_cancelled() -> None:
+    results: list[str] = []
+
+    async def failing_child(delay: float) -> None:
+        await asyncio.sleep(delay)
+        raise ZeroDivisionError
+
+    async def parent() -> None:
+        async with TaskScope() as ts:
+            ts.create_task(failing_child(0.2))
+            await asyncio.sleep(0.5)
+            results.append("context-final")  # cancelled as taskscope is cancelled
+        await asyncio.sleep(0.5)
+        results.append("parent-final")  # cancelled as parent is cancelled
+
+    with VirtualClock().patch_loop():
+        parent_task = asyncio.create_task(parent())
+        await asyncio.sleep(0.1)  # trigger cancellation before child fails
+        await cancel_and_wait(parent_task)  # no error as it's successful cancellation
+        assert results == []
 
 
 @pytest.mark.asyncio

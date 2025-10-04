@@ -13,7 +13,7 @@ from typing import (
     TypeVar,
 )
 
-from .taskcontext import DefaultErrorHandler, ErrorCallback, TaskContext
+from .taskcontext import ErrorCallback, LoopExceptionHandler, TaskContext
 from .types import CoroutineLike
 
 T = TypeVar("T")
@@ -36,6 +36,12 @@ class TaskScope(TaskContext):
     task exceptions, instead cancelling all pending child tasks upon any
     unhandled child task exceptions and collecting them as an :exc:`ExceptionGroup`.
 
+    Since :class:`TaskScope` may be used for a long-running server context,
+    unhandled child exceptions are NOT stored at all, but passed to the exception handler
+    directly and immediately.
+    If you want to collect results and exceptions, please use :func:`as_completed_safe()`
+    or :func:`gather_safe()`.
+
     Refer :class:`TaskContext` for the descriptions about the constructor arguments.
 
     Based on this customizability, :class:`Supervisor` is a mere alias of
@@ -50,9 +56,10 @@ class TaskScope(TaskContext):
 
     def __init__(
         self,
+        *,
         exception_handler: Optional[
-            ErrorCallback | DefaultErrorHandler
-        ] = DefaultErrorHandler.TOKEN,
+            ErrorCallback | LoopExceptionHandler
+        ] = LoopExceptionHandler.TOKEN,
         context: Optional[contextvars.Context] = None,
     ) -> None:
         super().__init__(exception_handler=exception_handler, context=context)

@@ -24,7 +24,7 @@ __all__ = (
 )
 
 
-class DefaultErrorHandler(enum.Enum):
+class LoopExceptionHandler(enum.Enum):
     TOKEN = 0
 
 
@@ -78,9 +78,10 @@ class TaskContext:
 
     def __init__(
         self,
+        *,
         exception_handler: Optional[
-            ErrorCallback | DefaultErrorHandler | None
-        ] = DefaultErrorHandler.TOKEN,
+            ErrorCallback | LoopExceptionHandler | None
+        ] = LoopExceptionHandler.TOKEN,
         context: Optional[contextvars.Context] = None,
     ) -> None:
         self._loop = None
@@ -201,7 +202,7 @@ class TaskContext:
                     "exception": exc,
                     "task": task,
                 })
-            case DefaultErrorHandler():
+            case LoopExceptionHandler():
                 self._loop.call_exception_handler({
                     "message": (
                         f"Task {task!r} has errored inside the parent "

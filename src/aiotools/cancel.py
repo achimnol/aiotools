@@ -8,6 +8,7 @@ __all__ = ("cancel_and_wait",)
 
 async def cancel_and_wait(
     task: asyncio.Task[Any],
+    *,
     msg: str | None = None,
 ) -> None:
     """
