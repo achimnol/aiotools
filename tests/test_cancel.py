@@ -31,82 +31,83 @@ from aiotools import ErrorArg, TaskScope, VirtualClock, cancel_and_wait
 
 
 @pytest.mark.asyncio
-async def test_cancel_and_wait_parent_task_already_done() -> None:
+async def test_cancel_and_wait_simple_task_already_done() -> None:
     """
-    Test cancel_and_wait() on a task with taskgroup that's already completed.
-
-    Should return immediately without any cancellation.
+    Test cancel_and_wait() on a task that's already completed.
+    Should return immediately without any action.
     """
     result_holder: list[str] = []
 
-    async def child_task() -> None:
+    async def simple_task() -> None:
         await asyncio.sleep(0.1)
         result_holder.append("done")
 
-    async def parent_task_with_tg() -> None:
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(child_task())
-
     with VirtualClock().patch_loop():
-        parent_task = asyncio.create_task(parent_task_with_tg())
-
-        # Wait for task to complete
-        await parent_task
-
-        # cancel_and_wait on already-done task should return immediately
-        await cancel_and_wait(parent_task)
-
+        # cancel_and_wait() on already-done task should return immediately
+        task = asyncio.create_task(simple_task())
+        await task
+        await cancel_and_wait(task)
         assert result_holder == ["done"]
-        assert parent_task.done()
-        assert not parent_task.cancelled()
+        assert task.done()
+        assert not task.cancelled()
 
 
 @pytest.mark.asyncio
-async def test_cancel_and_wait_parent_task_already_failed() -> None:
+async def test_cancel_and_wait_simple_task_long_cancellation() -> None:
     """
-    Test cancellation from child subtask exception while awaiting cancel_and_wait()
-    against a task which internally creates a taskgroup.
-
-    When a child raises an exception (not CancelledError), TaskGroup cancels all
-    siblings. If we then call cancel_and_wait(), it adds another cancellation.
-    The task should have already finished with ExceptionGroup by the time we call
-    cancel_and_wait(), so it returns immediately.
+    Test cancellation on a task that has long cleanup upon cancellation.
     """
-    child_started = asyncio.Event()
-    sibling_cancelled = False
+    result_holder: list[str] = []
 
-    async def failing_child() -> None:
-        child_started.set()
-        await asyncio.sleep(0.1)
-        raise ValueError("child failure")
-
-    async def sibling_child() -> None:
-        nonlocal sibling_cancelled
+    async def simple_task() -> None:
         try:
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(0.1)
+            result_holder.append("done")
         except asyncio.CancelledError:
-            sibling_cancelled = True
+            await asyncio.sleep(0.1)
+            result_holder.append("cancelled")
             raise
 
-    async def parent_task_with_tg() -> None:
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(failing_child())
-            tg.create_task(sibling_child())
+    with VirtualClock().patch_loop():
+        task = asyncio.create_task(simple_task())
+        await asyncio.sleep(0.05)
+        await cancel_and_wait(task)
+        assert result_holder == ["cancelled"]
+        assert task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_simple_task_invalid_state() -> None:
+    """
+    Test cancellation on a task that does not propagate cancellation.
+
+    In legacy asyncio codes, top-level tasks often swallowed the cancellation to
+    prevent _bogus_ cancellation errors.  However, this is now considered a bad
+    practice and any underlying frameworks should consume them appropriately.
+
+    Now ``cancel_and_wait()`` correctly handles the decision whether to re-raise
+    cancellation for externally triggered cancellations, while the call itself
+    consumes the cancellation.  To achieve this, ``cancel_and_wait()`` internally
+    validates if the target task re-raises cancellation when required.
+    """
+    result_holder: list[str] = []
+
+    async def simple_task() -> None:
+        try:
+            await asyncio.sleep(0.1)
+            result_holder.append("done")
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.1)
+            result_holder.append("cancelled")
+            # Missing re-raise here!
 
     with VirtualClock().patch_loop():
-        parent_task = asyncio.create_task(parent_task_with_tg())
-
-        # Wait for child to start and fail
-        await child_started.wait()
-        await asyncio.sleep(0.15)
-
-        # By now, parent should have failed with ExceptionGroup
-        # cancel_and_wait on already-done task returns immediately
-        await cancel_and_wait(parent_task)
-
-        assert sibling_cancelled
-        assert parent_task.done()
-        assert not parent_task.cancelled()  # It raised an exception, not cancelled
+        task = asyncio.create_task(simple_task())
+        await asyncio.sleep(0.05)
+        with pytest.raises(asyncio.InvalidStateError):
+            await cancel_and_wait(task)
+        assert result_holder == ["cancelled"]
+        assert task.done()
 
 
 @pytest.mark.asyncio
