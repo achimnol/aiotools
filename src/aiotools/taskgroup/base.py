@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 import itertools
 from contextvars import ContextVar
+from types import TracebackType
+from typing import Self
 
 from .types import TaskGroupError
 
@@ -9,25 +13,30 @@ __all__ = (
     "current_taskgroup",
 )
 
-current_taskgroup: ContextVar["TaskGroup"] = ContextVar("current_taskgroup")
+current_taskgroup: ContextVar[TaskGroup] = ContextVar("current_taskgroup")
 
 
 class TaskGroup(asyncio.TaskGroup):
-    def __init__(self, *, name=None):
+    def __init__(self, *, name: str | None = None) -> None:
         super().__init__()
         if name is None:
             self._name = f"tg-{_name_counter()}"
         else:
             self._name = str(name)
 
-    def get_name(self):
+    def get_name(self) -> str:
         return self._name
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         self._current_taskgroup_token = current_taskgroup.set(self)
         return await super().__aenter__()
 
-    async def __aexit__(self, et, exc, tb):
+    async def __aexit__(
+        self,
+        et: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         try:
             return await super().__aexit__(et, exc, tb)
         except BaseExceptionGroup as eg:

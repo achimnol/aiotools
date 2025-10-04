@@ -1,25 +1,22 @@
 """
-A set of higher-level coroutine aggregation utilities based on :class:`Supervisor`.
+A set of higher-level coroutine aggregation utilities based on :class:`TaskScope`.
 """
 
 from __future__ import annotations
 
 import asyncio
-from contextlib import aclosing
-from contextvars import Context
-from typing import (
-    Any,
+from collections.abc import (
     AsyncGenerator,
     Awaitable,
     Iterable,
-    List,
-    Optional,
     Sequence,
-    Tuple,
-    TypeVar,
 )
+from contextlib import aclosing
+from contextvars import Context
+from typing import Any, Optional, TypeVar
 
-from .supervisor import Supervisor
+from .taskscope import TaskScope
+from .types import CoroutineLike
 
 __all__ = (
     "as_completed_safe",
@@ -31,13 +28,14 @@ T = TypeVar("T")
 
 
 async def as_completed_safe(
-    coros: Iterable[Awaitable[T]],
+    coros: Iterable[CoroutineLike[T]],
     *,
     context: Optional[Context] = None,
 ) -> AsyncGenerator[Awaitable[T], None]:
     """
     This is a safer version of :func:`asyncio.as_completed()` which uses
-    :class:`aiotools.Supervisor` as an underlying coroutine lifecycle keeper.
+    :class:`~aiotools.taskscope.TaskScope` as an underlying coroutine lifecycle
+    keeper.
 
     This requires Python 3.11 or higher to work properly with timeouts.
 
@@ -45,8 +43,8 @@ async def as_completed_safe(
 
     .. versionchanged:: 2.0
 
-       It now uses :class:`aiotools.Supervisor` internally and handles
-       timeouts in a bettery way.
+       It now uses :class:`~aiotools.taskscope.TaskScope` internally and handles
+       timeouts in a better way.
     """
     q: asyncio.Queue[asyncio.Task[Any]] = asyncio.Queue()
     remaining = 0
@@ -54,9 +52,9 @@ async def as_completed_safe(
     def result_callback(t: asyncio.Task[Any]) -> None:
         q.put_nowait(t)
 
-    async with Supervisor() as supervisor:
+    async with TaskScope(context=context) as ts:
         for coro in coros:
-            t = supervisor.create_task(coro, context=context)
+            t = ts.create_task(coro)
             t.add_done_callback(result_callback)
             remaining += 1
         while remaining:
@@ -73,18 +71,20 @@ async def as_completed_safe(
                 # CancelledError: injected when a timeout occurs
                 #                 (i.e., the outer scope cancels the inner)
                 # BaseException: injected when the process is going to terminate
-                await supervisor.shutdown()
+                await ts.aclose()
                 raise
 
 
 async def gather_safe(
-    coros: Iterable[Awaitable[T]],
+    coros: Iterable[CoroutineLike[T]],
     *,
     context: Optional[Context] = None,
-) -> List[T | Exception]:
+) -> list[T | BaseException]:
     """
-    A safer version of :func:`asyncio.gather()`.  It wraps the passed coroutines
-    with a :class:`Supervisor` to ensure the termination of them when returned.
+    A safer version of :func:`asyncio.gather(*, return_exceptions=True)
+    <asyncio.gather>`. It wraps the passed coroutines with a
+    :class:`~aiotools.taskscope.TaskScope` to ensure the termination of them when
+    returned.
 
     Additionally, it supports manually setting the context of each subtask.
 
@@ -96,21 +96,20 @@ async def gather_safe(
 
     .. versionadded:: 2.0
     """
-    tasks = []
-    async with Supervisor() as supervisor:
+    tasks: list[Awaitable[T]] = []
+    async with TaskScope(context=context) as ts:
         for coro in coros:
-            t = supervisor.create_task(coro, context=context)
+            t = ts.create_task(coro)
             tasks.append(t)
-        # To ensure safety, the Python version must be 3.7 or higher.
         return await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def race(
-    coros: Iterable[Awaitable[T]],
+    coros: Iterable[CoroutineLike[T]],
     *,
     continue_on_error: bool = False,
     context: Optional[Context] = None,
-) -> Tuple[T, Sequence[Exception]]:
+) -> tuple[T, Sequence[Exception]]:
     """
     Returns the first result and cancelling all remaining coroutines safely.
     Passing an empty iterable of coroutines is not allowed.
