@@ -54,11 +54,6 @@ Task Group
       All existing codes should run without any issues, but it is
       recommended to test thoroughly.
 
-   .. deprecated:: 2.0
-
-      It is recommended to use stdlib's :class:`asyncio.TaskGroup`
-      because aiotools now requires Python 3.11 or higher.
-
 .. class:: PersistentTaskGroup(*, name=None, exception_handler=None)
 
    Provides an abstraction of long-running task groups for server applications.

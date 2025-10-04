@@ -6,8 +6,6 @@ from contextvars import ContextVar
 from types import TracebackType
 from typing import Self
 
-from typing_extensions import deprecated
-
 from .types import TaskGroupError
 
 __all__ = (
@@ -15,10 +13,9 @@ __all__ = (
     "current_taskgroup",
 )
 
-current_taskgroup: ContextVar[TaskGroup] = ContextVar("current_taskgroup")  # type: ignore[deprecated]
+current_taskgroup: ContextVar[TaskGroup] = ContextVar("current_taskgroup")
 
 
-@deprecated("Use asyncio.TaskGroup directly.")
 class TaskGroup(asyncio.TaskGroup):
     def __init__(self, *, name: str | None = None) -> None:
         super().__init__()
