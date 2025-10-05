@@ -22,7 +22,7 @@ Modules
 * [Async Timer](http://aiotools.readthedocs.io/en/latest/aiotools.timer.html)
 * [TaskContext](http://aiotools.readthedocs.io/en/latest/aiotools.taskcontext.html)
 * [TaskScope](http://aiotools.readthedocs.io/en/latest/aiotools.taskscope.html)
-* (alais of TaskScope) [Supervisor](http://aiotools.readthedocs.io/en/latest/aiotools.supervisor.html)
+* (alias of TaskScope) [Supervisor](http://aiotools.readthedocs.io/en/latest/aiotools.supervisor.html)
 * (deprecated since 2.0) [(Persistent)TaskGroup](http://aiotools.readthedocs.io/en/latest/aiotools.taskgroup.html)
 * [High-level Coroutine Utilities](http://aiotools.readthedocs.io/en/latest/aiotools.utils.html)
 

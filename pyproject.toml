@@ -7,7 +7,7 @@ authors = [
     {name = "Joongi Kim", email = "me@daybreaker.info"},
 ]
 description = "Idiomatic asyncio utilities"
-readme = "REAMDE.md"
+readme = "README.md"
 keywords = ["asyncio"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
