@@ -3,7 +3,7 @@ aiotools
 
 [![PyPI release version](https://badge.fury.io/py/aiotools.svg)](https://pypi.org/project/aiotools/)
 ![Supported Python versions](https://img.shields.io/pypi/pyversions/aiotools.svg)
-[![CI Status](https://github.com/achimnol/aiotools/actions/workflows/default.yml/badge.svg)](https://github.com/achimnol/aiotools/actions/workflows/default.yml)
+[![CI Status](https://github.com/achimnol/aiotools/actions/workflows/ci.yml/badge.svg)](https://github.com/achimnol/aiotools/actions/workflows/ci.yml)
 [![Code Coverage](https://codecov.io/gh/achimnol/aiotools/branch/master/graph/badge.svg)](https://codecov.io/gh/achimnol/aiotools)
 
 Idiomatic asyncio utilities
@@ -12,16 +12,21 @@ Idiomatic asyncio utilities
 Modules
 -------
 
+* [Safe Cancellation](http://aiotools.readthedocs.io/en/latest/aiotools.cancel.html)
 * [Async Context Manager](http://aiotools.readthedocs.io/en/latest/aiotools.context.html)
+* [Async Defer](http://aiotools.readthedocs.io/en/latest/aiotools.defer.html)
 * [Async Fork](http://aiotools.readthedocs.io/en/latest/aiotools.fork.html)
 * [Async Functools](http://aiotools.readthedocs.io/en/latest/aiotools.func.html)
 * [Async Itertools](http://aiotools.readthedocs.io/en/latest/aiotools.iter.html)
 * [Async Server](http://aiotools.readthedocs.io/en/latest/aiotools.server.html)
-* [Supervisor](http://aiotools.readthedocs.io/en/latest/aiotools.supervisor.html)
-* [(Persistent)TaskGroup](http://aiotools.readthedocs.io/en/latest/aiotools.taskgroup.html)
 * [Async Timer](http://aiotools.readthedocs.io/en/latest/aiotools.timer.html)
+* [TaskContext](http://aiotools.readthedocs.io/en/latest/aiotools.taskcontext.html)
+* [TaskScope](http://aiotools.readthedocs.io/en/latest/aiotools.taskscope.html)
+* (alais of TaskScope) [Supervisor](http://aiotools.readthedocs.io/en/latest/aiotools.supervisor.html)
+* (deprecated since 2.0) [(Persistent)TaskGroup](http://aiotools.readthedocs.io/en/latest/aiotools.taskgroup.html)
 * [High-level Coroutine Utilities](http://aiotools.readthedocs.io/en/latest/aiotools.utils.html)
 
+Full API documentation: https://aiotools.readthedocs.io
 
 See also
 --------
@@ -32,6 +37,31 @@ See also
 
 Examples
 --------
+
+### Safe Cancellation
+
+Consider the following commonly used pattern:
+```python
+task = asyncio.create_task(...)
+task.cancel()
+await task  # would it raise CancelledError or not?
+```
+
+It has been the reponsibility of the author of tasks and the caller of them to
+coordinate whether to re-raise injected cancellation error.
+
+Now we can use the structured cancellation introduced in Python 3.11:
+```python
+task = asyncio.create_task(...)
+await aiotools.cancel_and_wait(task)
+```
+which will re-raise the cancellation when there is an external cancellation
+request and absorb it otherwise.
+
+Relying on this API whenever you need to cancel asyncio tasks will make your
+codebase more consistent because you no longer need to decide whether to
+(re-)raise or suppress `CancelledError` in your task codes.
+
 
 ### Async Context Manager
 
@@ -45,13 +75,13 @@ import aiotools
 
 @aiotools.actxmgr
 async def mygen(a):
-   await asyncio.sleep(1)
-   yield a + 1
-   await asyncio.sleep(1)
+    await asyncio.sleep(1)
+    yield a + 1
+    await asyncio.sleep(1)
 
 async def somewhere():
-   async with mygen(1) as b:
-       assert b == 2
+    async with mygen(1) as b:
+        assert b == 2
 ```
 
 Note that you need to wrap `yield` with a try-finally block to
@@ -66,18 +96,18 @@ lock = asyncio.Lock()
 
 @aiotools.actxmgr
 async def mygen(a):
-   await lock.acquire()
-   try:
-       yield a + 1
-   finally:
-       lock.release()
+    await lock.acquire()
+    try:
+        yield a + 1
+    finally:
+        lock.release()
 
 async def somewhere():
-   try:
-       async with mygen(1) as b:
-           raise RuntimeError('oops')
-   except RuntimeError:
-       print('caught!')  # you can catch exceptions here.
+    try:
+        async with mygen(1) as b:
+            raise RuntimeError('oops')
+    except RuntimeError:
+        print('caught!')  # you can catch exceptions here.
 ```
 
 You can also create a group of async context managers, which
@@ -89,15 +119,16 @@ import aiotools
 
 @aiotools.actxmgr
 async def mygen(a):
-   yield a + 10
+    yield a + 10
 
 async def somewhere():
-   ctxgrp = aiotools.actxgroup(mygen(i) for i in range(10))
-   async with ctxgrp as values:
-       assert len(values) == 10
-       for i in range(10):
-           assert values[i] == i + 10
+    ctxgrp = aiotools.actxgroup(mygen(i) for i in range(10))
+    async with ctxgrp as values:
+        assert len(values) == 10
+        for i in range(10):
+            assert values[i] == i + 10
 ```
+
 
 ### Async Server
 
@@ -108,23 +139,23 @@ import asyncio
 import aiotools
 
 async def echo(reader, writer):
-   data = await reader.read(100)
-   writer.write(data)
-   await writer.drain()
-   writer.close()
+    data = await reader.read(100)
+    writer.write(data)
+    await writer.drain()
+    writer.close()
 
 @aiotools.server
 async def myworker(loop, pidx, args):
-   server = await asyncio.start_server(echo, '0.0.0.0', 8888, reuse_port=True)
-   print(f'[{pidx}] started')
-   yield  # wait until terminated
-   server.close()
-   await server.wait_closed()
-   print(f'[{pidx}] terminated')
+    server = await asyncio.start_server(echo, '0.0.0.0', 8888, reuse_port=True)
+    print(f'[{pidx}] started')
+    yield  # wait until terminated
+    server.close()
+    await server.wait_closed()
+    print(f'[{pidx}] terminated')
 
 if __name__ == '__main__':
-   # Run the above server using 4 worker processes.
-   aiotools.start_server(myworker, num_workers=4)
+    # Run the above server using 4 worker processes.
+    aiotools.start_server(myworker, num_workers=4)
 ```
 
 It handles SIGINT/SIGTERM signals automatically to stop the server,
@@ -134,25 +165,34 @@ potential signal/PID related races via PID file descriptors on supported version
 (Python 3.9+ and Linux kernel 5.4+).
 
 
-### Async TaskGroup
+### Async TaskScope
 
-A `TaskGroup` object manages the lifecycle of sub-tasks spawned via its `create_task()`
-method by guarding them with an async context manager which exits only when all sub-tasks
-are either completed or cancelled.
+TaskScope is a variant of TaskGroup which ensures all child tasks run to completion
+(either having results or exceptions) unless the context manager is cancelled.
 
-This is motivated from [trio's nursery API](https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning)
-and a draft implementation is adopted from [EdgeDB's Python client library](https://github.com/edgedb/edgedb-python).
+This could be considered as a safer version (in terms of lifecycle tracking) of
+`asyncio.gather(*, return_exceptions=True)` and a more convenient version of it
+because you can decouple the timing of task creation and their scheduling
+within the TaskScope context.
 
 ```python
 import aiotools
 
 async def do():
-    async with aiotools.TaskGroup() as tg:
-        tg.create_task(...)
-        tg.create_task(...)
+    async with aiotools.TaskScope() as ts:
+        ts.create_task(...)
+        ts.create_task(...)
+        # each task will run to completion regardless sibling failures.
         ...
     # at this point, all subtasks are either cancelled or done.
 ```
+
+You may customize exception handler for each scope to receive and process
+unhandled exceptions in child tasks.  For use in long-running server contexts,
+TaskScope does not store any exceptions or results by itself.
+
+See also high-level coroutine utilities such as `as_completed_safe()`,
+`gather_safe()`, and `race()` functions in the utils module.
 
 
 ### Async Timer
@@ -163,14 +203,13 @@ import aiotools
 i = 0
 
 async def mytick(interval):
-   print(i)
-   i += 1
+    print(i)
+    i += 1
 
 async def somewhere():
-   t = aiotools.create_timer(mytick, 1.0)
-   ...
-   t.cancel()
-   await t
+    t = aiotools.create_timer(mytick, 1.0)
+    ...
+    await aiotools.cancel_and_wait(t)
 ```
 
 `t` is an `asyncio.Task` object.
@@ -192,13 +231,12 @@ import asyncio
 import aiotools
 
 async def mytick(interval):
-   await asyncio.sleep(100)  # cancelled on every next interval.
+    await asyncio.sleep(100)  # cancelled on every next interval.
 
 async def somewhere():
-   t = aiotools.create_timer(mytick, 1.0, aiotools.TimerDelayPolicy.CANCEL)
-   ...
-   t.cancel()
-   await t
+    t = aiotools.create_timer(mytick, 1.0, aiotools.TimerDelayPolicy.CANCEL)
+    ...
+    await aiotools.cancel_and_wait(t)
 ```
 
 #### Virtual Clock
