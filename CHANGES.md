@@ -16,6 +16,12 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+2.0.1 (2025-10-06)
+------------------
+
+A post-release to fix typo in docs and packaging configurations without any functional changes.
+
+
 2.0.0 (2025-10-06)
 ------------------
 
