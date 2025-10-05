@@ -16,13 +16,17 @@ Changelog
 
 <!-- towncrier release notes start -->
 
-2.0.0a3 (2025-01-18)
+2.0.0 (2025-10-06)
 ------------------
 
 ### Breaking Changes
 * Now it requires Python 3.11 or later to ensure safety and structured concurrency ([#53](https://github.com/achimnol/aiotools/issues/53))
+* Cancelling and awaiting a timer task returned by `create_timer()` now raises `asyncio.CancelledError` to keep consistency with the best practice for writing asyncio tasks. You now should use `cancel_and_wait()` to safely consume or re-raise it. ([#86](https://github.com/achimnol/aiotools/issues/86))
+* Migrate the project's dependency manager to uv ([#87](https://github.com/achimnol/aiotools/issues/87))
 
 ### Features
+* Add `TaskContext` and `TaskScope` to reuse the core concepts and logics for structured concurrency in `Supervisor` and other coroutine aggregation utilities like `as_completed_safe()`, `gather_safe()`, and `race()`. ([#58](https://github.com/achimnol/aiotools/issues/58))
+* Make the entire package type-annotated ([#89](https://github.com/achimnol/aiotools/issues/89))
 * Add higher-level coroutine aggregation utilities: `as_completed_safe()`, `gather_safe()`, and `race()` based on a modified version of @DontPanicO's `Supervisor` implementation ([#53](https://github.com/achimnol/aiotools/issues/53))
 * Add `aiotools.context.resetting()` as a sync/async context manager to auto-reset the given context variable ([#62](https://github.com/achimnol/aiotools/issues/62))
 * Add type checker support - now includes py.typed in the package to indicate to type checkers like mypy that typing is supported. ([#63](https://github.com/achimnol/aiotools/issues/63))
@@ -30,6 +34,11 @@ Changelog
 * Add Python 3.13 compatibility ([#71](https://github.com/achimnol/aiotools/issues/71))
 
 ### Fixes
+* Replace manual `os.fork()` with `multiprocessing` to use platform-specific recommended subprocess mechanisms (e.g., "spawn" in macOS to avoid undefined behavior of native frameworks) ([#79](https://github.com/achimnol/aiotools/issues/79))
+* Explicitly override `loop._clock_resolution` with a coarse-grained value to prevent getting stuck when using VirtualClock with a realistic timestamp due to the floating point precision issue ([#81](https://github.com/achimnol/aiotools/issues/81))
+* Allow importing aiotools in the Windows CI by using Windows-specific type definitions while disabling fork/server tests ([#84](https://github.com/achimnol/aiotools/issues/84))
+* Ensure the stop signal returned from the server context managers always have a valid value defaulting to SIGTERM ([#85](https://github.com/achimnol/aiotools/issues/85))
+* Prevent timer tasks from being cancelled by unhandled tick task exceptions ([#86](https://github.com/achimnol/aiotools/issues/86))
 * Correct the type annotation of the callback argument in `create_timer()` ([#61](https://github.com/achimnol/aiotools/issues/61))
 
 
