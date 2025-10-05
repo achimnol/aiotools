@@ -19,6 +19,8 @@ class AsyncExceptionHandler(Protocol):
 
 
 class MultiError(BaseExceptionGroup):
+    __errors__: Sequence[BaseException]
+
     def __init__(self, msg: str, errors: Sequence[BaseException], /) -> None:
         super().__init__(msg, errors)
         self.__errors__ = errors

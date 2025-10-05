@@ -9,7 +9,7 @@ from typing import TypeVar
 
 from ..types import CoroutineLike
 
-_has_task_name = hasattr(asyncio.Task, "get_name")
+_has_task_name: bool = hasattr(asyncio.Task, "get_name")
 T = TypeVar("T")
 
 

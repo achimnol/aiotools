@@ -78,7 +78,7 @@ underlines = ["-", "", ""]
 
 [tool.ruff]
 line-length = 88
-src = ["src"]
+src = ["src", "tests", "examples"]
 target-version = "py311"
 preview = true
 
@@ -102,7 +102,7 @@ split-on-trailing-comma = true
 testpaths = ["tests"]
 
 [tool.mypy]
-mypy_path = ["src", "tests"]
+mypy_path = ["src", "tests", "examples"]
 ignore_missing_imports = true
 
 [tool.black]

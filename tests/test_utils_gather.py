@@ -72,7 +72,7 @@ async def test_gather_safe_partial_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_gather_safe_timeout():
+async def test_gather_safe_timeout() -> None:
     context = copy_context()
     with VirtualClock().patch_loop():
 

@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import contextvars
-from typing import Optional
 
 from .taskscope import TaskScope
 
@@ -42,5 +43,5 @@ class Supervisor(TaskScope):
     .. versionadded:: 2.0
     """  # noqa: E501
 
-    def __init__(self, context: Optional[contextvars.Context] = None) -> None:
+    def __init__(self, context: contextvars.Context | None = None) -> None:
         super().__init__(exception_handler=None, context=context)

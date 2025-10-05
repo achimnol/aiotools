@@ -45,18 +45,33 @@ execution context without extra indentations.
    This behavior may be changed in the future versions, though.
 """
 
+from __future__ import annotations
+
 import functools
 import inspect
 from collections import deque
-from typing import Awaitable, Callable, Union
+from collections.abc import Awaitable, Callable
+from typing import Any, Concatenate, ParamSpec, TypeAlias, TypeVar
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 __all__ = (
     "defer",
     "adefer",
+    "DeferFunc",
+    "AsyncDeferrable",
+    "AsyncDeferFunc",
 )
 
+DeferFunc: TypeAlias = Callable[[Callable[[], None]], None]
+AsyncDeferrable: TypeAlias = (
+    Callable[[], Awaitable[Any]] | Callable[[], None] | Awaitable[None]
+)
+AsyncDeferFunc: TypeAlias = Callable[[AsyncDeferrable], None]
 
-def defer(func):
+
+def defer(func: Callable[Concatenate[DeferFunc, P], R]) -> Callable[P, R]:
     """
     A synchronous version of the defer API.
     It can only defer normal functions.
@@ -66,10 +81,11 @@ def defer(func):
     )
 
     @functools.wraps(func)
-    def _wrapped(*args, **kwargs):
-        deferreds = deque()
+    def _wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
+        deferreds: deque[Callable[[], None]] = deque()
 
-        def defer(f: Callable) -> None:
+        # the registration function passed to the original function
+        def defer(f: Callable[[], None]) -> None:
             assert not inspect.iscoroutinefunction(f), (
                 "the deferred function must not be async"
             )
@@ -88,7 +104,9 @@ def defer(func):
     return _wrapped
 
 
-def adefer(func):
+def adefer(
+    func: Callable[Concatenate[AsyncDeferFunc, P], Awaitable[R]],
+) -> Callable[P, Awaitable[R]]:
     """
     An asynchronous version of the defer API.
     It can defer coroutine functions, coroutines, and normal functions.
@@ -96,10 +114,11 @@ def adefer(func):
     assert inspect.iscoroutinefunction(func), "the decorated function must be async"
 
     @functools.wraps(func)
-    async def _wrapped(*args, **kwargs):
-        deferreds = deque()
+    async def _wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
+        deferreds: deque[AsyncDeferrable] = deque()
 
-        def defer(f: Union[Callable, Awaitable]) -> None:
+        # the registration function passed to the original function
+        def defer(f: AsyncDeferrable) -> None:
             deferreds.append(f)
 
         try:
@@ -112,6 +131,6 @@ def adefer(func):
                 elif inspect.iscoroutine(f):
                     await f
                 else:
-                    f()
+                    f()  # type: ignore[operator]
 
     return _wrapped

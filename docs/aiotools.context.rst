@@ -19,7 +19,9 @@ Async Context Manager
 
    An alias of :func:`~.async_ctx_manager`.
 
-.. autoclass:: aiotools.context.aclosing
+.. function:: aiotools.context.aclosing()
+
+   An alias of :func:`contextlib.aclosing`.
 
 .. autoclass:: aiotools.context.closing_async
 
@@ -28,21 +30,21 @@ Async Context Manager
 
    Example:
 
-   .. code-block:: python3
+   .. code-block:: python
 
-      @aiotools.actxmgr
-      async def ctx(v):
-        yield v + 10
+        @aiotools.actxmgr
+        async def ctx(v):
+          yield v + 10
 
-      g = aiotools.actxgroup([ctx(1), ctx(2)])
+        g = aiotools.actxgroup([ctx(1), ctx(2)])
 
-      async with g as values:
-          assert values[0] == 11
-          assert values[1] == 12
+        async with g as values:
+            assert values[0] == 11
+            assert values[1] == 12
 
-      rets = g.exit_states()
-      assert rets[0] is None  # successful shutdown
-      assert rets[1] is None
+        rets = g.exit_states()
+        assert rets[0] is None  # successful shutdown
+        assert rets[1] is None
 
 .. class:: actxgroup
 

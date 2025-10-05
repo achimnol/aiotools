@@ -6,7 +6,8 @@ import asyncio
 import contextlib
 import enum
 import functools
-from typing import Callable, Optional, TypeVar
+from collections.abc import Callable, Iterator
+from typing import TypeVar
 from unittest import mock
 
 from .cancel import cancel_and_wait
@@ -37,7 +38,7 @@ def create_timer(
     cb: Callable[[float], CoroutineLike[None]],
     interval: float,
     delay_policy: TimerDelayPolicy = TimerDelayPolicy.DEFAULT,
-    loop: Optional[asyncio.AbstractEventLoop] = None,
+    loop: asyncio.AbstractEventLoop | None = None,
 ) -> asyncio.Task[None]:
     """
     Schedule a timer with the given callable and the interval in seconds.
@@ -108,7 +109,7 @@ class VirtualClock:
         return orig_select(0)  # override the timeout to zero
 
     @contextlib.contextmanager
-    def patch_loop(self):
+    def patch_loop(self) -> Iterator[None]:
         """
         Override some methods of the current event loop
         so that sleep instantly returns while proceeding the virtual clock.

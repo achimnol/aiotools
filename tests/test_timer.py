@@ -98,7 +98,7 @@ async def test_timer_leak_default() -> None:
 
 
 @pytest.mark.asyncio
-async def test_timer_leak_cancel():
+async def test_timer_leak_cancel() -> None:
     """
     Test the effect of TimerDelayPolicy.CANCEL which always
     cancels any pending previous tasks on each interval.

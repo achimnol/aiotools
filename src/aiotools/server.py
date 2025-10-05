@@ -45,7 +45,7 @@ from collections.abc import (
 from contextlib import AbstractContextManager, ContextDecorator
 from contextvars import ContextVar
 from types import TracebackType
-from typing import Any, Optional, ParamSpec, TypeVar
+from typing import Any, ParamSpec, TypeVar
 
 from .compat import all_tasks, current_task, get_running_loop
 from .context import AbstractAsyncContextManager
@@ -97,17 +97,17 @@ class AsyncServerContextManager(AbstractAsyncContextManager[TYield]):
 
     def __init__(
         self,
-        func: Callable[..., AsyncGenerator[Any, signal.Signals]],
+        func: Callable[..., AsyncGenerator[TYield, signal.Signals]],
         args: Sequence[Any],
         kwargs: Mapping[str, Any],
     ) -> None:
         if not inspect.isasyncgenfunction(func):
             raise RuntimeError("Context manager function must be an async-generator")
-        self._agen = func(*args, **kwargs)
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
-        self.yield_return = signal.SIGTERM
+        self._agen: AsyncGenerator[TYield, signal.Signals] = func(*args, **kwargs)
+        self.func: Callable[..., AsyncGenerator[TYield, signal.Signals]] = func
+        self.args: Sequence[Any] = args
+        self.kwargs: Mapping[str, Any] = kwargs
+        self.yield_return: signal.Signals = signal.SIGTERM
 
     async def __aenter__(self) -> TYield:
         try:
@@ -121,7 +121,7 @@ class AsyncServerContextManager(AbstractAsyncContextManager[TYield]):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
         /,
-    ) -> Optional[bool]:
+    ) -> bool | None:
         if exc_type is None:
             try:
                 # Here is the modified part.
@@ -160,19 +160,17 @@ class ServerMainContextManager(AbstractContextManager[TYield], ContextDecorator)
     generator.
     """
 
-    yield_return: signal.Signals = signal.SIGTERM
-
     def __init__(
         self,
-        func: Callable[..., Generator[Any, signal.Signals]],
+        func: Callable[..., Generator[TYield, signal.Signals, None]],
         args: Sequence[Any],
         kwargs: Mapping[str, Any],
     ) -> None:
-        self.gen = func(*args, **kwargs)
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
-        self.yield_return = signal.SIGTERM
+        self.gen: Generator[TYield, signal.Signals, None] = func(*args, **kwargs)
+        self.func: Callable[..., Generator[TYield, signal.Signals, None]] = func
+        self.args: Sequence[Any] = args
+        self.kwargs: Mapping[str, Any] = kwargs
+        self.yield_return: signal.Signals = signal.SIGTERM
 
     def __enter__(self) -> TYield:
         del self.args, self.kwargs, self.func
@@ -187,7 +185,7 @@ class ServerMainContextManager(AbstractContextManager[TYield], ContextDecorator)
         exc_value: BaseException | None,
         traceback: TracebackType | None,
         /,
-    ) -> Optional[bool]:
+    ) -> bool | None:
         if exc_type is None:
             try:
                 self.gen.send(self.yield_return)
@@ -225,23 +223,31 @@ def server_context(
         [asyncio.AbstractEventLoop, int, Sequence[Any]],
         AsyncGenerator[None, signal.Signals],
     ],
-):
+) -> Callable[..., AsyncServerContextManager[None]]:
     @functools.wraps(func)
-    def helper(*args, **kwargs) -> AsyncServerContextManager:
+    def helper(*args: Any, **kwargs: Any) -> AsyncServerContextManager[None]:
         return AsyncServerContextManager(func, args, kwargs)
 
     return helper
 
 
 class _ServerModule(sys.modules[__name__].__class__):  # type: ignore
-    def __call__(self, func):
+    def __call__(
+        self,
+        func: Callable[
+            [asyncio.AbstractEventLoop, int, Sequence[Any]],
+            AsyncGenerator[None, signal.Signals],
+        ],
+    ) -> Callable[..., AsyncServerContextManager[None]]:
         return server_context(func)
 
 
 sys.modules[__name__].__class__ = _ServerModule
 
 
-def main_context(func: Callable[[], Generator[TYield, signal.Signals]]):
+def main_context(
+    func: Callable[[], Generator[TYield, signal.Signals, None]],
+) -> Callable[[], ServerMainContextManager[TYield]]:
     """
     A decorator wrapper for :class:`ServerMainContextManager`
 
@@ -262,7 +268,7 @@ def main_context(func: Callable[[], Generator[TYield, signal.Signals]]):
     """
 
     @functools.wraps(func)
-    def helper(*args, **kwargs) -> ServerMainContextManager[TYield]:
+    def helper(*args: Any, **kwargs: Any) -> ServerMainContextManager[TYield]:
         return ServerMainContextManager(func, args, kwargs)
 
     return helper
@@ -287,7 +293,7 @@ def setup_child_watcher(loop: asyncio.AbstractEventLoop) -> None:
 
 async def cancel_all_tasks() -> None:
     loop = get_running_loop()
-    cancelled_tasks = []
+    cancelled_tasks: list[asyncio.Task[Any]] = []
     for task in all_tasks():
         if not task.done() and task is not current_task():
             task.cancel()
@@ -315,7 +321,7 @@ def _get_default_stop_signal(
 def _worker_main(
     worker_actxmgr: Callable[
         [asyncio.AbstractEventLoop, int, Sequence[Any]],
-        AsyncServerContextManager,
+        AsyncServerContextManager[Any],
     ],
     stop_signals: Collection[signal.Signals],
     intr_write_pipe: mpconn.Connection,
@@ -323,7 +329,7 @@ def _worker_main(
     run_to_completion: bool,
     args: Sequence[Any],
     *,
-    prestart_hook: Optional[Callable[[int], None]] = None,
+    prestart_hook: Callable[[int], None] | None = None,
 ) -> int:
     process_index.set(proc_idx)
     if prestart_hook:
@@ -333,9 +339,9 @@ def _worker_main(
     setup_child_watcher(loop)
     interrupted = asyncio.Event()
     ctx = worker_actxmgr(loop, proc_idx, args)
-    forever_future = loop.create_future()
+    forever_future: asyncio.Future[None] = loop.create_future()
 
-    def handle_stop_signal(signum):
+    def handle_stop_signal(signum: signal.Signals) -> None:
         if interrupted.is_set():
             pass
         else:
@@ -352,7 +358,7 @@ def _worker_main(
     # (in case of initialization failures in other workers)
     signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
 
-    async def _wrapped_worker():
+    async def _wrapped_worker() -> None:
         err_ctx = "enter"
         try:
             async with ctx:
@@ -396,12 +402,12 @@ def _worker_main(
 
 
 def _extra_main(
-    extra_func: Callable[[Optional[threading.Event], int, Sequence[Any]], None],
+    extra_func: Callable[[threading.Event | None, int, Sequence[Any]], None],
     stop_signals: Collection[signal.Signals],
     proc_idx: int,
     args: Sequence[Any],
     *,
-    prestart_hook: Optional[Callable[[int], None]] = None,
+    prestart_hook: Callable[[int], None] | None = None,
 ) -> int:
     process_index.set(proc_idx)
     if prestart_hook:
@@ -412,7 +418,7 @@ def _extra_main(
     # extra processes in use_threading=True mode should check
     # the intr_event by themselves (probably in their loops).
 
-    def raise_stop(signum, frame):
+    def raise_stop(signum: int, frame: Any) -> None:
         if interrupted.is_set():
             pass
         else:
@@ -428,7 +434,7 @@ def _extra_main(
     for signum in stop_signals:
         signal.signal(signum, raise_stop)
     signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
-    intr_event = None
+    intr_event: threading.Event | None = None
 
     try:
         if not interrupted.is_set():
@@ -443,17 +449,19 @@ def _extra_main(
 
 def start_server(
     worker_actxmgr: Callable[
-        [asyncio.AbstractEventLoop, int, Sequence[Any]], AsyncServerContextManager
+        [asyncio.AbstractEventLoop, int, Sequence[Any]], AsyncServerContextManager[Any]
     ],
-    main_ctxmgr: Optional[Callable[[], ServerMainContextManager]] = None,
-    extra_procs: Collection[Callable] = tuple(),
+    main_ctxmgr: Callable[[], ServerMainContextManager[Any]] | None = None,
+    extra_procs: Collection[
+        Callable[[threading.Event | None, int, Sequence[Any]], None]
+    ] = tuple(),
     stop_signals: Collection[signal.Signals] = (signal.SIGINT, signal.SIGTERM),
     num_workers: int = 1,
     args: Sequence[Any] = tuple(),
     *,
-    wait_timeout: Optional[float] = None,
-    mp_context: Optional[MPContext] = None,
-    prestart_hook: Optional[Callable[[int], None]] = None,
+    wait_timeout: float | None = None,
+    mp_context: MPContext | None = None,
+    prestart_hook: Callable[[int], None] | None = None,
     ignore_child_interrupts: bool = False,
     run_to_completion: bool = False,
 ) -> None:
@@ -610,7 +618,7 @@ def start_server(
     """
 
     @main_context
-    def noop_main_ctxmgr():
+    def noop_main_ctxmgr() -> Generator[None, signal.Signals, None]:
         yield
 
     assert stop_signals
@@ -631,23 +639,23 @@ def start_server(
         main_ctxmgr = noop_main_ctxmgr
 
     children: list[AbstractChildProcess] = []
-    sigblock_mask = frozenset(stop_signals)
+    sigblock_mask: frozenset[signal.Signals] = frozenset(stop_signals)
 
-    main_ctx = main_ctxmgr()
+    main_ctx: ServerMainContextManager[Any] = main_ctxmgr()
 
     # temporarily block signals and register signal handlers to main_loop
     signal.pthread_sigmask(signal.SIG_BLOCK, sigblock_mask)
 
     main_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(main_loop)
-    main_future = main_loop.create_future()
+    main_future: asyncio.Future[None] = main_loop.create_future()
 
     # to make subprocess working in child threads
     setup_child_watcher(main_loop)
 
     # Build a main-to-worker interrupt channel using signals
     def handle_stop_signal(signum: signal.Signals) -> None:
-        main_ctx.yield_return = signum  # type: ignore
+        main_ctx.yield_return = signum
         for child in children:
             child.send_signal(signum)
         # instead of main_loop.stop(), we use a future here
@@ -666,7 +674,7 @@ def start_server(
     # so that the main program can be interrupted immediately.
     def handle_child_interrupt(read_pipe: mpconn.Connection) -> None:
         try:
-            child_idx = struct.unpack("i", read_pipe.recv_bytes(4))[0]
+            child_idx: int = struct.unpack("i", read_pipe.recv_bytes(4))[0]
         except EOFError:
             # read_pipe is already closed
             return
@@ -683,10 +691,13 @@ def start_server(
     try:
         with main_ctx as main_args:
             # retrieve args generated by the user-defined main
+            main_args_tuple: tuple[Any, ...]
             if main_args is None:
-                main_args = tuple()
-            if not isinstance(main_args, tuple):
-                main_args = (main_args,)
+                main_args_tuple = tuple()
+            elif not isinstance(main_args, tuple):
+                main_args_tuple = (main_args,)
+            else:
+                main_args_tuple = main_args
 
             # spawn managed async workers
             for i in range(num_workers):
@@ -700,7 +711,7 @@ def start_server(
                                 write_pipe,
                                 i,
                                 run_to_completion,
-                                (*main_args, *args),
+                                (*main_args_tuple, *args),
                                 prestart_hook=prestart_hook,
                             ),
                             mp_context=mp_context,
@@ -727,7 +738,7 @@ def start_server(
                                 f,
                                 stop_signals,
                                 num_workers + i,
-                                (*main_args, *args),
+                                (*main_args_tuple, *args),
                                 prestart_hook=prestart_hook,
                             ),
                             mp_context=mp_context,
@@ -760,13 +771,15 @@ def start_server(
             finally:
                 # If interrupted or complete, wait for workers to finish.
                 try:
-                    worker_results = main_loop.run_until_complete(
-                        asyncio.wait_for(
-                            asyncio.gather(
-                                *[child.wait() for child in children],
-                                return_exceptions=True,
-                            ),
-                            wait_timeout,
+                    worker_results: list[int | BaseException] = (
+                        main_loop.run_until_complete(
+                            asyncio.wait_for(
+                                asyncio.gather(
+                                    *[child.wait() for child in children],
+                                    return_exceptions=True,
+                                ),
+                                wait_timeout,
+                            )
                         )
                     )
                     for child, result in zip(children, worker_results):

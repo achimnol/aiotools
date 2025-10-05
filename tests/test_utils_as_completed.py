@@ -226,7 +226,7 @@ async def test_as_completed_safe_timeout_custom() -> None:
 
 
 @pytest.mark.asyncio
-async def test_as_completed_safe_cancel_from_body():
+async def test_as_completed_safe_cancel_from_body() -> None:
     context = copy_context()
     with VirtualClock().patch_loop():
 
@@ -260,7 +260,7 @@ async def test_as_completed_safe_cancel_from_body():
 
 
 @pytest.mark.asyncio
-async def test_as_completed_safe_error_from_body():
+async def test_as_completed_safe_error_from_body() -> None:
     context = copy_context()
     with VirtualClock().patch_loop():
 

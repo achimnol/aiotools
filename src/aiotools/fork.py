@@ -29,7 +29,8 @@ import signal
 import sys
 import traceback
 from abc import ABCMeta, abstractmethod
-from typing import Callable, ClassVar, Optional, Tuple, TypeAlias
+from collections.abc import Callable
+from typing import ClassVar, TypeAlias
 
 from .compat import get_running_loop
 
@@ -63,7 +64,7 @@ if hasattr(os, "pidfd_open"):
     # and os.pidfd_open() is available in Linux kernel 5.3+.
     # So let's check with os.pidfd_open() which requires higher version.
     try:
-        os.pidfd_open(0, 0)  # type: ignore
+        os.pidfd_open(0, 0)  # type: ignore[attr-defined]
     except OSError as e:
         if e.errno in (errno.EBADF, errno.EINVAL):
             _has_pidfd = True
@@ -184,7 +185,7 @@ class PidfdChildProcess(AbstractChildProcess):
         self._proc = proc
         self._pid = pid
         self._pidfd = pidfd
-        self._returncode = None
+        self._returncode: int | None = None
         self._wait_event = asyncio.Event()
         self._terminated = False
         loop = get_running_loop()
@@ -209,7 +210,7 @@ class PidfdChildProcess(AbstractChildProcess):
             logger.warning("Force-killed hanging child: %d", self._pid)
         signal.pidfd_send_signal(self._pidfd, signum)  # type: ignore
 
-    def _do_wait(self):
+    def _do_wait(self) -> None:
         loop = get_running_loop()
         try:
             # The flag is WEXITED | __WALL from linux/wait.h
@@ -229,6 +230,9 @@ class PidfdChildProcess(AbstractChildProcess):
                 self._pid,
             )
         else:
+            assert (
+                status_info is not None
+            )  # Always available since we didn't set WNOHANG
             if status_info.si_code == os.CLD_KILLED:
                 self._returncode = -status_info.si_status  # signal number
             elif status_info.si_code == os.CLD_EXITED:
@@ -311,7 +315,7 @@ async def _fork_posix(
 async def _clone_pidfd(
     child_func: Callable[[], int],
     mp_context: MPContext,
-) -> Tuple[MPProcess, int, int]:
+) -> tuple[MPProcess, int, int]:
     loop = get_running_loop()
     read_pipe, write_pipe = mp_context.Pipe()
     proc = mp_context.Process(
@@ -337,7 +341,7 @@ async def _clone_pidfd(
 async def afork(
     child_func: Callable[[], int],
     *,
-    mp_context: Optional[MPContext] = None,
+    mp_context: MPContext | None = None,
 ) -> AbstractChildProcess:
     """
     Fork the current process and execute the given function in the child.

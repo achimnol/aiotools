@@ -1,35 +1,33 @@
 import collections
 import functools
-from typing import Optional
+from collections.abc import Awaitable, Callable
+from typing import Any, Generic, NamedTuple, ParamSpec, TypeVar, cast
 
 from .compat import get_running_loop
+
+P = ParamSpec("P")
+R = TypeVar("R")
+T = TypeVar("T")
 
 __all__ = (
     "apartial",
     "lru_cache",
 )
 
-_CacheEntry = collections.namedtuple("_CacheEntry", "value expire_at")
+
+class _CacheEntry(NamedTuple, Generic[T]):
+    value: T
+    expire_at: float | None
 
 
-def apartial(coro, *args, **kwargs):
-    """
-    Wraps a coroutine function with pre-defined arguments (including keyword
-    arguments).  It is an asynchronous version of :func:`functools.partial`.
-    """
-
-    @functools.wraps(coro)
-    async def wrapped(*cargs, **ckwargs):
-        return await coro(*args, *cargs, **kwargs, **ckwargs)
-
-    return wrapped
+apartial = functools.partial
 
 
 def lru_cache(
-    maxsize: int = 128,
+    maxsize: int | None = 128,
     typed: bool = False,
-    expire_after: Optional[float] = None,
-):
+    expire_after: float | None = None,
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
     """
     A simple LRU cache just like :func:`functools.lru_cache`, but it works for
     coroutines.  This is not as heavily optimized as :func:`functools.lru_cache`
@@ -56,12 +54,9 @@ def lru_cache(
                      expiration timer is also reset.
     """
 
-    if maxsize is not None and not isinstance(maxsize, int):
-        raise TypeError("Expected maxsize to be an integer or None")
-
-    def wrapper(coro):
+    def wrapper(coro: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         sentinel = object()  # unique object to distinguish None as result
-        cache = collections.OrderedDict()
+        cache: collections.OrderedDict[Any, _CacheEntry[R]] = collections.OrderedDict()
         cache_get = cache.get
         cache_del = cache.__delitem__
         cache_set = cache.__setitem__
@@ -75,11 +70,13 @@ def lru_cache(
         # coroutine, so there is no need to add extra synchronization guards.
 
         @functools.wraps(coro)
-        async def wrapped(*args, **kwargs):
+        async def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
             now = get_running_loop().time()
             k = make_key(args, kwargs, typed)
             entry = cache_get(k, sentinel)
             if entry is not sentinel:
+                # Type narrowing: entry is now _CacheEntry[R]
+                entry = cast(_CacheEntry[R], entry)
                 if entry.expire_at is None:
                     return entry.value
                 if entry.expire_at >= now:
@@ -96,14 +93,14 @@ def lru_cache(
             cache_move(k, last=True)
             return result
 
-        def cache_clear():
+        def cache_clear() -> None:
             cache.clear()
 
-        def cache_info():
+        def cache_info() -> None:
             raise NotImplementedError
 
-        wrapped.cache_clear = cache_clear
-        wrapped.cache_info = cache_info
+        wrapped.cache_clear = cache_clear  # type: ignore[attr-defined]
+        wrapped.cache_info = cache_info  # type: ignore[attr-defined]
         return wrapped
 
     return wrapper

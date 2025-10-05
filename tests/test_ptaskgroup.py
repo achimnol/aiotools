@@ -20,7 +20,7 @@ import aiotools
 
 @pytest.mark.asyncio
 async def test_ptaskgroup_naming() -> None:
-    async def subtask():
+    async def subtask() -> None:
         pass
 
     async with aiotools.PersistentTaskGroup(name="XYZ") as tg:
@@ -34,7 +34,7 @@ async def test_ptaskgroup_naming() -> None:
 async def test_ptaskgroup_all_done() -> None:
     done_count = 0
 
-    async def subtask():
+    async def subtask() -> None:
         nonlocal done_count
         await asyncio.sleep(0.1)
         done_count += 1
@@ -60,21 +60,21 @@ async def test_ptaskgroup_all_done() -> None:
 async def test_ptaskgroup_as_obj_attr() -> None:
     done_count = 0
 
-    async def subtask():
+    async def subtask() -> None:
         nonlocal done_count
         await asyncio.sleep(0.1)
         done_count += 1
 
     class LongLivedObject:
-        def __init__(self):
+        def __init__(self) -> None:
             self.tg = aiotools.PersistentTaskGroup()
             assert not self.tg._entered
 
-        async def work(self):
+        async def work(self) -> None:
             self.tg.create_task(subtask())
             assert self.tg._entered
 
-        async def aclose(self):
+        async def aclose(self) -> None:
             await self.tg.shutdown()
 
     vclock = aiotools.VirtualClock()
@@ -122,7 +122,7 @@ async def test_ptaskgroup_shutdown_from_different_task() -> None:
         tg = aiotools.PersistentTaskGroup()
         assert tg._parent_task is outer_myself
 
-        async def _main_task():
+        async def _main_task() -> None:
             nonlocal exec_after_termination
             myself = aiotools.current_task()
             async with tg:
@@ -138,7 +138,7 @@ async def test_ptaskgroup_shutdown_from_different_task() -> None:
             # tg is shutdown from other tasks.
             exec_after_termination = True
 
-        async def _stop_task():
+        async def _stop_task() -> None:
             await asyncio.sleep(0.49)
             await tg.shutdown()
 
@@ -435,10 +435,10 @@ async def test_ptaskgroup_error_in_exc_handlers() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ptaskgroup_cancel_with_await():
+async def test_ptaskgroup_cancel_with_await() -> None:
     done_count = 0
 
-    async def subtask():
+    async def subtask() -> None:
         nonlocal done_count
         try:
             await asyncio.sleep(0.1)
@@ -469,14 +469,14 @@ async def test_ptaskgroup_cancel_with_await():
     reason="Requires Python 3.7 or higher",
 )
 @pytest.mark.asyncio
-async def test_ptaskgroup_current():
+async def test_ptaskgroup_current() -> None:
     names: list[str] = []
 
-    async def subtask():
+    async def subtask() -> None:
         await asyncio.sleep(1)
         names.append(aiotools.current_ptaskgroup.get().get_name())
 
-    async def job():
+    async def job() -> None:
         names.append(aiotools.current_ptaskgroup.get().get_name())
         async with aiotools.PersistentTaskGroup(name="inner") as tg:
             for _ in range(10):
@@ -493,11 +493,11 @@ async def test_ptaskgroup_current():
 
 
 @pytest.mark.asyncio
-async def test_ptaskgroup_enumeration():
-    async def subtask():
+async def test_ptaskgroup_enumeration() -> None:
+    async def subtask() -> None:
         await asyncio.sleep(1)
 
-    async def job():
+    async def job() -> None:
         async with aiotools.PersistentTaskGroup() as tg:
             for _ in range(10):
                 tg.create_task(subtask())

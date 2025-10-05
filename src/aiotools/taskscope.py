@@ -7,7 +7,6 @@ from contextvars import Context
 from types import TracebackType
 from typing import (
     Any,
-    Optional,
     Self,
     TypeGuard,
     TypeVar,
@@ -51,16 +50,19 @@ class TaskScope(TaskContext):
     """
 
     _tasks: set[asyncio.Task[Any]]
-    _on_completed_fut: Optional[asyncio.Future[Any]]
-    _base_error: Optional[BaseException]
+    _on_completed_fut: asyncio.Future[Any] | None
+    _base_error: BaseException | None
+    _entered: bool
+    _exiting: bool
+    _aborting: bool
 
     def __init__(
         self,
         *,
-        exception_handler: Optional[
-            ErrorCallback | LoopExceptionHandler
-        ] = LoopExceptionHandler.TOKEN,
-        context: Optional[contextvars.Context] = None,
+        exception_handler: ErrorCallback
+        | LoopExceptionHandler
+        | None = LoopExceptionHandler.TOKEN,
+        context: contextvars.Context | None = None,
     ) -> None:
         super().__init__(exception_handler=exception_handler, context=context)
         # status flags
@@ -94,7 +96,7 @@ class TaskScope(TaskContext):
         et: type[BaseException] | None,
         exc: BaseException | None,
         tb: TracebackType | None,
-    ) -> Optional[bool]:
+    ) -> bool | None:
         assert self._loop is not None
         assert self._parent_task is not None
         self._exiting = True
@@ -173,8 +175,8 @@ class TaskScope(TaskContext):
         self,
         coro: CoroutineLike[T],
         *,
-        name: Optional[str] = None,
-        context: Optional[Context] = None,
+        name: str | None = None,
+        context: Context | None = None,
     ) -> tasks.Task[T]:
         """
         Create a new task in this scope and return it.
@@ -194,7 +196,7 @@ class TaskScope(TaskContext):
         assert isinstance(exc, BaseException)
         return isinstance(exc, (SystemExit, KeyboardInterrupt))
 
-    def abort(self, msg: Optional[str] = None) -> None:
+    def abort(self, msg: str | None = None) -> None:
         """
         Triggers cancellation and immediately returns *without* waiting for completion.
         """
