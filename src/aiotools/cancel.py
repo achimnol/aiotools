@@ -8,7 +8,7 @@ __all__ = ("cancel_and_wait",)
 
 async def cancel_and_wait(
     task: asyncio.Task[Any],
-    *,
+    /,
     msg: str | None = None,
 ) -> None:
     """
@@ -16,9 +16,24 @@ async def cancel_and_wait(
     If the task is already terminated, it does nothing.
 
     When the caller of this function is cancelled during waiting,
-    cancellation is transparently raised up.
+    cancellation is transparently raised up.  Otherwise, it consumes and absorbs
+    :exc:`asyncio.CancelledError` raised while awaiting the cancelled task.
+    This is the key point of this function: it guarantees the structural safety by
+    ensuring the caller's control over cancellation.
+
+    If the task does not re-raise :exc:`asyncio.CancelledError` when awaited,
+    it explicitly raises :exc:`asyncio.InvalidStateError` to warn that the task
+    should transparently raise up injected cancellations.
 
     See the discussion in https://github.com/python/cpython/issues/103486 for details.
+
+    .. note::
+
+       If you use :ref:`eager task factories <python:eager-task-factory>` in Python
+       3.12 or later, tasks may have completed already if they do not contain any
+       context switches (awaits) even when they are cancelled immediately after
+       :func:`asyncio.create_task()` returns.
+       In such cases, ``cancel_and_wait()`` becomes a no-op.
 
     .. versionadded:: 2.0
     """

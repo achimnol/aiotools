@@ -46,10 +46,16 @@ def create_timer(
     callable's tasks will be cancelled when the timer is cancelled.
 
     Args:
-        cb: TODO - fill argument descriptions
+        cb: An async timer callback function accepting the configured interval value.
 
     Returns:
         You can stop the timer by cancelling the returned task.
+
+    .. versionchanged:: 2.0
+
+       Cancelling and awaiting the task returned by ``create_timer()`` now raises
+       :exc:`asyncio.CancelledError`.  Use :func:`~aiotools.cancel.cancel_and_wait()`
+       to safely consume or re-raise it.
     """
     if loop is None:
         loop = get_running_loop()

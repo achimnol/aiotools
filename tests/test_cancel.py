@@ -24,6 +24,7 @@ Test scenarios covered:
 from __future__ import annotations
 
 import asyncio
+import sys
 
 import pytest
 
@@ -672,3 +673,42 @@ async def test_cancel_and_wait_taskgroup_multiple_external_cancels() -> None:
 
         # Clean up
         await canceller_task
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 12),
+    reason="eager task factory is not available before 3.12",
+)
+@pytest.mark.parametrize("use_eager_task_factory", [False, True])
+def test_cancel_and_wait_eager_tasks(use_eager_task_factory: bool) -> None:
+    """
+    Test cancel_and_wait() on a task that completes immediately without any await.
+
+    Eager tasks (or synchronous tasks) finish before create_task() returns, so they
+    are already done when cancel_and_wait() is called. Should return immediately.
+    """
+    result_holder: list[str] = []
+
+    async def eager_task() -> None:
+        # No await - completes synchronously
+        result_holder.append("done")
+
+    async def _test() -> None:
+        if use_eager_task_factory:
+            loop = asyncio.get_running_loop()
+            loop.set_task_factory(asyncio.eager_task_factory)
+
+        task = asyncio.create_task(eager_task())
+        await cancel_and_wait(task)
+        if use_eager_task_factory:
+            # The task is already done when the eager task factory is used.
+            assert result_holder == ["done"]
+            assert task.done()
+            assert not task.cancelled()
+        else:
+            # The task is not started yet until the event loop tick progresses.
+            # It is cancelled without being executed in this case.
+            assert task.done()
+            assert task.cancelled()
+
+    asyncio.run(_test())
