@@ -2,15 +2,15 @@ import asyncio
 
 import pytest
 
-from aiotools.defer import adefer, defer
+from aiotools.defer import AsyncDeferFunc, DeferFunc, adefer, defer
 from aiotools.func import apartial
 
 
-def test_defer():
-    x = []
+def test_defer() -> None:
+    x: list[int] = []
 
     @defer
-    def myfunc(defer):
+    def myfunc(defer: DeferFunc) -> None:
         x.append(1)
         defer(lambda: x.append(1))
         x.append(2)
@@ -22,11 +22,11 @@ def test_defer():
     assert x == [1, 2, 3, 3, 2, 1]
 
 
-def test_defer_inner_exception():
-    x = []
+def test_defer_inner_exception() -> None:
+    x: list[int] = []
 
     @defer
-    def myfunc(defer):
+    def myfunc(defer: DeferFunc) -> None:
         x.append(1)
         defer(lambda: x.append(1))
         x.append(2)
@@ -40,20 +40,20 @@ def test_defer_inner_exception():
     assert x == [1, 2, 2, 1]
 
 
-def test_defer_wrong_func():
+def test_defer_wrong_func() -> None:
     with pytest.raises(AssertionError):
 
         @defer
-        async def myfunc(defer):
+        async def myfunc(defer: DeferFunc) -> None:
             pass
 
 
 @pytest.mark.asyncio
-async def test_adefer():
-    x = []
+async def test_adefer() -> None:
+    x: list[int] = []
 
     @adefer
-    async def myfunc(defer):
+    async def myfunc(defer: AsyncDeferFunc) -> None:
         x.append(1)
         defer(lambda: x.append(1))
         x.append(2)
@@ -65,24 +65,24 @@ async def test_adefer():
     assert x == [1, 2, 3, 3, 2, 1]
 
 
-def test_adefer_wrong_func():
+def test_adefer_wrong_func() -> None:
     with pytest.raises(AssertionError):
 
-        @adefer
-        def myfunc(defer):
+        @adefer  # type: ignore[arg-type]
+        def myfunc(defer: AsyncDeferFunc) -> None:
             pass
 
 
 @pytest.mark.asyncio
-async def test_adefer_coro():
-    x = []
+async def test_adefer_coro() -> None:
+    x: list[int] = []
 
-    async def async_append(target, item):
+    async def async_append(target: list[int], item: int) -> None:
         target.append(item)
         await asyncio.sleep(0)
 
     @adefer
-    async def myfunc(defer):
+    async def myfunc(defer: AsyncDeferFunc) -> None:
         x.append(1)
         defer(async_append(x, 1))
         x.append(2)
@@ -95,15 +95,15 @@ async def test_adefer_coro():
 
 
 @pytest.mark.asyncio
-async def test_adefer_corofunc():
-    x = []
+async def test_adefer_corofunc() -> None:
+    x: list[int] = []
 
-    async def async_append(target, item):
+    async def async_append(target: list[int], item: int) -> None:
         target.append(item)
         await asyncio.sleep(0)
 
     @adefer
-    async def myfunc(defer):
+    async def myfunc(defer: AsyncDeferFunc) -> None:
         x.append(1)
         defer(apartial(async_append, x, 1))
         x.append(2)
@@ -116,15 +116,15 @@ async def test_adefer_corofunc():
 
 
 @pytest.mark.asyncio
-async def test_adefer_inner_exception():
-    x = []
+async def test_adefer_inner_exception() -> None:
+    x: list[int] = []
 
-    async def async_append(target, item):
+    async def async_append(target: list[int], item: int) -> None:
         target.append(item)
         await asyncio.sleep(0)
 
     @adefer
-    async def myfunc(defer):
+    async def myfunc(defer: AsyncDeferFunc) -> None:
         x.append(1)
         defer(apartial(async_append, x, 1))
         x.append(2)

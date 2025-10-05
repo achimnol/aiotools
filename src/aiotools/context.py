@@ -10,16 +10,11 @@ Provides an implementation of asynchronous context manager and its applications.
 
 import asyncio
 import contextlib
+from collections.abc import Iterable
 from contextvars import ContextVar
-from typing import (
-    Generic,
-    Iterable,
-    List,
-    Optional,
-    TypeVar,
-)
+from typing import Any, Generic, TypeVar
 
-from .types import AsyncClosable
+from .types import AsyncClosable, OptExcInfo
 
 __all__ = [
     "resetting",
@@ -63,11 +58,11 @@ class resetting(Generic[T]):
     async def __aenter__(self) -> None:
         self._token = self._ctxvar.set(self._value)
 
-    def __exit__(self, *exc_info) -> Optional[bool]:
+    def __exit__(self, *exc_info: OptExcInfo) -> bool | None:
         self._ctxvar.reset(self._token)
         return None
 
-    async def __aexit__(self, *exc_info) -> Optional[bool]:
+    async def __aexit__(self, *exc_info: OptExcInfo) -> bool | None:
         self._ctxvar.reset(self._token)
         return None
 
@@ -86,7 +81,7 @@ class closing_async(Generic[T_AsyncClosable]):
     async def __aenter__(self) -> T_AsyncClosable:
         return self.thing
 
-    async def __aexit__(self, *exc_info) -> Optional[bool]:
+    async def __aexit__(self, *exc_info: OptExcInfo) -> bool | None:
         await self.thing.close()
         return None
 
@@ -131,19 +126,18 @@ class AsyncContextGroup:
     """
 
     def __init__(
-        self, context_managers: Optional[Iterable[AbstractAsyncContextManager]] = None
-    ):  # noqa
-        self._cm = list(context_managers) if context_managers else []
-        self._cm_yields: List[asyncio.Task] = []
-        self._cm_exits: List[asyncio.Task] = []
+        self, context_managers: Iterable[AbstractAsyncContextManager[Any]] | None = None
+    ) -> None:
+        self._cm: list[AbstractAsyncContextManager[Any]] = (
+            list(context_managers) if context_managers else []
+        )
+        self._cm_yields: list[Any | BaseException] = []
+        self._cm_exits: list[bool | None | BaseException] = []
 
-    def add(self, cm):
-        """
-        TODO: fill description
-        """
+    def add(self, cm: AbstractAsyncContextManager[Any]) -> None:
         self._cm.append(cm)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> list[Any | BaseException]:
         # Exceptions in context managers are stored into _cm_yields list.
         # NOTE: There is no way to "skip" the context body even if the entering
         #       process fails.
@@ -152,18 +146,19 @@ class AsyncContextGroup:
         )
         return self._cm_yields
 
-    async def __aexit__(self, *exc_info):
+    async def __aexit__(self, *exc_info: OptExcInfo) -> None:
         # Clear references to context variables.
         self._cm_yields.clear()
         # Exceptions are stored into _cm_exits list.
+        # The type-ignore comment is required to embrace the difference between T_T:
+        # types.OptExcInfo                                      = tuple[type[BaseException], BaseException, TracebackType] | tuple[None, None, None]
+        # args@contextlib.AbstractAsyncContextManager.__aexit__ = tuple[type[BaseException] | None, BaseException | None, TracebackType | None]
         self._cm_exits[:] = await asyncio.gather(
-            *(e.__aexit__(*exc_info) for e in self._cm), return_exceptions=True
+            *(e.__aexit__(*exc_info) for e in self._cm),  # type: ignore[arg-type]
+            return_exceptions=True,
         )
 
-    def exit_states(self):
-        """
-        TODO: fill description
-        """
+    def exit_states(self) -> list[bool | None | BaseException]:
         return self._cm_exits
 
 

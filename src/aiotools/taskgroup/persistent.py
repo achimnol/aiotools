@@ -11,7 +11,6 @@ from contextvars import ContextVar, Token
 from types import TracebackType
 from typing import (
     Any,
-    Optional,
     Self,
     TypeVar,
     cast,
@@ -48,21 +47,28 @@ async def _default_exc_handler(
 
 @deprecated("Use aiotools.TaskScope instead.")
 class PersistentTaskGroup:
-    _base_error: Optional[BaseException]
+    _base_error: BaseException | None
     _exc_handler: AsyncExceptionHandler
     _tasks: set[asyncio.Task[Any]]
-    _on_completed_fut: Optional[asyncio.Future[Any]]
-    _current_taskgroup_token: Optional[Token[PersistentTaskGroup]]  # type: ignore[deprecated]
+    _on_completed_fut: asyncio.Future[Any] | None
+    _current_taskgroup_token: Token[PersistentTaskGroup] | None
+    _entered: bool
+    _exiting: bool
+    _aborting: bool
+    _name: str
+    _parent_cancel_requested: bool
+    _unfinished_tasks: int
+    _parent_task: asyncio.Task[Any] | None
 
     @classmethod
-    def all_ptaskgroups(cls) -> Sequence[PersistentTaskGroup]:  # type: ignore[deprecated]
+    def all_ptaskgroups(cls) -> Sequence[PersistentTaskGroup]:
         return list(_all_ptaskgroups)
 
     def __init__(
         self,
         *,
-        name: Optional[str] = None,
-        exception_handler: Optional[AsyncExceptionHandler] = None,
+        name: str | None = None,
+        exception_handler: AsyncExceptionHandler | None = None,
     ) -> None:
         self._entered = False
         self._exiting = False
@@ -91,7 +97,7 @@ class PersistentTaskGroup:
         self,
         coro: CoroutineLike[T],
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> Awaitable[T]:
         if not self._entered:
             # When used as object attribute, auto-enter.
@@ -104,7 +110,7 @@ class PersistentTaskGroup:
         self,
         coro: CoroutineLike[T],
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         cb: Callable[[asyncio.Task[T | None]], None],
     ) -> Awaitable[T]:
         loop = compat.get_running_loop()
@@ -124,9 +130,9 @@ class PersistentTaskGroup:
         assert isinstance(exc, BaseException)
         return isinstance(exc, (SystemExit, KeyboardInterrupt))
 
-    async def _wait_completion(self) -> Optional[BaseException]:
+    async def _wait_completion(self) -> BaseException | None:
         loop = compat.get_running_loop()
-        propagate_cancellation_error = None
+        propagate_cancellation_error: BaseException | None = None
         while self._unfinished_tasks:
             if self._on_completed_fut is None:
                 self._on_completed_fut = loop.create_future()
@@ -235,10 +241,10 @@ class PersistentTaskGroup:
 
     async def __aexit__(
         self,
-        exc_type: Optional[type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         assert self._parent_task is not None
         self._exiting = True
         propagate_cancellation_error: type[BaseException] | BaseException | None = None

@@ -4,11 +4,10 @@ import asyncio
 import contextvars
 import enum
 import warnings
+from collections.abc import Callable
 from contextvars import Context
 from typing import (
     Any,
-    Callable,
-    Optional,
     TypeAlias,
     TypedDict,
     TypeVar,
@@ -73,16 +72,21 @@ class TaskContext:
     # per-thread doubly-linked lists to support free-threaded (nogil) setups to avoid
     # lock contention in the weakref subsystem.
     _tasks: set[asyncio.Task[Any]]
-    _parent_task: Optional[asyncio.Task[Any]]
-    _loop: Optional[asyncio.AbstractEventLoop]
+    _parent_task: asyncio.Task[Any] | None
+    _loop: asyncio.AbstractEventLoop | None
+    _exception_handler: ErrorCallback | LoopExceptionHandler | None
+    _default_context: contextvars.Context | None
+    _entered: bool
+    _exited: bool
+    _aborting: bool
 
     def __init__(
         self,
         *,
-        exception_handler: Optional[
-            ErrorCallback | LoopExceptionHandler | None
-        ] = LoopExceptionHandler.TOKEN,
-        context: Optional[contextvars.Context] = None,
+        exception_handler: ErrorCallback
+        | LoopExceptionHandler
+        | None = LoopExceptionHandler.TOKEN,
+        context: contextvars.Context | None = None,
     ) -> None:
         self._loop = None
         self._tasks = set()
@@ -133,8 +137,8 @@ class TaskContext:
         self,
         coro: CoroutineLike[T],
         *,
-        name: Optional[str] = None,
-        context: Optional[Context] = None,
+        name: str | None = None,
+        context: Context | None = None,
     ) -> asyncio.Task[T]:
         """
         Create a new task in this scope and return it.
@@ -156,8 +160,8 @@ class TaskContext:
         self,
         coro: CoroutineLike[T],
         *,
-        name: Optional[str] = None,
-        context: Optional[Context] = None,
+        name: str | None = None,
+        context: Context | None = None,
     ) -> asyncio.Task[T]:
         assert self._loop is not None
         if self._aborting:

@@ -13,7 +13,7 @@ from collections.abc import (
 )
 from contextlib import aclosing
 from contextvars import Context
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 from .taskscope import TaskScope
 from .types import CoroutineLike
@@ -30,7 +30,7 @@ T = TypeVar("T")
 async def as_completed_safe(
     coros: Iterable[CoroutineLike[T]],
     *,
-    context: Optional[Context] = None,
+    context: Context | None = None,
 ) -> AsyncGenerator[Awaitable[T], None]:
     """
     This is a safer version of :func:`asyncio.as_completed()` which uses
@@ -78,7 +78,7 @@ async def as_completed_safe(
 async def gather_safe(
     coros: Iterable[CoroutineLike[T]],
     *,
-    context: Optional[Context] = None,
+    context: Context | None = None,
 ) -> list[T | BaseException]:
     """
     A safer version of :func:`asyncio.gather(*, return_exceptions=True)
@@ -108,7 +108,7 @@ async def race(
     coros: Iterable[CoroutineLike[T]],
     *,
     continue_on_error: bool = False,
-    context: Optional[Context] = None,
+    context: Context | None = None,
 ) -> tuple[T, Sequence[Exception]]:
     """
     Returns the first result and cancelling all remaining coroutines safely.

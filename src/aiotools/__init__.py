@@ -26,6 +26,9 @@ from .context import (
     resetting,
 )
 from .defer import (
+    AsyncDeferFunc,
+    AsyncDeferrable,
+    DeferFunc,
     adefer,
     defer,
 )
@@ -106,6 +109,9 @@ __all__ = (
     "actxgroup",
     "AsyncExitStack",
     # .defer
+    "DeferFunc",
+    "AsyncDeferrable",
+    "AsyncDeferFunc",
     "adefer",
     "defer",
     # .fork

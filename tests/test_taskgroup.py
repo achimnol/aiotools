@@ -135,11 +135,11 @@ async def test_taskgroup_cancellation() -> None:
 async def test_taskgroup_subtask_cancellation() -> None:
     results: list[str] = []
 
-    async def do_job():
+    async def do_job() -> None:
         await asyncio.sleep(1)
         results.append("a")
 
-    async def do_cancel():
+    async def do_cancel() -> None:
         await asyncio.sleep(0.5)
         raise asyncio.CancelledError
 
@@ -163,7 +163,7 @@ async def test_cancel_parent_task_like_siblings() -> None:
         await asyncio.sleep(delay)
         raise ZeroDivisionError()
 
-    async def parent():
+    async def parent() -> None:
         try:
             async with TaskGroup() as tg:
                 tg.create_task(fail_job(0.2))
@@ -186,7 +186,7 @@ async def test_cancel_parent_task_like_siblings() -> None:
 
 @pytest.mark.asyncio
 async def test_taskgroup_distinguish_inner_error_and_outer_cancel() -> None:
-    async def do_error():
+    async def do_error() -> None:
         await asyncio.sleep(0.5)
         raise ValueError("bad stuff")
 
