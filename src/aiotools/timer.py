@@ -53,34 +53,34 @@ def create_timer(
 
     .. versionchanged:: 2.0
 
+       Unhandled exceptions in the tick tasks no longer terminates the timer task,
+       as it is changed to use :class:`~aiotools.taskscope.TaskScope` instead of
+       :class:`~aiotools.taskgroup.TaskGroup`.
+
+    .. versionchanged:: 2.0
+
        Cancelling and awaiting the task returned by ``create_timer()`` now raises
        :exc:`asyncio.CancelledError`.  Use :func:`~aiotools.cancel.cancel_and_wait()`
        to safely consume or re-raise it.
     """
-    if loop is None:
-        loop = get_running_loop()
 
     async def _timer() -> None:
         fired_tasks: list[asyncio.Task[None]] = []
-        try:
-            async with TaskScope() as ts:
-                while True:
-                    if delay_policy == TimerDelayPolicy.CANCEL:
-                        await asyncio.gather(
-                            *(cancel_and_wait(t) for t in fired_tasks),
-                            return_exceptions=True,
-                        )
-                        fired_tasks.clear()
-                    else:
-                        fired_tasks[:] = [t for t in fired_tasks if not t.done()]
-                    t = ts.create_task(cb(interval))
-                    fired_tasks.append(t)
-                    await asyncio.sleep(interval)
-        finally:
-            # proceed a tick.
-            await asyncio.sleep(0)
+        async with TaskScope() as ts:
+            while True:
+                if delay_policy == TimerDelayPolicy.CANCEL:
+                    await asyncio.gather(
+                        *(cancel_and_wait(t) for t in fired_tasks),
+                        return_exceptions=True,
+                    )
+                    fired_tasks.clear()
+                else:
+                    fired_tasks[:] = [t for t in fired_tasks if not t.done()]
+                t = ts.create_task(cb(interval))
+                fired_tasks.append(t)
+                await asyncio.sleep(interval)
 
-    return loop.create_task(_timer())
+    return asyncio.create_task(_timer())
 
 
 class VirtualClock:
