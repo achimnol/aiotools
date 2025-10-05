@@ -24,6 +24,7 @@ Test scenarios covered:
 from __future__ import annotations
 
 import asyncio
+import sys
 
 import pytest
 
@@ -50,6 +51,35 @@ async def test_cancel_and_wait_simple_task_already_done() -> None:
         assert result_holder == ["done"]
         assert task.done()
         assert not task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_cancelled_by_another() -> None:
+    """
+    Test cancel_and_wait() on a task that's already completed.
+    Should return immediately without any action.
+    """
+
+    async def simple_task() -> None:
+        try:
+            await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.1)
+
+    async def cancel_task() -> None:
+        inner_task = asyncio.create_task(simple_task())
+        await asyncio.sleep(0.01)  # let inner task proceed
+        try:
+            await cancel_and_wait(inner_task)  # waiting for inner cleanup
+        finally:
+            assert inner_task.cancelled()
+
+    with VirtualClock().patch_loop():
+        task = asyncio.create_task(cancel_task())
+        await asyncio.sleep(0.05)
+        await cancel_and_wait(task)  # cancel outer waiting for inner cleanup
+        assert task.done()
+        assert task.cancelled()
 
 
 @pytest.mark.asyncio
@@ -643,3 +673,43 @@ async def test_cancel_and_wait_taskgroup_multiple_external_cancels() -> None:
 
         # Clean up
         await canceller_task
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 12),
+    reason="eager task factory is not available before 3.12",
+)
+@pytest.mark.parametrize("use_eager_task_factory", [False, True])
+def test_cancel_and_wait_eager_tasks(use_eager_task_factory: bool) -> None:
+    """
+    Test cancel_and_wait() on a task that completes immediately without any await.
+
+    Eager tasks (or synchronous tasks) finish before create_task() returns, so they
+    are already done when cancel_and_wait() is called. Should return immediately.
+    """
+    result_holder: list[str] = []
+
+    async def eager_task() -> None:
+        # No await - completes synchronously
+        result_holder.append("done")
+
+    async def _test() -> None:
+        if use_eager_task_factory:
+            loop = asyncio.get_running_loop()
+            loop.set_task_factory(asyncio.eager_task_factory)
+
+        task = asyncio.create_task(eager_task())
+        await cancel_and_wait(task)
+        if use_eager_task_factory:
+            # The task is already done when the eager task factory is used.
+            assert result_holder == ["done"]
+            assert task.done()
+            assert not task.cancelled()
+        else:
+            # The task is not started yet until the event loop tick progresses.
+            # It is cancelled without being executed in this case.
+            assert result_holder == []
+            assert task.done()
+            assert task.cancelled()
+
+    asyncio.run(_test())
