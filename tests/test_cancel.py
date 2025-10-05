@@ -708,6 +708,7 @@ def test_cancel_and_wait_eager_tasks(use_eager_task_factory: bool) -> None:
         else:
             # The task is not started yet until the event loop tick progresses.
             # It is cancelled without being executed in this case.
+            assert result_holder == []
             assert task.done()
             assert task.cancelled()
 
