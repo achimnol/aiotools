@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Collection
 from typing import Any
 
 __all__ = ("cancel_and_wait",)
 
 
 async def cancel_and_wait(
-    task: asyncio.Task[Any],
+    tasks: asyncio.Task[Any] | Collection[asyncio.Task[Any]],
     /,
     msg: str | None = None,
 ) -> None:
@@ -37,21 +38,41 @@ async def cancel_and_wait(
 
     .. versionadded:: 2.0
     """
-    if task.done():
-        return
-    # After our cancellation, cancelling() should be incremented by 1.
-    # If its incremented by more than 1, it means cancel was requested externally.
-    # In that case CancelledError should be raised to also end waiting task.
-    cancelling_expected = task.cancelling() + 1
-    task.cancel(msg)
-    try:
-        await task
-    except asyncio.CancelledError:
-        if task.cancelling() != cancelling_expected:
-            raise
-        else:
-            return  # this is the only non-exceptional return
-    else:
-        raise asyncio.InvalidStateError(
-            f"The cancelled task {task!r} did not raise up cancellation."
+    if isinstance(tasks, Collection):
+        results = await asyncio.gather(
+            *(cancel_and_wait(t) for t in tasks),
+            return_exceptions=True,
         )
+        has_cancelled = any(
+            map(
+                lambda result: isinstance(result, asyncio.CancelledError),
+                (result for result in results),
+            )
+        )
+        if has_cancelled:
+            raise asyncio.CancelledError()
+        exceptions = [result for result in results if isinstance(result, BaseException)]
+        if exceptions:
+            raise BaseExceptionGroup(
+                "Unhandled exceptions during grouped cancellation", exceptions
+            )
+    else:
+        task = tasks
+        if task.done():
+            return
+        # After our cancellation, cancelling() should be incremented by 1.
+        # If its incremented by more than 1, it means cancel was requested externally.
+        # In that case CancelledError should be raised to also end waiting task.
+        cancelling_expected = task.cancelling() + 1
+        task.cancel(msg)
+        try:
+            await task
+        except asyncio.CancelledError:
+            if task.cancelling() != cancelling_expected:
+                raise
+            else:
+                return  # this is the only non-exceptional return
+        else:
+            raise asyncio.InvalidStateError(
+                f"The cancelled task {task!r} did not raise up cancellation."
+            )

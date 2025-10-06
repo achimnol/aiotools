@@ -72,7 +72,7 @@ async def worker_main(
     router = zctx.socket(zmq.PULL)
     router.connect("ipc://example-events")
 
-    async def process_incoming(router):
+    async def process_incoming(router: zmq.asyncio.Socket) -> None:
         while True:
             data = await router.recv()
             if not data:

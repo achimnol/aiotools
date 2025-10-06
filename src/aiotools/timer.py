@@ -70,10 +70,7 @@ def create_timer(
         async with TaskScope() as ts:
             while True:
                 if delay_policy == TimerDelayPolicy.CANCEL:
-                    await asyncio.gather(
-                        *(cancel_and_wait(t) for t in fired_tasks),
-                        return_exceptions=True,
-                    )
+                    await cancel_and_wait(fired_tasks)
                     fired_tasks.clear()
                 else:
                     fired_tasks[:] = [t for t in fired_tasks if not t.done()]
