@@ -207,15 +207,14 @@ async def mytick(interval):
     i += 1
 
 async def somewhere():
-    t = aiotools.create_timer(mytick, 1.0)
+    task = aiotools.create_timer(mytick, 1.0)
     ...
-    await aiotools.cancel_and_wait(t)
+    await aiotools.cancel_and_wait(task)
 ```
 
-`t` is an `asyncio.Task` object.
-To stop the timer, call `t.cancel(); await t`.
-Please don't forget `await`-ing `t` because it requires extra steps to
-cancel and await all pending tasks.
+The returned `task` is an `asyncio.Task` object.
+To stop the timer, it should be cancelled explicitly.
+Use `cancel_and_wait()` to ensure complete shutdown of any ongoing tick tasks.
 To make your timer function to be cancellable, add a try-except clause
 catching `asyncio.CancelledError` since we use it as a termination
 signal.

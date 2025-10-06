@@ -31,7 +31,7 @@ A post-release to fix typo in docs and packaging configurations without any func
 * Migrate the project's dependency manager to uv ([#87](https://github.com/achimnol/aiotools/issues/87))
 
 ### Features
-* Add `TaskContext` and `TaskScope` to reuse the core concepts and logics for structured concurrency in `Supervisor` and other coroutine aggregation utilities like `as_completed_safe()`, `gather_safe()`, and `race()`. ([#58](https://github.com/achimnol/aiotools/issues/58))
+* Add `TaskContext` and `TaskScope` to reuse the core concepts and logics for structured concurrency in `Supervisor`, a structured cancellation helper `cancel_and_wait()`, and other coroutine aggregation utilities like `as_completed_safe()`, `gather_safe()`, and `race()`. ([#58](https://github.com/achimnol/aiotools/issues/58))
 * Make the entire package type-annotated ([#89](https://github.com/achimnol/aiotools/issues/89))
 * Add higher-level coroutine aggregation utilities: `as_completed_safe()`, `gather_safe()`, and `race()` based on a modified version of @DontPanicO's `Supervisor` implementation ([#53](https://github.com/achimnol/aiotools/issues/53))
 * Add `aiotools.context.resetting()` as a sync/async context manager to auto-reset the given context variable ([#62](https://github.com/achimnol/aiotools/issues/62))
