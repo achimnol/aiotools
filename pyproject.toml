@@ -123,6 +123,7 @@ dev = [
     "coverage>=7.10.7",
     "mypy>=1.18.2",
     "pre-commit>=4.3.0",
+    "pystack>=1.5.1",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.0.0",
