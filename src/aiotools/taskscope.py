@@ -185,6 +185,7 @@ class TaskScope(TaskContext):
         *,
         name: str | None = None,
         context: Context | None = None,
+        **kwargs: Any,
     ) -> tasks.Task[T]:
         """
         Create a new task in this scope and return it.
@@ -195,7 +196,7 @@ class TaskScope(TaskContext):
         if self._exiting and not self._tasks:
             raise RuntimeError(f"{type(self).__name__} {self!r} is finished")
         assert self._parent_task is not None
-        task = self._create_task(coro, name=name, context=context)
+        task = self._create_task(coro, name=name, context=context, **kwargs)
         if _has_callgraph:
             asyncio.future_add_to_awaited_by(task, self._parent_task)  # type: ignore[attr-defined]
         return task
