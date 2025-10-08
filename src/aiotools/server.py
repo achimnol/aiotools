@@ -584,16 +584,20 @@ def start_server(
 
     assert stop_signals
 
-    if hasattr(asyncio, "get_running_loop"):
-        # only for Python 3.7+
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            # there should be none.
-            pass
-        else:
-            raise RuntimeError(
-                "aiotools.start_server() cannot be called inside a running event loop."
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # there should be none.
+        pass
+    else:
+        raise RuntimeError(
+            "aiotools.start_server() cannot be called inside a running event loop."
+        )
+
+    if sys.version_info >= (3, 14):
+        if mp_context is not None and mp_context.get_start_method() == "fork":
+            raise NotImplementedError(
+                "In Python 3.14 or higher, the 'fork' start-method is no longer supported."
             )
 
     if main_ctxmgr is None:

@@ -499,7 +499,7 @@ def test_server_extra_proc_custom_stop_signal(
     restore_signal: None,
     mp_context: MPContext,
 ) -> None:
-    if getattr(mp_context, "_name", "default") in ("spawn", "forkserver"):
+    if mp_context.get_start_method() in ("spawn", "forkserver"):
         pytest.skip(
             "Custom stop signals with extra procs is not supported due to multiprocessing resource manager gets killed by them."
         )

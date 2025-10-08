@@ -29,7 +29,6 @@ if sys.platform == "win32":
 target_mp_contexts = [
     pytest.param(mp.get_context(method), id=method)
     for method in mp.get_all_start_methods()
-    if method != "forkserver"
 ]
 
 
