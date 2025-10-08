@@ -49,6 +49,12 @@ class TaskScope(TaskContext):
     alias of :class:`TaskScope` with ``exception_handler=None``.
 
     .. versionadded:: 2.0
+
+    .. versionchanged:: 2.1
+
+       In Python 3.14 or higher, it also updates :doc:`the asyncio call graph
+       <python:library/asyncio-graph>` so that the task awaiter could be tracked down
+       via TaskScope, like :class:`asyncio.TaskGroup`.
     """
 
     _tasks: set[asyncio.Task[Any]]

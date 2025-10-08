@@ -64,6 +64,12 @@ class TaskContext:
 
     If you provide ``context``, it will be passed to :meth:`create_task()` by default.
 
+    .. note::
+
+       Unlike :class:`~aiotools.taskscope.TaskScope`, TaskContext does not update
+       the callgraph introduced in Python 3.14 as it does not implement completion-based
+       waiting semantics but just grouped cancellation when explicitly requested.
+
     .. versionadded:: 2.0
     """
 
