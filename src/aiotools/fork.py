@@ -282,7 +282,8 @@ def _child_main(
         ret = -signal.SIGTERM
     except Exception:
         traceback.print_exc()
-    return ret
+    finally:
+        os._exit(ret)
 
 
 async def _fork_posix(
