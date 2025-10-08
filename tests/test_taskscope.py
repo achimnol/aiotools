@@ -70,6 +70,31 @@ async def test_taskscope_call_graph_support() -> None:
         )
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 14),
+    reason="per-task eagerness control is available in Python 3.14 or higher",
+)
+@pytest.mark.asyncio
+async def test_taskscope_create_task_passing_kwargs() -> None:
+    """
+    Passing arbitrary kwargs to create_task() methods is now allowed in Python 3.14.
+
+    In Python 3.14, we now have "eager_start=True" option to control individual
+    task's eagerness, so let's make a kwargs-passing test using it.
+    """
+    result_holder: list[str] = []
+
+    async def eager_task() -> None:
+        # No await - completes synchronously
+        result_holder.append("done")
+
+    async with TaskScope() as ts:
+        task = ts.create_task(eager_task(), eager_start=True)
+        # The task is already done if it is eagerly scheduled.
+        assert result_holder == ["done"]
+        assert task.done()
+
+
 @pytest.mark.asyncio
 async def test_taskscope_partial_failure() -> None:
     results: list[int] = []
