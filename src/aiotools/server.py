@@ -567,6 +567,15 @@ def start_server(
 
         The **mp_context**, **prestart_hook**, **ignore_child_interrupts**,
         and **run_to_completion** arguments.
+
+    .. versionchanged:: 2.1.0
+
+       In Python 3.14 or higher, the "fork" mode support is REMOVED AND DISCOURAGED
+       as it causes silent hanging when combined with asyncio event loops.
+
+       Using custom stop signals with **extra_proc** is now STRONGLY DISCOURAGED
+       as it causes multiprocessing's resource tracker killed by them and
+       there is no way to control this behavior from our side.
     """
 
     @main_context
