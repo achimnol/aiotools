@@ -282,8 +282,6 @@ def _child_main(
         ret = -signal.SIGTERM
     except Exception:
         traceback.print_exc()
-    finally:
-        os._exit(ret)
     return ret
 
 
