@@ -71,7 +71,7 @@ async def test_taskscope_call_graph_support() -> None:
 
 
 @pytest.mark.asyncio
-async def test_TaskScope_partial_failure() -> None:
+async def test_taskscope_partial_failure() -> None:
     results: list[int] = []
     errors: list[BaseException] = []
     tasks: list[asyncio.Task[Any]] = []
@@ -91,7 +91,7 @@ async def test_TaskScope_partial_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_TaskScope_timeout_before_failure() -> None:
+async def test_taskscope_timeout_before_failure() -> None:
     results: list[int] = []
     errors: list[BaseException] = []
     cancelled = 0
@@ -119,7 +119,7 @@ async def test_TaskScope_timeout_before_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_TaskScope_timeout_after_failure() -> None:
+async def test_taskscope_timeout_after_failure() -> None:
     results: list[int] = []
     errors: list[BaseException] = []
     cancelled = 0
