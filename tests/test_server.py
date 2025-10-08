@@ -22,12 +22,6 @@ from _pytest.mark.structures import ParameterSet
 import aiotools
 from aiotools.fork import MPContext
 
-if os.environ.get("CI", "") and sys.version_info < (3, 9, 0):
-    pytest.skip(
-        "skipped to prevent kill CI agents due to signals on CI environments",
-        allow_module_level=True,
-    )
-
 if sys.platform == "win32":
     pytest.skip(
         "server tests not supported on Windows",

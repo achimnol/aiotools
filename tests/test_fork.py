@@ -54,11 +54,7 @@ def child_for_fork() -> int:
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork(has_pidfd: bool, mp_context: MPContext) -> None:
-    with mock.patch.object(
-        fork_mod,
-        "_has_pidfd",
-        has_pidfd,
-    ):
+    with mock.patch.object(fork_mod, "_has_pidfd", has_pidfd):
         proc = await afork(child_for_fork, mp_context=mp_context)
         assert proc.pid > 0
         if isinstance(proc, PidfdChildProcess):
@@ -76,11 +72,7 @@ def child_for_fork_already_terminated() -> int:
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_already_terminated(has_pidfd: bool, mp_context: MPContext) -> None:
-    with mock.patch.object(
-        fork_mod,
-        "_has_pidfd",
-        has_pidfd,
-    ):
+    with mock.patch.object(fork_mod, "_has_pidfd", has_pidfd):
         proc = await afork(child_for_fork_already_terminated, mp_context=mp_context)
         assert proc.pid > 0
         if isinstance(proc, PidfdChildProcess):
@@ -102,11 +94,7 @@ def child_for_fork_signal() -> int:
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_signal(has_pidfd: bool, mp_context: MPContext) -> None:
-    with mock.patch.object(
-        fork_mod,
-        "_has_pidfd",
-        has_pidfd,
-    ):
+    with mock.patch.object(fork_mod, "_has_pidfd", has_pidfd):
         os.setpgrp()
         proc = await afork(child_for_fork_signal, mp_context=mp_context)
         assert proc.pid > 0
@@ -131,11 +119,7 @@ def child_for_fork_segfault() -> int:
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_segfault(has_pidfd: bool, mp_context: MPContext) -> None:
-    with mock.patch.object(
-        fork_mod,
-        "_has_pidfd",
-        has_pidfd,
-    ):
+    with mock.patch.object(fork_mod, "_has_pidfd", has_pidfd):
         os.setpgrp()
         proc = await afork(child_for_fork_segfault, mp_context=mp_context)
         assert proc.pid > 0
@@ -157,11 +141,7 @@ def child_for_fork_many() -> int:
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 @pytest.mark.asyncio
 async def test_fork_many(has_pidfd: bool, mp_context: MPContext) -> None:
-    with mock.patch.object(
-        fork_mod,
-        "_has_pidfd",
-        has_pidfd,
-    ):
+    with mock.patch.object(fork_mod, "_has_pidfd", has_pidfd):
         os.setpgrp()
         proc_list: list[AbstractChildProcess] = []
         for _ in range(32):
