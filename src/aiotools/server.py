@@ -60,7 +60,7 @@ __all__ = (
     "InterruptedBySignal",
 )
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(__spec__.name)
 
 process_index: ContextVar[int] = ContextVar("process_index")
 
