@@ -19,6 +19,8 @@ T = TypeVar("T")
 
 __all__ = ("TaskScope",)
 
+_has_callgraph = hasattr(asyncio, "future_add_to_awaited_by")
+
 
 class TaskScope(TaskContext):
     """
@@ -188,7 +190,8 @@ class TaskScope(TaskContext):
             raise RuntimeError(f"{type(self).__name__} {self!r} is finished")
         assert self._parent_task is not None
         task = self._create_task(coro, name=name, context=context)
-        asyncio.future_add_to_awaited_by(task, self._parent_task)
+        if _has_callgraph:
+            asyncio.future_add_to_awaited_by(task, self._parent_task)  # type: ignore[attr-defined]
         return task
 
     # Since Python 3.8 Tasks propagate all exceptions correctly,
@@ -212,7 +215,8 @@ class TaskScope(TaskContext):
         assert self._loop is not None
         assert self._parent_task is not None
         self._tasks.discard(task)
-        asyncio.future_discard_from_awaited_by(task, self._parent_task)
+        if _has_callgraph:
+            asyncio.future_discard_from_awaited_by(task, self._parent_task)  # type: ignore[attr-defined]
         if self._on_completed_fut is not None and not self._tasks:
             if not self._on_completed_fut.done():
                 self._on_completed_fut.set_result(True)

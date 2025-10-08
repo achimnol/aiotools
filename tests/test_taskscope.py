@@ -50,8 +50,8 @@ async def test_taskscope_call_graph_support() -> None:
     async def child() -> None:
         nonlocal graph
         print()
-        asyncio.print_call_graph()
-        graph = asyncio.capture_call_graph()
+        asyncio.print_call_graph()  # type: ignore[attr-defined]
+        graph = asyncio.capture_call_graph()  # type: ignore[attr-defined]
         await asyncio.sleep(1.0)
 
     async def parent() -> None:
