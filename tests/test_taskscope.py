@@ -41,7 +41,7 @@ async def test_taskscope_keep_running() -> None:
 
 @pytest.mark.skipif(
     sys.version_info < (3, 14),
-    reason="asynio callgraph is available in Python 3.14 or higher",
+    reason="asyncio callgraph requires Python 3.14 or higher",
 )
 @pytest.mark.asyncio
 async def test_taskscope_call_graph_support() -> None:
@@ -63,9 +63,11 @@ async def test_taskscope_call_graph_support() -> None:
         await parent_task
 
         assert graph is not None
-        assert len(graph.awaited_by) == 1  # TaskScope should chain the task awaiters
+        assert len(graph.awaited_by) == 1, "TaskScope should chain the task awaiters."
         parent_task = cast(asyncio.Task[None], graph.awaited_by[0].future)
-        assert parent_task.get_name() == "parent"
+        assert parent_task.get_name() == "parent", (
+            "the awaiter name should be 'parent', not 'Task-1' or something else."
+        )
 
 
 @pytest.mark.asyncio
