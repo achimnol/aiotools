@@ -55,7 +55,7 @@ jobs:
         jobs: ${{ toJSON(needs) }}
 
   deploy-to-pypi:
-    needs: [test]
+    needs: [required-checks]
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     environment: deploy-to-pypi
