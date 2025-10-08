@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, TypeVar
+import sys
+from typing import Any, TypeVar, cast
 
 import pytest
 
-from aiotools import Supervisor, TaskScope, VirtualClock
+from aiotools import TaskScope, VirtualClock
 
 T = TypeVar("T")
 
@@ -38,16 +39,45 @@ async def test_taskscope_keep_running() -> None:
         assert results == ["context-final", "parent-final"]
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 14),
+    reason="asynio callgraph is available in Python 3.14 or higher",
+)
 @pytest.mark.asyncio
-async def test_supervisor_partial_failure() -> None:
+async def test_taskscope_call_graph_support() -> None:
+    graph = None
+
+    async def child() -> None:
+        nonlocal graph
+        print()
+        asyncio.print_call_graph()
+        graph = asyncio.capture_call_graph()
+        await asyncio.sleep(1.0)
+
+    async def parent() -> None:
+        async with TaskScope() as ts:
+            ts.create_task(child(), name="child1")
+
+    with VirtualClock().patch_loop():
+        parent_task = asyncio.create_task(parent(), name="parent")
+        await parent_task
+
+        assert graph is not None
+        assert len(graph.awaited_by) == 1  # TaskScope should chain the task awaiters
+        parent_task = cast(asyncio.Task[None], graph.awaited_by[0].future)
+        assert parent_task.get_name() == "parent"
+
+
+@pytest.mark.asyncio
+async def test_TaskScope_partial_failure() -> None:
     results: list[int] = []
     errors: list[BaseException] = []
     tasks: list[asyncio.Task[Any]] = []
     with VirtualClock().patch_loop():
-        async with Supervisor() as supervisor:
-            tasks.append(supervisor.create_task(do_job(0.1, 1)))
-            tasks.append(supervisor.create_task(fail_job(0.2)))
-            tasks.append(supervisor.create_task(do_job(0.3, 3)))
+        async with TaskScope() as ts:
+            tasks.append(ts.create_task(do_job(0.1, 1)))
+            tasks.append(ts.create_task(fail_job(0.2)))
+            tasks.append(ts.create_task(do_job(0.3, 3)))
         for t in tasks:
             try:
                 results.append(t.result())
@@ -59,7 +89,7 @@ async def test_supervisor_partial_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_supervisor_timeout_before_failure() -> None:
+async def test_TaskScope_timeout_before_failure() -> None:
     results: list[int] = []
     errors: list[BaseException] = []
     cancelled = 0
@@ -68,12 +98,12 @@ async def test_supervisor_timeout_before_failure() -> None:
         with pytest.raises(TimeoutError):
             async with (
                 asyncio.timeout(0.15),
-                Supervisor() as supervisor,
+                TaskScope() as ts,
             ):
-                tasks.append(supervisor.create_task(do_job(0.1, 1)))
+                tasks.append(ts.create_task(do_job(0.1, 1)))
                 # timeout here
-                tasks.append(supervisor.create_task(fail_job(0.2)))
-                tasks.append(supervisor.create_task(do_job(0.3, 3)))
+                tasks.append(ts.create_task(fail_job(0.2)))
+                tasks.append(ts.create_task(do_job(0.3, 3)))
         for t in tasks:
             try:
                 results.append(t.result())
@@ -87,7 +117,7 @@ async def test_supervisor_timeout_before_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_supervisor_timeout_after_failure() -> None:
+async def test_TaskScope_timeout_after_failure() -> None:
     results: list[int] = []
     errors: list[BaseException] = []
     cancelled = 0
@@ -96,12 +126,12 @@ async def test_supervisor_timeout_after_failure() -> None:
         with pytest.raises(TimeoutError):
             async with (
                 asyncio.timeout(0.25),
-                Supervisor() as supervisor,
+                TaskScope() as ts,
             ):
-                tasks.append(supervisor.create_task(do_job(0.1, 1)))
-                tasks.append(supervisor.create_task(fail_job(0.2)))
+                tasks.append(ts.create_task(do_job(0.1, 1)))
+                tasks.append(ts.create_task(fail_job(0.2)))
                 # timeout here
-                tasks.append(supervisor.create_task(do_job(0.3, 3)))
+                tasks.append(ts.create_task(do_job(0.3, 3)))
         for t in tasks:
             try:
                 results.append(t.result())

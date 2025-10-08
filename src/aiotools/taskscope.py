@@ -186,7 +186,10 @@ class TaskScope(TaskContext):
             raise RuntimeError(f"{type(self).__name__} {self!r} has not been entered")
         if self._exiting and not self._tasks:
             raise RuntimeError(f"{type(self).__name__} {self!r} is finished")
-        return self._create_task(coro, name=name, context=context)
+        assert self._parent_task is not None
+        task = self._create_task(coro, name=name, context=context)
+        asyncio.future_add_to_awaited_by(task, self._parent_task)
+        return task
 
     # Since Python 3.8 Tasks propagate all exceptions correctly,
     # except for KeyboardInterrupt and SystemExit which are
@@ -209,6 +212,7 @@ class TaskScope(TaskContext):
         assert self._loop is not None
         assert self._parent_task is not None
         self._tasks.discard(task)
+        asyncio.future_discard_from_awaited_by(task, self._parent_task)
         if self._on_completed_fut is not None and not self._tasks:
             if not self._on_completed_fut.done():
                 self._on_completed_fut.set_result(True)
