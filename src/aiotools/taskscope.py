@@ -49,6 +49,14 @@ class TaskScope(TaskContext):
     use :func:`~aiotools.utils.as_completed_safe()` or
     :func:`~aiotools.utils.gather_safe()`.
 
+    When ``shield=True``, the scope is protected from outside cancellations,
+    while re-raising the requested cancellations when terminated.
+    From inside, you may simply raise a new :exc:`asyncio.CancelledError` from the
+    context manager body to self-cancel the shielded scope.
+
+    The ``timeout`` argument enforces timeout even when the scope is shielded,
+    unlike the vanilla :func:`asyncio.timeout()`.
+
     Refer :class:`TaskContext` for the descriptions about the constructor arguments.
 
     Based on this customizability, :class:`~aiotools.supervisor.Supervisor` is a mere
@@ -64,7 +72,7 @@ class TaskScope(TaskContext):
 
     .. versionchanged:: 2.1
 
-       The ``shield=True`` option.
+       The ``shield=True`` and ``timeout`` option.
     """
 
     _tasks: set[asyncio.Task[Any]]
@@ -237,7 +245,8 @@ class TaskScope(TaskContext):
 
     async def aclose(self) -> None:
         """
-        Triggers cancellation and waits for completion.
+        Triggers cancellation of the scope and all its children and waits for completion.
+        This method ignores the shield option.
         """
         self.abort(f"{self!r} is closed")
         await self._wait_completion()
@@ -274,7 +283,9 @@ class TaskScope(TaskContext):
 
     def abort(self, msg: str | None = None) -> None:
         """
-        Triggers cancellation and immediately returns *without* waiting for completion.
+        Triggers cancellation of the scope and all its children and immediately returns *without*
+        waiting for completion.
+        This method ignores the shield option.
         """
         self._aborting = True
         for t in self._tasks:
@@ -336,6 +347,18 @@ async def move_on_after(
 ) -> AsyncIterator[TaskScope]:
     """
     A shortcut to create a :class:`TaskScope` with a timeout while ignoring and continuing after timeout.
+
+    .. code-block:: python
+
+        prior_work()
+        async with move_on_after(3.0) as ts:
+            ts.create_task(...)
+            await some_work()
+        # after 3.0 seconds, any remaining coroutines/tasks within the scope is cancelled,
+        # and the control resumes here.
+        after_work()
+
+    .. versionadded:: 2.1
     """
     try:
         async with TaskScope(timeout=timeout, shield=shield) as ts:
