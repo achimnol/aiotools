@@ -696,7 +696,7 @@ def test_cancel_and_wait_eager_tasks(use_eager_task_factory: bool) -> None:
     async def _test() -> None:
         if use_eager_task_factory:
             loop = asyncio.get_running_loop()
-            loop.set_task_factory(asyncio.eager_task_factory)
+            loop.set_task_factory(asyncio.eager_task_factory)  # type: ignore[attr-defined]
 
         task = asyncio.create_task(eager_task())
         await cancel_and_wait(task)

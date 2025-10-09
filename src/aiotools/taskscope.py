@@ -19,6 +19,8 @@ T = TypeVar("T")
 
 __all__ = ("TaskScope",)
 
+_has_callgraph = hasattr(asyncio, "future_add_to_awaited_by")
+
 
 class TaskScope(TaskContext):
     """
@@ -47,6 +49,12 @@ class TaskScope(TaskContext):
     alias of :class:`TaskScope` with ``exception_handler=None``.
 
     .. versionadded:: 2.0
+
+    .. versionchanged:: 2.1
+
+       In Python 3.14 or higher, it also updates :doc:`the asyncio call graph
+       <python:library/asyncio-graph>` so that the task awaiter could be tracked down
+       via TaskScope, like :class:`asyncio.TaskGroup`.
     """
 
     _tasks: set[asyncio.Task[Any]]
@@ -177,6 +185,7 @@ class TaskScope(TaskContext):
         *,
         name: str | None = None,
         context: Context | None = None,
+        **kwargs: Any,
     ) -> tasks.Task[T]:
         """
         Create a new task in this scope and return it.
@@ -186,7 +195,11 @@ class TaskScope(TaskContext):
             raise RuntimeError(f"{type(self).__name__} {self!r} has not been entered")
         if self._exiting and not self._tasks:
             raise RuntimeError(f"{type(self).__name__} {self!r} is finished")
-        return self._create_task(coro, name=name, context=context)
+        assert self._parent_task is not None
+        task = self._create_task(coro, name=name, context=context, **kwargs)
+        if _has_callgraph:
+            asyncio.future_add_to_awaited_by(task, self._parent_task)  # type: ignore[attr-defined]
+        return task
 
     # Since Python 3.8 Tasks propagate all exceptions correctly,
     # except for KeyboardInterrupt and SystemExit which are
@@ -209,6 +222,8 @@ class TaskScope(TaskContext):
         assert self._loop is not None
         assert self._parent_task is not None
         self._tasks.discard(task)
+        if _has_callgraph:
+            asyncio.future_discard_from_awaited_by(task, self._parent_task)  # type: ignore[attr-defined]
         if self._on_completed_fut is not None and not self._tasks:
             if not self._on_completed_fut.done():
                 self._on_completed_fut.set_result(True)

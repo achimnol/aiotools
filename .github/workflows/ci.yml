@@ -22,6 +22,8 @@ jobs:
         - "3.11"
         - "3.12"
         - "3.13"
+        - "3.14"
+        - "3.14t"
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout the source tree
@@ -55,7 +57,7 @@ jobs:
         jobs: ${{ toJSON(needs) }}
 
   deploy-to-pypi:
-    needs: [test]
+    needs: [required-checks]
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     environment: deploy-to-pypi

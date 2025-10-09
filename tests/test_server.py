@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import glob
+import logging
 import logging.config
 import multiprocessing as mp
 import os
@@ -16,15 +17,10 @@ from types import FrameType
 from typing import Any, Optional, Sequence
 
 import pytest
+from _pytest.mark.structures import ParameterSet
 
 import aiotools
 from aiotools.fork import MPContext
-
-if os.environ.get("CI", "") and sys.version_info < (3, 9, 0):
-    pytest.skip(
-        "skipped to prevent kill CI agents due to signals on CI environments",
-        allow_module_level=True,
-    )
 
 if sys.platform == "win32":
     pytest.skip(
@@ -32,15 +28,18 @@ if sys.platform == "win32":
         allow_module_level=True,
     )
 
-target_mp_contexts = [
-    pytest.param(mp.get_context(method), id=method)
-    for method in mp.get_all_start_methods()
-]
-target_mp_contexts_without_forkserver = [
-    pytest.param(mp.get_context(method), id=method)
-    for method in mp.get_all_start_methods()
-    if method != "forkserver"
-]
+target_mp_contexts: list[ParameterSet] = []
+for method in mp.get_all_start_methods():
+    marks: list[pytest.MarkDecorator] = []
+    if method == "fork":
+        marks.append(
+            pytest.mark.skipif(
+                sys.version_info >= (3, 14),
+                reason="The start_method 'fork' is no longer supported in Python 3.14 or higher.",
+            )
+        )
+    param = pytest.param(mp.get_context(method), marks=marks, id=method)
+    target_mp_contexts.append(param)
 
 
 @pytest.fixture
@@ -488,12 +487,16 @@ def extra_proc_for_custom_stop_signal(
         received_signals[key] = e.args[0]
 
 
-@pytest.mark.parametrize("mp_context", target_mp_contexts_without_forkserver)
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_extra_proc_custom_stop_signal(
     set_timeout: Callable[[float, Callable[..., None]], None],
     restore_signal: None,
     mp_context: MPContext,
 ) -> None:
+    if mp_context.get_start_method() in ("spawn", "forkserver"):
+        pytest.skip(
+            "Custom stop signals with extra procs is not supported due to multiprocessing resource manager gets killed by them."
+        )
     # In local tests, the timeout may be as short as 0.x seconds,
     # but in GitHub Actions, we should assume more than 1 seconds of delay
     # for each worker process spawned.
