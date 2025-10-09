@@ -28,11 +28,18 @@ Modules
 
 Full API documentation: https://aiotools.readthedocs.io
 
+
 See also
 --------
 
-* [aiojobs](https://github.com/aio-libs/aiojobs): A concurrency-limiting, task-shielding scheduler for asyncio tasks for graceful shutdown
+* [anyio](https://github.com/agronholm/anyio): High level asynchronous concurrency and networking framework that works on top of either Trio or asyncio
 * [trio](https://github.com/python-trio/trio): An alternative implementation of asyncio focusing on structured concurrency
+* [aiometer](https://github.com/florimondmanca/aiometer): A Python concurrency scheduling library, compatible with asyncio and trio.
+* [aiojobs](https://github.com/aio-libs/aiojobs): A concurrency-limiting, task-shielding scheduler for asyncio tasks for graceful shutdown
+
+Currently aiotools targets the vanilly asyncio ecosystem only
+(with some tight coupling with asyncio internals),
+but you may find similar problem definitions and alternative solutions in the above libraries.
 
 
 Examples
