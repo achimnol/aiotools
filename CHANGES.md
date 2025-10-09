@@ -16,6 +16,14 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+2.1.0 (2025-10-09)
+------------------
+
+### Features
+* Add `shield` and `timeout` options to `TaskScope`, with a shortcut `move_on_after()` context manager, based on a new `ShieldScope`, while extending `cancel_and_wait()` to accept multiple awaitables ([#90](https://github.com/achimnol/aiotools/issues/90))
+* Support Python 3.14 including `TaskScope` integration with asyncio's new call-graph inspection, updated signature of allowing arbitrary kwargs in `create_task()`, and improved support for the new default "forkserver" start method of multiprocessing in `afork()` and `start_server()` ([#91](https://github.com/achimnol/aiotools/issues/91))
+
+
 2.0.1 (2025-10-06)
 ------------------
 
