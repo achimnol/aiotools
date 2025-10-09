@@ -201,6 +201,10 @@ TaskScope does not store any exceptions or results by itself.
 See also high-level coroutine utilities such as `as_completed_safe()`,
 `gather_safe()`, and `race()` functions in the utils module.
 
+TaskScope itself and these utilities integrate with
+[the call-graph inspection](https://docs.python.org/3/library/asyncio-graph.html)
+introduced in Python 3.14.
+
 
 ### Async Timer
 
