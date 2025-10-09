@@ -197,6 +197,10 @@ async def test_taskscope_external_timeout_when_not_shielded() -> None:
     assert cancelled == 1  # cancelled due to timeout
 
 
+@pytest.mark.xfail(
+    sys.version_info < (3, 13),
+    reason="Use TaskScope(timeout=...) in Python 3.12 or older due to compatibility issues with asyncio.timeout()",
+)
 @pytest.mark.asyncio
 async def test_taskscope_external_timeout_when_shielded() -> None:
     results: list[int] = []

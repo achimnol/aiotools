@@ -245,7 +245,7 @@ class TaskScope(TaskContext):
 
     async def aclose(self) -> None:
         """
-        Triggers cancellation of the scope and all its children and waits for completion.
+        Triggers cancellation of the scope and all its children, then waits for completion.
         This method ignores the shield option.
         """
         self.abort(f"{self!r} is closed")
