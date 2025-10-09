@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
-from asyncio import events, exceptions, tasks
+from asyncio import TimerHandle, events, exceptions, tasks
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from contextvars import Context
 from types import TracebackType
 from typing import (
@@ -12,12 +14,16 @@ from typing import (
     TypeVar,
 )
 
+from .cancel import ShieldScope
 from .taskcontext import ErrorCallback, LoopExceptionHandler, TaskContext
 from .types import CoroutineLike
 
 T = TypeVar("T")
 
-__all__ = ("TaskScope",)
+__all__ = (
+    "TaskScope",
+    "move_on_after",
+)
 
 _has_callgraph = hasattr(asyncio, "future_add_to_awaited_by")
 
@@ -55,6 +61,10 @@ class TaskScope(TaskContext):
        In Python 3.14 or higher, it also updates :doc:`the asyncio call graph
        <python:library/asyncio-graph>` so that the task awaiter could be tracked down
        via TaskScope, like :class:`asyncio.TaskGroup`.
+
+    .. versionchanged:: 2.1
+
+       The ``shield=True`` option.
     """
 
     _tasks: set[asyncio.Task[Any]]
@@ -63,10 +73,17 @@ class TaskScope(TaskContext):
     _entered: bool
     _exiting: bool
     _aborting: bool
+    _shield: bool
+    _shield_scope: ShieldScope
+    _timeout: float | None
+    _timeout_expired: bool
+    _timeout_handler: TimerHandle | None
 
     def __init__(
         self,
         *,
+        shield: bool = False,
+        timeout: float | None = None,
         exception_handler: ErrorCallback
         | LoopExceptionHandler
         | None = LoopExceptionHandler.TOKEN,
@@ -80,6 +97,20 @@ class TaskScope(TaskContext):
         # taskscope-specifics
         self._base_error = None
         self._on_completed_fut = None
+        self._shield = shield
+        self._shield_scope = ShieldScope()
+        self._timeout = timeout
+        self._timeout_expired = False
+        self._timeout_handler = None
+
+    def _on_timeout(self) -> None:
+        self._timeout_expired = True
+        self._timeout_handler = None
+        if self._shield:
+            self._shield_scope.__exit__()  # no longer shielded
+        assert self._parent_task is not None
+        self._parent_task.cancel()  # interrupt the taskscope body
+        self.abort("timeout")  # trigger cancellation of child tasks
 
     async def __aenter__(self) -> Self:
         if self._entered:
@@ -97,6 +128,14 @@ class TaskScope(TaskContext):
                 f"{type(self).__name__} {self!r} cannot determine the parent task"
             )
 
+        self._cancelling = self._parent_task.cancelling()
+
+        if self._timeout is not None:
+            when = self._loop.time() + self._timeout
+            self._timeout_handler = self._loop.call_at(when, self._on_timeout)
+        if self._shield:
+            self._shield_scope.__enter__()
+
         return self
 
     async def __aexit__(
@@ -112,7 +151,17 @@ class TaskScope(TaskContext):
         if exc is not None and self._is_base_error(exc) and self._base_error is None:
             self._base_error = exc
 
-        propagate_cancellation_error = exc if et is exceptions.CancelledError else None
+        propagate_cancellation_error: BaseException | None
+        if self._parent_task.cancelling() > self._cancelling:
+            # If we have received more cancellation requests than the starting point,
+            # raise up the cancellation.
+            # e.g., When there are timeout-based cancellation from outside while the
+            #       TaskScope itself was shielded during its execution.
+            propagate_cancellation_error = exceptions.CancelledError()
+        else:
+            propagate_cancellation_error = (
+                exc if et is exceptions.CancelledError else None
+            )
 
         if et is not None:
             if not self._aborting:
@@ -135,6 +184,14 @@ class TaskScope(TaskContext):
         if prop_ex is not None:
             propagate_cancellation_error = prop_ex
         self._exited = True
+
+        # If the intrinsic timeout is set and expired,
+        # raise up TimeoutError.
+        if self._timeout_expired:
+            prop_exc = propagate_cancellation_error
+            propagate_cancellation_error = asyncio.TimeoutError()
+            propagate_cancellation_error.__context__ = prop_exc
+            propagate_cancellation_error.__cause__ = prop_exc
 
         if self._base_error is not None:
             raise self._base_error
@@ -162,21 +219,27 @@ class TaskScope(TaskContext):
                     # Our parent task is being cancelled:
                     #
                     #    async def wrapper():
-                    #        async with TaskGroup() as g:
-                    #            g.create_task(foo)
+                    #        async with TaskScope() as ts:
+                    #            ts.create_task(foo)
                     #
                     # "wrapper" is being cancelled while "foo" is
                     # still running.
                     propagate_cancellation_error = ex
                     self.abort(msg=ex.args[0] if ex.args else None)
             self._on_completed_fut = None
+
+        if self._timeout_handler is not None and not self._timeout_handler.cancelled():
+            self._timeout_handler.cancel()
+        if self._shield:
+            self._shield_scope.__exit__()
+
         return propagate_cancellation_error
 
     async def aclose(self) -> None:
         """
         Triggers cancellation and waits for completion.
         """
-        self.abort(r"{self!r} is closed")
+        self.abort(f"{self!r} is closed")
         await self._wait_completion()
 
     def create_task(
@@ -265,3 +328,17 @@ class TaskScope(TaskContext):
         #            # Ignore any exceptions raised in the TaskScope
         #            pass
         #        await something_else     # <- unaffected as well
+
+
+@asynccontextmanager
+async def move_on_after(
+    timeout: float | None = None, shield: bool = False
+) -> AsyncIterator[TaskScope]:
+    """
+    A shortcut to create a :class:`TaskScope` with a timeout while ignoring and continuing after timeout.
+    """
+    try:
+        async with TaskScope(timeout=timeout, shield=shield) as ts:
+            yield ts
+    except asyncio.TimeoutError:
+        pass

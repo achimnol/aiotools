@@ -174,10 +174,13 @@ async def test_actxmgr_exception_in_context_body() -> None:
         pytest.fail()
 
     cm = simple_ctx("hello")
-    ret = await cm.__aenter__()
-    assert ret == "hello"
-    ret = await cm.__aexit__(ValueError, None, None)
-    assert not ret
+    ret_enter = await cm.__aenter__()
+    assert ret_enter == "hello"
+    try:
+        raise ValueError()
+    except ValueError:
+        ret_exit = await cm.__aexit__(*sys.exc_info())
+        assert not ret_exit
 
 
 @pytest.mark.asyncio
