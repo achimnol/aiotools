@@ -72,7 +72,7 @@ class TaskScope(TaskContext):
 
     .. versionchanged:: 2.1
 
-       The ``shield=True`` and ``timeout`` option.
+       Added the ``shield`` and ``timeout`` options.
     """
 
     _tasks: set[asyncio.Task[Any]]
