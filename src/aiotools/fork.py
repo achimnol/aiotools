@@ -41,7 +41,7 @@ __all__ = (
     "afork",
 )
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__spec__.name)
 
 if sys.platform != "win32":
     MPProcess: TypeAlias = (
@@ -132,7 +132,7 @@ class PosixChildProcess(AbstractChildProcess):
     def send_signal(self, signum: int) -> None:
         if self._terminated:
             if signum != signal.SIGKILL:
-                logger.warning(
+                log.warning(
                     "PosixChildProcess(%d).send_signal(%d): "
                     "The process has already terminated.",
                     self._pid,
@@ -140,11 +140,11 @@ class PosixChildProcess(AbstractChildProcess):
                 )
             return
         if signum == signal.SIGKILL:
-            logger.warning("Force-killed hanging child: %d", self._pid)
+            log.warning("Force-killed hanging child: %d", self._pid)
         try:
             os.kill(self._pid, signum)
         except ProcessLookupError:
-            logger.warning(
+            log.warning(
                 "PosixChildProcess(%d).send_signal(%d): "
                 "The process has already terminated.",
                 self._pid,
@@ -162,10 +162,13 @@ class PosixChildProcess(AbstractChildProcess):
                         break
                     await asyncio.sleep(self.poll_interval)
             except ChildProcessError:
-                # Since we have already checked for the process's existence,
-                # we can assume that the process has terminated.
-                self._returncode = 255
-        self._proc.join()  # let multiprocessing clean up itself
+                # The child process may have already terminated.
+                self._proc.join()  # let multiprocessing retrieve its tracked exit code
+                self._returncode = (
+                    self._proc.exitcode if self._proc.exitcode is not None else 255
+                )
+            else:
+                self._proc.join()  # let multiprocessing clean up itself
         self._terminated = True
         return self._returncode
 
@@ -198,7 +201,7 @@ class PidfdChildProcess(AbstractChildProcess):
     def send_signal(self, signum: int) -> None:
         if self._terminated:
             if signum != signal.SIGKILL:
-                logger.warning(
+                log.warning(
                     "PidfdChildProcess(%d, %d).send_signal(%d): "
                     "The process has already terminated.",
                     self._pid,
@@ -207,7 +210,7 @@ class PidfdChildProcess(AbstractChildProcess):
                 )
             return
         if signum == signal.SIGKILL:
-            logger.warning("Force-killed hanging child: %d", self._pid)
+            log.warning("Force-killed hanging child: %d", self._pid)
         signal.pidfd_send_signal(self._pidfd, signum)  # type: ignore
 
     def _do_wait(self) -> None:
@@ -223,8 +226,11 @@ class PidfdChildProcess(AbstractChildProcess):
         except ChildProcessError:
             # The child process is already reaped
             # (may happen if waitpid() is called elsewhere).
-            self._returncode = 255
-            logger.warning(
+            self._proc.join()  # let multiprocessing retrieve its exit code
+            self._returncode = (
+                self._proc.exitcode if self._proc.exitcode is not None else 255
+            )
+            log.warning(
                 "child process %d exit status already read: "
                 "it will report returncode 255",
                 self._pid,
@@ -240,7 +246,7 @@ class PidfdChildProcess(AbstractChildProcess):
             elif status_info.si_code == os.CLD_DUMPED:
                 self._returncode = -status_info.si_status  # signal number
             else:
-                logger.warning(
+                log.warning(
                     "unexpected si_code %d and si_status %d for child process %d",
                     status_info.si_code,
                     status_info.si_status,
@@ -250,7 +256,6 @@ class PidfdChildProcess(AbstractChildProcess):
         finally:
             loop.remove_reader(self._pidfd)
             os.close(self._pidfd)
-            self._proc.join()  # let multiprocessing clean up itself
             self._terminated = True
             self._wait_event.set()
 
@@ -284,7 +289,6 @@ def _child_main(
         traceback.print_exc()
     finally:
         os._exit(ret)
-    return ret
 
 
 async def _fork_posix(

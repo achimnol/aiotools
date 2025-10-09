@@ -31,7 +31,7 @@ __all__ = (
 current_ptaskgroup: ContextVar[PersistentTaskGroup] = ContextVar("current_ptaskgroup")  # type: ignore[deprecated]
 
 _ptaskgroup_idx = itertools.count()
-_log = logging.getLogger(__name__)
+_log = logging.getLogger(__spec__.name)
 _all_ptaskgroups: weakref.WeakSet[PersistentTaskGroup] = weakref.WeakSet()  # type: ignore[deprecated]
 
 T = TypeVar("T")

@@ -64,6 +64,12 @@ class TaskContext:
 
     If you provide ``context``, it will be passed to :meth:`create_task()` by default.
 
+    .. note::
+
+       Unlike :class:`~aiotools.taskscope.TaskScope`, TaskContext does not update
+       the callgraph introduced in Python 3.14 as it does not implement completion-based
+       waiting semantics but just grouped cancellation when explicitly requested.
+
     .. versionadded:: 2.0
     """
 
@@ -139,6 +145,7 @@ class TaskContext:
         *,
         name: str | None = None,
         context: Context | None = None,
+        **kwargs: Any,
     ) -> asyncio.Task[T]:
         """
         Create a new task in this scope and return it.
@@ -154,7 +161,7 @@ class TaskContext:
                 "{type(self).__name__} must be used within a single parent task."
             )
         self._parent_task = parent_task
-        return self._create_task(coro, name=name, context=context)
+        return self._create_task(coro, name=name, context=context, **kwargs)
 
     def _create_task(
         self,
@@ -162,6 +169,7 @@ class TaskContext:
         *,
         name: str | None = None,
         context: Context | None = None,
+        **kwargs: Any,
     ) -> asyncio.Task[T]:
         assert self._loop is not None
         if self._aborting:
@@ -170,6 +178,7 @@ class TaskContext:
             coro,
             name=name,
             context=self._default_context if context is None else context,
+            **kwargs,
         )
         # optimization: Immediately call the done callback if the task is
         # already done (e.g. if the coro was able to complete eagerly),
