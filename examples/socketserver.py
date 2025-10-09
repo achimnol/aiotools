@@ -6,7 +6,7 @@ from typing import Any
 import aiotools
 
 
-async def echo(reader, writer):
+async def echo(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     data = await reader.read(100)
     writer.write(data)
     await writer.drain()

@@ -25,10 +25,17 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from typing import Any
 
 import pytest
 
-from aiotools import ErrorArg, TaskScope, VirtualClock, cancel_and_wait
+from aiotools import (
+    ErrorArg,
+    ShieldScope,
+    TaskScope,
+    VirtualClock,
+    cancel_and_wait,
+)
 
 
 @pytest.mark.asyncio
@@ -103,6 +110,80 @@ async def test_cancel_and_wait_simple_task_long_cancellation() -> None:
         await asyncio.sleep(0.05)
         await cancel_and_wait(task)
         assert result_holder == ["cancelled"]
+        assert task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_simple_task_shielded() -> None:
+    """
+    Test cancellation on a task that its body is shielded.
+    """
+    result_holder: list[str] = []
+
+    async def simple_task() -> None:
+        result_holder.append("task-start")
+        await asyncio.sleep(0.1)
+        with ShieldScope():
+            result_holder.append("shield-start")
+            await asyncio.sleep(0.1)
+            result_holder.append("shield-end")
+        await asyncio.sleep(0.1)
+        result_holder.append("task-done")
+
+    with VirtualClock().patch_loop():
+        task = asyncio.create_task(simple_task())
+        await asyncio.sleep(0.05)
+        # Cancelling before entering a shieldscope should be cancelled normally.
+        await cancel_and_wait(task)
+        assert result_holder == ["task-start"]
+        assert task.cancelled()
+
+        result_holder.clear()
+        task = asyncio.create_task(simple_task())
+        await asyncio.sleep(0.15)
+        # The shieldscope raises the cancellation received from cancel_and_wait(),
+        # so cancel_and_wait() SHOULD NOT raise InvalidStateError.
+        await cancel_and_wait(task)
+        # The task is marked as cancelled, while its body is complete.
+        assert result_holder == ["task-start", "shield-start", "shield-end"]
+        assert task.cancelled()
+
+        result_holder.clear()
+        task = asyncio.create_task(simple_task())
+        await asyncio.sleep(0.25)
+        # The shieldscope should have restored the original task cancellation machinery.
+        await cancel_and_wait(task)
+        # The task is marked as cancelled, while its body is complete.
+        assert result_holder == ["task-start", "shield-start", "shield-end"]
+        assert task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_simple_task_self_cancelled_within_shield_scope() -> None:
+    """
+    Test cancellation on a task that its body is shielded but cancels by itself.
+    """
+    result_holder: list[str] = []
+
+    async def simple_task() -> None:
+        result_holder.append("task-start")
+        await asyncio.sleep(0.1)
+        with ShieldScope():
+            result_holder.append("shield-start")
+            await asyncio.sleep(0.1)
+            result_holder.append("shield-middle")
+            raise asyncio.CancelledError
+            # should not reach here
+            result_holder.append("shield-end")
+
+    with VirtualClock().patch_loop():
+        result_holder.clear()
+        task = asyncio.create_task(simple_task())
+        # The shield scope should transparently raise-up the cancellation.
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        # The task is marked as cancelled, while its body is complete until cancellation.
+        assert result_holder == ["task-start", "shield-start", "shield-middle"]
         assert task.cancelled()
 
 
@@ -713,3 +794,202 @@ def test_cancel_and_wait_eager_tasks(use_eager_task_factory: bool) -> None:
             assert task.cancelled()
 
     asyncio.run(_test())
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_grouped_cancellation() -> None:
+    """
+    Test cancellation of a group of tasks (without TaskScope)
+    """
+
+    async def simple_task(work_delay: float = 0.1, cancel_delay: float = 0.1) -> str:
+        try:
+            await asyncio.sleep(work_delay)
+            return "done"
+        except asyncio.CancelledError:
+            await asyncio.sleep(cancel_delay)
+            raise
+
+    async def failing_task(work_delay: float = 0.1) -> str:
+        await asyncio.sleep(work_delay)
+        raise ZeroDivisionError
+
+    with VirtualClock().patch_loop():
+        tasks = [
+            asyncio.create_task(simple_task()),
+            asyncio.create_task(simple_task()),
+            asyncio.create_task(simple_task()),
+            asyncio.create_task(simple_task()),
+        ]
+        await asyncio.sleep(0.05)
+        await cancel_and_wait(tasks)
+        assert tasks[0].cancelled()
+        assert tasks[1].cancelled()
+        assert tasks[2].cancelled()
+        assert tasks[3].cancelled()
+
+        tasks = [
+            asyncio.create_task(simple_task()),
+            asyncio.create_task(simple_task()),
+            asyncio.create_task(simple_task()),
+            asyncio.create_task(simple_task()),
+        ]
+        await asyncio.sleep(0.15)
+        await cancel_and_wait(tasks)
+        assert tasks[0].result() == "done"
+        assert tasks[1].result() == "done"
+        assert tasks[2].result() == "done"
+        assert tasks[3].result() == "done"
+
+        tasks = [
+            asyncio.create_task(simple_task(0.2)),
+            asyncio.create_task(simple_task(0.2)),
+            asyncio.create_task(simple_task(0.1)),
+            asyncio.create_task(simple_task(0.1)),
+        ]
+        await asyncio.sleep(0.15)
+        await cancel_and_wait(tasks)
+        # Completed tasks finish earlier.
+        assert tasks[0].cancelled()
+        assert tasks[1].cancelled()
+        assert tasks[2].result() == "done"
+        assert tasks[3].result() == "done"
+
+        tasks = [
+            asyncio.create_task(simple_task(0.2)),  # cancelled
+            asyncio.create_task(simple_task(0.2)),  # cancelled
+            asyncio.create_task(failing_task(0.13)),  # failed
+            asyncio.create_task(simple_task(0.1)),  # done
+            asyncio.create_task(failing_task(0.23)),  # cancelled
+            asyncio.create_task(simple_task(0.3)),  # cancelled
+        ]
+        await asyncio.sleep(0.15)
+        await cancel_and_wait(tasks)
+        # Completed tasks finish earlier.
+        assert tasks[0].cancelled()
+        assert tasks[1].cancelled()
+        assert isinstance(tasks[2].exception(), ZeroDivisionError)
+        assert tasks[3].result() == "done"
+        assert tasks[4].cancelled()
+        assert tasks[5].cancelled()
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_cancelling_cancellation() -> None:
+    """
+    Test cancelling cancellation.
+    """
+    results: list[str] = []
+
+    async def simple_task() -> None:
+        try:
+            await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            results.append("cancelling")
+            await asyncio.sleep(0.1)
+            results.append("cancelled")
+            raise
+
+    async def canceller(t: asyncio.Task[Any]) -> None:
+        await cancel_and_wait(t)
+
+    with VirtualClock().patch_loop():
+        t1 = asyncio.create_task(simple_task())
+        await asyncio.sleep(0.05)
+        # At this point, t1 is running.
+
+        t2 = asyncio.create_task(canceller(t1))
+        await asyncio.sleep(0)
+        # t2 triggers cancellation of t1.
+        # At this point, t2 is waiting for cancellation handler in t1.
+
+        t3 = asyncio.create_task(canceller(t2))
+        await t3
+        # t3 triggers cancellation of t2.
+        # At this point, t2 is cancelled raising up the injected CancelledError.
+        # At this point, t1's cancellation is also cancelled.
+
+        assert t1.cancelled()
+        assert t2.cancelled()
+        assert results == ["cancelling"]  # not concluded
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_cancelling_shielded_cancellation() -> None:
+    """
+    Test cancelling shielded cancellation.
+
+    As the cancellation handler is shielded, it should run to completion,
+    even when the canceller is cancelled.
+    """
+    results: list[str] = []
+
+    async def simple_task() -> None:
+        try:
+            await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            with ShieldScope():
+                results.append("cancelling")
+                await asyncio.sleep(0.5)
+                results.append("cancelled")
+                raise
+
+    async def canceller(t: asyncio.Task[Any]) -> None:
+        await cancel_and_wait(t)
+
+    with VirtualClock().patch_loop():
+        t1 = asyncio.create_task(simple_task())
+        await asyncio.sleep(0.05)
+        # At this point, t1 is running.
+
+        t2 = asyncio.create_task(canceller(t1))
+        await asyncio.sleep(0)
+        # t2 triggers cancellation of t1.
+        # At this point, t2 is waiting for cancellation handler in t1.
+
+        t3 = asyncio.create_task(canceller(t2))
+        await t3
+        # t3 triggers cancellation of t2.
+        # At this point, t2 is cancelled raising up the injected CancelledError.
+        # At this point, t1's cancellation continues thanks to shield_scope.
+        # awaiting t3 makes the control flow to suspend until t1, t2's completion
+
+        assert t1.cancelled()
+        assert t2.cancelled()
+        assert results == ["cancelling", "cancelled"]  # concluded
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_shielded_taskscope() -> None:
+    results: list[int] = []
+    errors: list[BaseException] = []
+    cancelled = 0
+    tasks: list[asyncio.Task[Any]] = []
+
+    async def fail_after(delay: float) -> None:
+        await asyncio.sleep(delay)
+        raise ZeroDivisionError()
+
+    async def parent():
+        async with TaskScope(shield=True) as ts:
+            tasks.append(ts.create_task(asyncio.sleep(0.1, 1)))
+            tasks.append(ts.create_task(fail_after(0.2)))
+            # cancelled here
+            tasks.append(ts.create_task(asyncio.sleep(0.3, 3)))
+
+    with VirtualClock().patch_loop():
+        parent_task = asyncio.create_task(parent())
+        await asyncio.sleep(0.25)
+        await cancel_and_wait(parent_task)
+        for t in tasks:
+            try:
+                results.append(t.result())
+            except asyncio.CancelledError:
+                cancelled += 1
+            except Exception as e:
+                errors.append(e)
+
+    assert results == [1, 3]
+    assert len(errors) == 1
+    assert isinstance(errors[0], ZeroDivisionError)
+    assert cancelled == 0  # nothing is cancelled

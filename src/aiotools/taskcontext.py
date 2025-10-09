@@ -132,10 +132,7 @@ class TaskContext:
         self._aborting = True
         try:
             # NOTE: unhandled exceptions are captured by our own task-done handler.
-            await asyncio.gather(
-                *(cancel_and_wait(t) for t in self._tasks),
-                return_exceptions=True,
-            )
+            await cancel_and_wait(self._tasks)
         finally:
             self._exited = True
 

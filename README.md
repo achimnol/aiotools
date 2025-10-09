@@ -12,19 +12,19 @@ Idiomatic asyncio utilities
 Modules
 -------
 
-* [Safe Cancellation](http://aiotools.readthedocs.io/en/latest/aiotools.cancel.html)
-* [Async Context Manager](http://aiotools.readthedocs.io/en/latest/aiotools.context.html)
-* [Async Defer](http://aiotools.readthedocs.io/en/latest/aiotools.defer.html)
-* [Async Fork](http://aiotools.readthedocs.io/en/latest/aiotools.fork.html)
-* [Async Functools](http://aiotools.readthedocs.io/en/latest/aiotools.func.html)
-* [Async Itertools](http://aiotools.readthedocs.io/en/latest/aiotools.iter.html)
-* [Async Server](http://aiotools.readthedocs.io/en/latest/aiotools.server.html)
-* [Async Timer](http://aiotools.readthedocs.io/en/latest/aiotools.timer.html)
-* [TaskContext](http://aiotools.readthedocs.io/en/latest/aiotools.taskcontext.html)
-* [TaskScope](http://aiotools.readthedocs.io/en/latest/aiotools.taskscope.html)
-* (alias of TaskScope) [Supervisor](http://aiotools.readthedocs.io/en/latest/aiotools.supervisor.html)
-* (deprecated since 2.0) [(Persistent)TaskGroup](http://aiotools.readthedocs.io/en/latest/aiotools.taskgroup.html)
-* [High-level Coroutine Utilities](http://aiotools.readthedocs.io/en/latest/aiotools.utils.html)
+* [Safe Cancellation](https://aiotools.readthedocs.io/en/latest/aiotools.cancel.html)
+* [Async Context Manager](https://aiotools.readthedocs.io/en/latest/aiotools.context.html)
+* [Async Defer](https://aiotools.readthedocs.io/en/latest/aiotools.defer.html)
+* [Async Fork](https://aiotools.readthedocs.io/en/latest/aiotools.fork.html)
+* [Async Functools](https://aiotools.readthedocs.io/en/latest/aiotools.func.html)
+* [Async Itertools](https://aiotools.readthedocs.io/en/latest/aiotools.iter.html)
+* [Async Server](https://aiotools.readthedocs.io/en/latest/aiotools.server.html)
+* [Async Timer](https://aiotools.readthedocs.io/en/latest/aiotools.timer.html)
+* [TaskContext](https://aiotools.readthedocs.io/en/latest/aiotools.taskcontext.html)
+* [TaskScope](https://aiotools.readthedocs.io/en/latest/aiotools.taskscope.html)
+* (alias of TaskScope) [Supervisor](https://aiotools.readthedocs.io/en/latest/aiotools.supervisor.html)
+* (deprecated since 2.0) [(Persistent)TaskGroup](https://aiotools.readthedocs.io/en/latest/aiotools.taskgroup.html)
+* [High-level Coroutine Utilities](https://aiotools.readthedocs.io/en/latest/aiotools.utils.html)
 
 Full API documentation: https://aiotools.readthedocs.io
 
@@ -45,13 +45,16 @@ but you may find similar problem definitions and alternative solutions in the ab
 Examples
 --------
 
+Below are some highlighted usecases of aiotools.
+Please refer more detailed logic and backgrounds in [the documentation](https://aiotools.readthedocs.io).
+
 ### Safe Cancellation
 
 Consider the following commonly used pattern:
 ```python
 task = asyncio.create_task(...)
 task.cancel()
-await task  # would it raise CancelledError or not?
+await task  # PROBLEM: would it raise CancelledError or not? should we propagate it or not?
 ```
 
 It has been the reponsibility of the author of tasks and the caller of them to
@@ -69,6 +72,28 @@ Relying on this API whenever you need to cancel asyncio tasks will make your
 codebase more consistent because you no longer need to decide whether to
 (re-)raise or suppress `CancelledError` in your task codes.
 
+You may also combine `cancel_and_wait()` with `ShieldScope` to guard
+a block of codes from cancellation in the middle but defer the cancellation
+to the end of the block.
+
+```python
+async def work():
+    try:
+        ...
+    except asyncio.CancelledError:
+        with aiotools.ShieldScope():
+            await cleanup()  # any async code here is not affected by multiple cancellation
+            raise
+
+async def parent():
+    work_task = asyncio.create_task(work())
+    ...
+    await cancel_and_wait(work_task)
+
+parent_task = asyncio.create_task(parent())
+...
+await cancel_and_wait(parent_task)  # it may trigger double cancellation, but it will return after the shielded block completes.
+```
 
 ### Async Context Manager
 

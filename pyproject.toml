@@ -105,6 +105,7 @@ testpaths = ["tests"]
 [tool.mypy]
 mypy_path = ["src", "tests", "examples"]
 ignore_missing_imports = true
+python_version = "3.14"
 
 [tool.black]
 line-length = 88
@@ -134,4 +135,7 @@ dev = [
 docs = [
     "sphinx>=8.2.3",
     "sphinx-rtd-theme>=3.0.2",
+]
+example = [
+    "pyzmq>=27.1.0",
 ]

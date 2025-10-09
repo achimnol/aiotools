@@ -86,6 +86,7 @@ async def test_timer_leak_default() -> None:
                 done_count += 1
             except asyncio.CancelledError:
                 cancel_count += 1
+                raise
 
         task_count = len(aiotools.compat.all_tasks())
         timer = aiotools.create_timer(delayed, 1)
@@ -116,6 +117,7 @@ async def test_timer_leak_cancel() -> None:
                 await asyncio.sleep(1)
             except asyncio.CancelledError:
                 cancel_count += 1
+                raise
             else:
                 done_count += 1
 
@@ -152,6 +154,7 @@ async def test_timer_leak_nocancel() -> None:
                 await asyncio.sleep(0)
             except asyncio.CancelledError:
                 cancel_count += 1
+                raise
             else:
                 done_count += 1
 

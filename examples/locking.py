@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncIterator
 
 import aiotools
 
@@ -6,7 +7,7 @@ lock = asyncio.Lock()
 
 
 @aiotools.actxmgr
-async def mygen(input_value):
+async def mygen(input_value: str) -> AsyncIterator[str]:
     print(input_value)
     await lock.acquire()
     print("The lock is acquired.")
@@ -17,7 +18,7 @@ async def mygen(input_value):
         print("The lock is released.")
 
 
-async def run():
+async def main() -> None:
     try:
         async with mygen("input_value") as return_value:
             print(return_value)
@@ -27,9 +28,4 @@ async def run():
 
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(run())
-    finally:
-        loop.stop()
+    asyncio.run(main())
