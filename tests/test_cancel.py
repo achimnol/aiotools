@@ -61,6 +61,36 @@ async def test_cancel_and_wait_simple_task_already_done() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cancel_swallowed() -> None:
+    """
+    Test if cancel_and_wait() correctly distinguish whether
+    the task is explicitly uncanceled or the task has properly
+    swallowed the cancellation by calling ``current_task.uncancel()``.
+    """
+    result_holder: list[str] = []
+
+    async def silent_task() -> None:
+        try:
+            result_holder.append("start")
+            await asyncio.sleep(0.1)
+            result_holder.append("done")
+        except asyncio.CancelledError:
+            result_holder.append("cancelling")
+            current_task = asyncio.current_task()
+            assert current_task is not None
+            await asyncio.sleep(0.1)
+            current_task.uncancel()
+            result_holder.append("swallowed")
+
+    with VirtualClock().patch_loop():
+        task = asyncio.create_task(silent_task())
+        await asyncio.sleep(0.05)
+        await cancel_and_wait(task)
+        assert task.done()
+        assert not task.cancelled()
+
+
+@pytest.mark.asyncio
 async def test_cancel_and_wait_cancelled_by_another() -> None:
     """
     Test cancel_and_wait() on a task that's already completed.
