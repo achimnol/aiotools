@@ -88,6 +88,7 @@ async def test_cancel_swallowed() -> None:
         await cancel_and_wait(task)
         assert task.done()
         assert not task.cancelled()
+        assert result_holder == ["start", "cancelling", "swallowed"]
 
 
 @pytest.mark.asyncio
