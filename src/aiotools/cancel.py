@@ -73,14 +73,16 @@ async def cancel_and_wait(
         try:
             await task
         except asyncio.CancelledError:
-            if task.cancelling() != cancelling_expected:
+            if task.cancelling() > cancelling_expected:
                 raise
             else:
                 return  # this is the only non-exceptional return
         else:
-            raise asyncio.InvalidStateError(
-                f"The cancelled task {task!r} did not raise up cancellation."
-            )
+            # the cancellation request count may be reduced to zero by explicit uncancellation.
+            if task.cancelling() > 0:
+                raise asyncio.InvalidStateError(
+                    f"The cancelled task {task!r} did not raise up cancellation."
+                )
 
 
 class ShieldScope:
@@ -107,9 +109,6 @@ class ShieldScope:
 
     def _cancel(self, msg: str | None = None) -> bool:
         self._cancel_messages.append(msg)
-        if msg == "deadline exceeded":
-            # for timeouts, exit immediately.
-            self.__exit__()
         return True
 
     def _cancelling(self) -> int:
