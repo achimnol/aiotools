@@ -190,6 +190,57 @@ async def test_cancel_and_wait_simple_task_shielded() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cancel_and_wait_simple_task_shielded_nested() -> None:
+    """
+    Test cancellation on a task that its body is "deeply" shielded.
+    """
+    result_holder: list[str] = []
+
+    async def nested_task() -> None:
+        result_holder.append("task-start")
+        await asyncio.sleep(0.1)
+        with ShieldScope():
+            result_holder.append("shield-step0")
+            await asyncio.sleep(0.1)
+            with ShieldScope():
+                result_holder.append("shield-step1")
+                await asyncio.sleep(0.1)
+                result_holder.append("shield-step2")
+            await asyncio.sleep(0.1)
+            result_holder.append("shield-step3")
+        await asyncio.sleep(0.1)
+        result_holder.append("task-done")
+
+    with VirtualClock().patch_loop():
+        task = asyncio.create_task(nested_task())
+        await asyncio.sleep(0.15)
+        await cancel_and_wait(task)
+        # It should be cancelled when exiting the outmost shieldscope.
+        assert result_holder == [
+            "task-start",
+            "shield-step0",
+            "shield-step1",
+            "shield-step2",
+            "shield-step3",
+        ]
+        assert task.cancelled()
+
+        result_holder.clear()
+        task = asyncio.create_task(nested_task())
+        await asyncio.sleep(0.25)
+        await cancel_and_wait(task)
+        # It should be cancelled when exiting the outmost shieldscope.
+        assert result_holder == [
+            "task-start",
+            "shield-step0",
+            "shield-step1",
+            "shield-step2",
+            "shield-step3",
+        ]
+        assert task.cancelled()
+
+
+@pytest.mark.asyncio
 async def test_cancel_and_wait_simple_task_self_cancelled_within_shield_scope() -> None:
     """
     Test cancellation on a task that its body is shielded but cancels by itself.
