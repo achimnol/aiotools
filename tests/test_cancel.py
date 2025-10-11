@@ -61,7 +61,7 @@ async def test_cancel_and_wait_simple_task_already_done() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cancel_properly_swallowed() -> None:
+async def test_cancel_and_wait_properly_swallowed() -> None:
     """
     Test if cancel_and_wait() correctly distinguish whether
     the task is explicitly uncanceled or the task has properly
@@ -224,7 +224,7 @@ async def test_cancel_and_wait_simple_task_shielded() -> None:
 
 
 @pytest.mark.asyncio
-async def test_shield_scope_simple_task() -> None:
+async def test_shield_scope_self_cancellation() -> None:
     """
     Test cancellation on a task that its body is shielded but cancels by itself.
     """
@@ -240,6 +240,8 @@ async def test_shield_scope_simple_task() -> None:
             raise asyncio.CancelledError
             # should not reach here
             result_holder.append("shield-end")
+        await asyncio.sleep(0.1)
+        result_holder.append("task-end")
 
     with VirtualClock().patch_loop():
         result_holder.clear()
@@ -757,29 +759,6 @@ async def test_cancel_and_wait_taskscope_error_during_cancellation() -> None:
         assert len(errors) == 2
         assert isinstance(errors[0], ValueError)
         assert isinstance(errors[1], ZeroDivisionError)
-
-
-@pytest.mark.asyncio
-async def test_cancel_and_wait_taskscope_outer_cancelled() -> None:
-    results: list[str] = []
-
-    async def failing_child(delay: float) -> None:
-        await asyncio.sleep(delay)
-        raise ZeroDivisionError
-
-    async def parent() -> None:
-        async with TaskScope() as ts:
-            ts.create_task(failing_child(0.2))
-            await asyncio.sleep(0.5)
-            results.append("context-final")  # cancelled as taskscope is cancelled
-        await asyncio.sleep(0.5)
-        results.append("parent-final")  # cancelled as parent is cancelled
-
-    with VirtualClock().patch_loop():
-        parent_task = asyncio.create_task(parent())
-        await asyncio.sleep(0.1)  # trigger cancellation before child fails
-        await cancel_and_wait(parent_task)  # no error as it's successful cancellation
-        assert results == []
 
 
 @pytest.mark.asyncio

@@ -6,7 +6,6 @@ from importlib.metadata import version
 __version__ = version("aiotools")
 
 from .cancel import (
-    ShieldScope,
     cancel_and_wait,
 )
 from .compat import (
@@ -68,6 +67,7 @@ from .taskgroup import (
     current_taskgroup,
 )
 from .taskscope import (
+    ShieldScope,
     TaskScope,
     move_on_after,
 )
@@ -96,7 +96,6 @@ main = main_context
 
 __all__ = (
     # .cancel
-    "ShieldScope",
     "cancel_and_wait",
     # .compat
     "all_tasks",
@@ -155,6 +154,7 @@ __all__ = (
     "current_ptaskgroup",
     # .taskscope
     "TaskScope",
+    "ShieldScope",
     "move_on_after",
     # .timeouts
     "Timeout",

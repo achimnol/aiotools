@@ -77,9 +77,9 @@ class TaskContext:
     # fire-and-forget tasks until Python 3.13. In Python 3.14, it will be changed as
     # per-thread doubly-linked lists to support free-threaded (nogil) setups to avoid
     # lock contention in the weakref subsystem.
+    _loop: asyncio.AbstractEventLoop
     _tasks: set[asyncio.Task[Any]]
-    _parent_task: asyncio.Task[Any] | None
-    _loop: asyncio.AbstractEventLoop | None
+    _host_task: asyncio.Task[Any] | None
     _exception_handler: ErrorCallback | LoopExceptionHandler | None
     _default_context: contextvars.Context | None
     _entered: bool
@@ -94,9 +94,9 @@ class TaskContext:
         | None = LoopExceptionHandler.TOKEN,
         context: contextvars.Context | None = None,
     ) -> None:
-        self._loop = None
+        self._loop = asyncio.get_running_loop()
         self._tasks = set()
-        self._parent_task = None
+        self._host_task = None
         self._exception_handler = exception_handler
         self._default_context = context
         # status flags
@@ -150,14 +150,13 @@ class TaskContext:
         """
         if not self._entered:
             self._entered = True
-            self._loop = asyncio.get_running_loop()
-        parent_task = asyncio.current_task()
-        assert parent_task is not None
-        if self._parent_task is not None and parent_task is not self._parent_task:
+        host_task = asyncio.current_task()
+        assert host_task is not None
+        if self._host_task is not None and host_task is not self._host_task:
             raise RuntimeError(
                 "{type(self).__name__} must be used within a single parent task."
             )
-        self._parent_task = parent_task
+        self._host_task = host_task
         return self._create_task(coro, name=name, context=context, **kwargs)
 
     def _create_task(
@@ -168,7 +167,6 @@ class TaskContext:
         context: Context | None = None,
         **kwargs: Any,
     ) -> asyncio.Task[T]:
-        assert self._loop is not None
         if self._aborting:
             raise RuntimeError(f"{type(self).__name__} {self!r} is shutting down")
         task: asyncio.Task[T] = self._loop.create_task(
@@ -197,7 +195,6 @@ class TaskContext:
         self._handle_task_exception(task)
 
     def _handle_task_exception(self, task: asyncio.Task[Any]) -> None:
-        assert self._loop is not None
         exc = task.exception()
         assert exc is not None
         match self._exception_handler:
@@ -207,7 +204,7 @@ class TaskContext:
                 func({
                     "message": (
                         f"Task {task!r} has errored inside the parent "
-                        f"task {self._parent_task}"
+                        f"task {self._host_task}"
                     ),
                     "exception": exc,
                     "task": task,
@@ -216,7 +213,7 @@ class TaskContext:
                 self._loop.call_exception_handler({
                     "message": (
                         f"Task {task!r} has errored inside the parent "
-                        f"task {self._parent_task}"
+                        f"task {self._host_task}"
                     ),
                     "exception": exc,
                     "task": task,

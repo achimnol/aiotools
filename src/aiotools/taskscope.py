@@ -3,29 +3,38 @@ from __future__ import annotations
 import asyncio
 import contextvars
 from asyncio import TimerHandle, events, exceptions, tasks
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from contextvars import Context
+from dataclasses import dataclass
 from types import TracebackType
 from typing import (
     Any,
+    Final,
     Self,
     TypeGuard,
     TypeVar,
 )
 
-from .cancel import ShieldScope
 from .taskcontext import ErrorCallback, LoopExceptionHandler, TaskContext
-from .types import CoroutineLike
+from .types import CoroutineLike, OptExcInfo
 
 T = TypeVar("T")
 
 __all__ = (
     "TaskScope",
+    "ShieldScope",
     "move_on_after",
 )
 
-_has_callgraph = hasattr(asyncio, "future_add_to_awaited_by")
+
+@dataclass(slots=True)
+class _TaskState:
+    task_scope: TaskScope | None
+
+
+_task_states: dict[asyncio.Task[Any], _TaskState] = {}
+_has_callgraph: Final = hasattr(asyncio, "future_add_to_awaited_by")
 
 
 class TaskScope(TaskContext):
@@ -54,6 +63,11 @@ class TaskScope(TaskContext):
     From inside, you may simply raise a new :exc:`asyncio.CancelledError` from the
     context manager body to self-cancel the shielded scope.
 
+    You may nest and mix multiple TaskScope and even :class:`asyncio.TaskGroup`
+    within a single task or via subtask chains.  In such cases, cancelling the
+    outmost parent task will be shielded by the topmost TaskScope with ``shield=True``
+    or :class:`ShieldScope`.
+
     The ``timeout`` argument enforces timeout even when the scope is shielded,
     unlike the vanilla :func:`asyncio.timeout()`.
 
@@ -73,6 +87,12 @@ class TaskScope(TaskContext):
     .. versionchanged:: 2.1
 
        Added the ``shield`` and ``timeout`` options.
+
+    .. versionchanged:: 2.2
+
+       Now nesting and mixing TaskScope and TaskGroup is fully supported and
+       behaves consistently, by deferring the cancellation at the topmost
+       shielded scope.
     """
 
     _tasks: set[asyncio.Task[Any]]
@@ -82,10 +102,15 @@ class TaskScope(TaskContext):
     _exiting: bool
     _aborting: bool
     _shield: bool
-    _shield_scope: ShieldScope
     _timeout: float | None
     _timeout_expired: bool
     _timeout_handler: TimerHandle | None
+    _parent_scope: TaskScope | None
+    _child_scopes: set[TaskScope]
+    _cancel_requests: list[str | None]
+    _host_cancel: Callable[[str | None], bool] | None
+    _host_cancelling: Callable[[], int] | None
+    _host_uncancel: Callable[[], int] | None
 
     def __init__(
         self,
@@ -105,71 +130,150 @@ class TaskScope(TaskContext):
         # taskscope-specifics
         self._base_error = None
         self._on_completed_fut = None
+        self._parent_scope = None
+        self._child_scopes = set()
         self._shield = shield
-        self._shield_scope = ShieldScope()
         self._timeout = timeout
         self._timeout_expired = False
         self._timeout_handler = None
+        self._loop = events.get_running_loop()
+        self._cancel_requests = []
 
     def _on_timeout(self) -> None:
         self._timeout_expired = True
         self._timeout_handler = None
-        if self._shield:
-            self._shield_scope.__exit__()  # no longer shielded
-        assert self._parent_task is not None
-        self._parent_task.cancel()  # interrupt the taskscope body
+        assert self._host_task is not None
+        assert self._host_cancel is not None
         self.abort("timeout")  # trigger cancellation of child tasks
+        self._host_cancel("timeout")  # interrupt the taskscope body
 
-    async def __aenter__(self) -> Self:
+    def _cancel(self, msg: str | None = None) -> bool:
+        if self._shield:
+            self._cancel_requests.append(msg)
+        else:
+            assert self._host_cancel is not None
+            self._host_cancel(msg)  # may already be hooked
+        return True
+
+    def _cancelling(self) -> int:
+        if self._shield:
+            return len(self._cancel_requests)
+        else:
+            assert self._host_cancelling is not None
+            return self._host_cancelling()  # may already be hooked
+
+    def _uncancel(self) -> int:
+        if self._shield:
+            self._cancel_requests.pop()
+            return len(self._cancel_requests)
+        else:
+            assert self._host_uncancel is not None
+            return self._host_uncancel()  # may already be hooked
+
+    def _add_to_parent_scope(self) -> None:
+        """
+        Keeps track of the parent/child relationship of task scopes within the host task
+        by adding the current scope to the parent scope.
+        """
+        assert self._host_task is not None
+        if (task_state := _task_states.get(self._host_task, None)) is None:
+            task_state = _TaskState(task_scope=self)
+            _task_states[self._host_task] = task_state
+        else:
+            self._parent_scope = task_state.task_scope
+            # replace the "current" taskscope with myself.
+            task_state.task_scope = self
+            if self._parent_scope is not None:
+                self._parent_scope._child_scopes.add(self)
+
+    def _remove_from_parent_scope(self) -> None:
+        """
+        Keeps track of the parent/child relationship of task scopes within the host task
+        by removing the current scope from the parent scope.
+        """
+        assert self._host_task is not None
+        task_state = _task_states.get(self._host_task)
+        if task_state is None or task_state.task_scope is not self:
+            raise RuntimeError(
+                "Exiting task scope not owned by the current task is not allowed"
+            )
+        if self._parent_scope is not None:
+            self._parent_scope._child_scopes.remove(self)
+        # restore the "current" taskscope.
+        task_state.task_scope = self._parent_scope
+
+    def _hook_task_cancel_methods(self) -> None:
+        assert self._host_task is not None
+        self._host_cancel, self._host_task.cancel = (  # type: ignore[method-assign]
+            self._host_task.cancel,
+            self._cancel,
+        )
+        self._host_cancelling, self._host_task.cancelling = (  # type: ignore[method-assign]
+            self._host_task.cancelling,
+            self._cancelling,
+        )
+        self._host_uncancel, self._host_task.uncancel = (  # type: ignore[method-assign]
+            self._host_task.uncancel,
+            self._uncancel,
+        )
+
+    def _restore_task_cancel_methods(self) -> None:
+        assert self._host_task is not None
+        self._host_task.cancel = self._host_cancel  # type: ignore[method-assign,assignment]
+        self._host_task.cancelling = self._host_cancelling  # type: ignore[method-assign,assignment]
+        self._host_task.uncancel = self._host_uncancel  # type: ignore[method-assign,assignment]
+        self._host_cancel = None
+        self._host_cancelling = None
+        self._host_uncancel = None
+
+    def _enter_scope(self) -> None:
         if self._entered:
             raise RuntimeError(
                 f"{type(self).__name__} {self!r} has been already entered"
             )
-        self._entered = True
-
-        if self._loop is None:
-            self._loop = events.get_running_loop()
-
-        self._parent_task = tasks.current_task(self._loop)
-        if self._parent_task is None:
+        self._host_task = asyncio.current_task()
+        if self._host_task is None:
             raise RuntimeError(
                 f"{type(self).__name__} {self!r} cannot determine the parent task"
             )
+        assert self._host_task is not None
 
-        self._cancelling = self._parent_task.cancelling()
+        self._add_to_parent_scope()
+        self._prior_cancel_request_count = self._host_task.cancelling()
+        self._hook_task_cancel_methods()
+        self._entered = True
 
         if self._timeout is not None:
             when = self._loop.time() + self._timeout
             self._timeout_handler = self._loop.call_at(when, self._on_timeout)
-        if self._shield:
-            self._shield_scope.__enter__()
 
-        return self
-
-    async def __aexit__(
+    def _exit_scope_prep(
         self,
         et: type[BaseException] | None,
         exc: BaseException | None,
         tb: TracebackType | None,
-    ) -> bool | None:
-        assert self._loop is not None
-        assert self._parent_task is not None
+    ) -> BaseException | None:
+        assert self._host_task is not None
+        assert self._host_cancelling is not None
         self._exiting = True
 
         if exc is not None and self._is_base_error(exc) and self._base_error is None:
             self._base_error = exc
 
-        propagate_cancellation_error: BaseException | None
-        if self._parent_task.cancelling() > self._cancelling:
+        propagate_cancellation_error: BaseException | None = None
+        cancelling = len(self._cancel_requests) + self._host_cancelling()
+        if et is None and cancelling > self._prior_cancel_request_count:
             # If we have received more cancellation requests than the starting point,
             # raise up the cancellation.
             # e.g., When there are timeout-based cancellation from outside while the
             #       TaskScope itself was shielded during its execution.
             propagate_cancellation_error = exceptions.CancelledError()
         else:
-            propagate_cancellation_error = (
-                exc if et is exceptions.CancelledError else None
-            )
+            if (
+                et is not None and issubclass(et, exceptions.CancelledError)
+                # > and not self._shield
+            ):
+                propagate_cancellation_error = exc
 
         if et is not None:
             if not self._aborting:
@@ -187,35 +291,86 @@ class TaskScope(TaskContext):
                 #
                 self.abort()
 
-        prop_ex = await self._wait_completion()
-        assert not self._tasks
-        if prop_ex is not None:
-            propagate_cancellation_error = prop_ex
+        return propagate_cancellation_error
+
+    def _exit_scope_conclude(
+        self, propagated_cancellation: BaseException | None
+    ) -> bool:
         self._exited = True
 
-        # If the intrinsic timeout is set and expired,
-        # raise up TimeoutError.
-        if self._timeout_expired:
-            prop_exc = propagate_cancellation_error
-            propagate_cancellation_error = asyncio.TimeoutError()
-            propagate_cancellation_error.__context__ = prop_exc
-            propagate_cancellation_error.__cause__ = prop_exc
-
+        # BaseExceptions other than CancelledError have higher priority.
         if self._base_error is not None:
             raise self._base_error
 
-        # Propagate CancelledError as the child exceptions are handled separately.
-        if propagate_cancellation_error:
-            raise propagate_cancellation_error
+        # If the intrinsic timeout is set and expired, raise TimeoutError instead.
+        # Preserve the original exception as the context/cause of it.
+        if self._timeout_expired:
+            prop_exc = propagated_cancellation
+            timeout_error = asyncio.TimeoutError()
+            timeout_error.__context__ = prop_exc
+            timeout_error.__cause__ = prop_exc
+            raise timeout_error
 
-        return None
+        # Propagate CancelledError as the child exceptions are handled separately.
+        if propagated_cancellation:
+            if (
+                isinstance(propagated_cancellation, asyncio.CancelledError)
+                and self._find_topmost_shield()
+            ):
+                # Suppress cancellation error when delegating it to the topmost shield.
+                return True
+            raise propagated_cancellation
+
+        return False
+
+    def _find_topmost_shield(self) -> bool:
+        scope = self._parent_scope
+        while scope is not None:
+            if scope._shield:
+                return True
+            scope = scope._parent_scope
+        return False
+
+    def _exit_scope_cleanup(self) -> None:
+        assert self._host_task is not None
+
+        if self._timeout_handler is not None and not self._timeout_handler.cancelled():
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+
+        self._remove_from_parent_scope()
+        self._restore_task_cancel_methods()
+
+        # Synchronize upward the cancellation requests made while shielded.
+        for msg in self._cancel_requests:
+            self._host_task.cancel(msg)
+
+        # Remove heavy objects that may have reference cycles.
+        self._host_task = None
+        self._base_error = None
+
+    async def __aenter__(self) -> Self:
+        self._enter_scope()
+        return self
+
+    async def __aexit__(self, *exc_info: OptExcInfo) -> bool | None:
+        try:
+            prop_ex = self._exit_scope_prep(*exc_info)  # type: ignore[arg-type]
+            child_ex = await self._wait_completion()
+            assert not self._tasks
+            if child_ex is not None:
+                prop_ex = child_ex
+            return self._exit_scope_conclude(prop_ex)
+        finally:
+            self._exit_scope_cleanup()
+            prop_ex = None
+            child_ex = None
 
     async def _wait_completion(self) -> BaseException | None:
         # We use while-loop here because "self._on_completed_fut"
         # can be cancelled multiple times if our parent task
         # is being cancelled repeatedly (or even once, when
         # our own cancellation is already in progress)
-        assert self._loop is not None
         propagate_cancellation_error = None
         while self._tasks:
             if self._on_completed_fut is None:
@@ -236,19 +391,31 @@ class TaskScope(TaskContext):
                     self.abort(msg=ex.args[0] if ex.args else None)
             self._on_completed_fut = None
 
-        if self._timeout_handler is not None and not self._timeout_handler.cancelled():
-            self._timeout_handler.cancel()
-        if self._shield:
-            self._shield_scope.__exit__()
-
         return propagate_cancellation_error
+
+    def abort(self, msg: str | None = None) -> None:
+        """
+        Triggers cancellation of the scope and all its children and immediately returns *without*
+        waiting for completion.
+        This method ignores the shield option.
+        """
+        if not self._aborting:
+            self._aborting = True
+            for t in self._tasks:
+                t.cancel(msg=msg)
 
     async def aclose(self) -> None:
         """
         Triggers cancellation of the scope and all its children, then waits for completion.
         This method ignores the shield option.
+
+        Calling this method will cancel the host task and the task body will observe a
+        :exc:`asyncio.CancelledError`.
         """
-        self.abort(f"{self!r} is closed")
+        assert self._host_task is not None
+        if not self._aborting:
+            self.abort(f"{self!r} is closed")
+            self._host_task.cancel()  # interrupt the taskscope body
         await self._wait_completion()
 
     def create_task(
@@ -267,37 +434,24 @@ class TaskScope(TaskContext):
             raise RuntimeError(f"{type(self).__name__} {self!r} has not been entered")
         if self._exiting and not self._tasks:
             raise RuntimeError(f"{type(self).__name__} {self!r} is finished")
-        assert self._parent_task is not None
+        assert self._host_task is not None
         task = self._create_task(coro, name=name, context=context, **kwargs)
         if _has_callgraph:
-            asyncio.future_add_to_awaited_by(task, self._parent_task)  # type: ignore[attr-defined]
+            asyncio.future_add_to_awaited_by(task, self._host_task)  # type: ignore[attr-defined]
         return task
 
-    # Since Python 3.8 Tasks propagate all exceptions correctly,
-    # except for KeyboardInterrupt and SystemExit which are
-    # still considered special.
-
     def _is_base_error(self, exc: BaseException) -> TypeGuard[BaseException]:
+        # Since Python 3.8 Tasks propagate all exceptions correctly,
+        # except for KeyboardInterrupt and SystemExit which are
+        # still considered special.
         assert isinstance(exc, BaseException)
         return isinstance(exc, (SystemExit, KeyboardInterrupt))
 
-    def abort(self, msg: str | None = None) -> None:
-        """
-        Triggers cancellation of the scope and all its children and immediately returns *without*
-        waiting for completion.
-        This method ignores the shield option.
-        """
-        self._aborting = True
-        for t in self._tasks:
-            if not t.done():
-                t.cancel(msg=msg)
-
     def _on_task_done(self, task: asyncio.Task[Any]) -> None:
-        assert self._loop is not None
-        assert self._parent_task is not None
+        assert self._host_task is not None
         self._tasks.discard(task)
         if _has_callgraph:
-            asyncio.future_discard_from_awaited_by(task, self._parent_task)  # type: ignore[attr-defined]
+            asyncio.future_discard_from_awaited_by(task, self._host_task)  # type: ignore[attr-defined]
         if self._on_completed_fut is not None and not self._tasks:
             if not self._on_completed_fut.done():
                 self._on_completed_fut.set_result(True)
@@ -314,13 +468,13 @@ class TaskScope(TaskContext):
         if is_base_error and self._base_error is None:
             self._base_error = exc
 
-        if self._parent_task.done():
+        if self._host_task.done():
             # Not sure if this case is possible, but we want to handle
             # it anyways.
             self._loop.call_exception_handler({
                 "message": (
                     f"Task {task!r} has errored out but its parent "
-                    f"task {self._parent_task} is already completed"
+                    f"task {self._host_task} is already completed"
                 ),
                 "exception": exc,
                 "task": task,
@@ -365,3 +519,84 @@ async def move_on_after(
             yield ts
     except asyncio.TimeoutError:
         pass
+
+
+class ShieldScope(TaskScope):
+    """
+    A context-manager to make the codes within the scope to be shielded from cancellation,
+    delaying any cancellation attempts in the middle to be re-raised afterwards.
+    You may use it as an async context manager as well.
+
+    See https://github.com/python/cpython/issues/99714#issuecomment-1817941789
+    for the original ideation.
+
+    To self-cancel from the inside of ShieldScope, you may simply raise
+    :exc:`asyncio.CancelledError`.
+
+    .. code-block:: python
+
+        async def work():
+            try:
+                await some_job()
+            finally:
+                with ShieldScope():
+                    await cleanup()  # ensured to run regardless of cancellation timing
+
+        task = asyncio.create_task(work())
+        ...
+        await cancel_and_wait(task)
+
+    It may be used as either an async context manager or a context manager.
+    As an async context manager, it is equivalent to ``TaskScope(shield=True)``.
+    As a (sync) coontext manager, you cannot spawn child tasks because it
+    does not wait for children's completion when exiting the context scope.
+    You may use it as a simple block marker to wrap the code lines to be shielded.
+
+    When there are multiple nested ShieldScope combined with TaskScope,
+    the cancellation is deferred to the point of exit of the topmost
+    ``ShieldScope`` (or ``TaskScop(shield=True)``) block where the parent scope
+    is not shielded or there is no parent scope.
+
+    .. versionadded:: 2.1
+
+    .. versionchanged:: 2.2
+
+       Moved from ``aiotools.cancel`` module to ``aiotools.taskscope`` module
+       to subclass :class:`TaskScope` without circular imports.
+       The root import path ``aiotools.ShieldScope`` is preserved.
+
+    .. versionchanged:: 2.2
+
+       When used as a synchronous context manager, spawning child tasks is explicitly
+       prohibited.
+    """
+
+    def __init__(self, timeout: float | None = None) -> None:
+        super().__init__(shield=True, timeout=timeout)
+        self._disable_subtask = False
+
+    def __enter__(self) -> None:
+        # When used in a synchronous context, users SHOULD NOT spawn child tasks using this.
+        self._disable_subtask = True
+        self._enter_scope()
+
+    def __exit__(self, *exc_info: OptExcInfo) -> bool:
+        try:
+            prop_ex = self._exit_scope_prep(*exc_info)  # type: ignore[arg-type]
+            # skip waiting for child tasks when used in a synchronous context
+            return self._exit_scope_conclude(prop_ex)
+        finally:
+            self._exit_scope_cleanup()
+            prop_ex = None
+
+    def create_task(
+        self,
+        coro: CoroutineLike[T],
+        *,
+        name: str | None = None,
+        context: Context | None = None,
+        **kwargs: Any,
+    ) -> tasks.Task[T]:
+        if self._disable_subtask:
+            raise RuntimeError("Cannot spawn child tasks in a synchronous ShieldScope.")
+        return super().create_task(coro, name=name, context=context, **kwargs)

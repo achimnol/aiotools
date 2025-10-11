@@ -156,19 +156,18 @@ async def test_as_completed_safe_timeout_in_middle() -> None:
             results = []
             timeouts = 0
             try:
+                ag = as_completed_safe(
+                    [
+                        do_job(0.1, 1),
+                        # timeout occurs here
+                        do_job(0.2, 2),
+                        do_job(0.3, 3),
+                    ],
+                    context=context,
+                )
                 async with (
                     asyncio.timeout(0.15),
-                    aclosing(
-                        as_completed_safe(
-                            [
-                                do_job(0.1, 1),
-                                # timeout occurs here
-                                do_job(0.2, 2),
-                                do_job(0.3, 3),
-                            ],
-                            context=context,
-                        )
-                    ) as ag,
+                    aclosing(ag) as ag,
                 ):
                     async for result in ag:
                         results.append(await result)
@@ -196,19 +195,18 @@ async def test_as_completed_safe_timeout_custom() -> None:
             results = []
             timeouts = 0
             try:
+                ag = as_completed_safe(
+                    [
+                        do_job(0.1, 1),
+                        # timeout occurs here
+                        do_job(0.2, 2),
+                        do_job(0.3, 3),
+                    ],
+                    context=context,
+                )
                 async with (
                     timeout(0.15),
-                    aclosing(
-                        as_completed_safe(
-                            [
-                                do_job(0.1, 1),
-                                # timeout occurs here
-                                do_job(0.2, 2),
-                                do_job(0.3, 3),
-                            ],
-                            context=context,
-                        )
-                    ) as ag,
+                    aclosing(ag) as ag,
                 ):
                     async for result in ag:
                         results.append(await result)
@@ -234,17 +232,16 @@ async def test_as_completed_safe_cancel_from_body() -> None:
             loop_count = 0
             results = []
             with pytest.raises(asyncio.CancelledError):
-                async with aclosing(
-                    as_completed_safe(
-                        [
-                            do_job(0.1, 1),
-                            do_job(0.2, 2),
-                            # cancellation occurs here
-                            do_job(0.3, 3),
-                        ],
-                        context=context,
-                    )
-                ) as ag:
+                ag = as_completed_safe(
+                    [
+                        do_job(0.1, 1),
+                        do_job(0.2, 2),
+                        # cancellation occurs here
+                        do_job(0.3, 3),
+                    ],
+                    context=context,
+                )
+                async with aclosing(ag) as ag:
                     async for result in ag:
                         results.append(await result)
                         loop_count += 1
@@ -268,17 +265,16 @@ async def test_as_completed_safe_error_from_body() -> None:
             loop_count = 0
             results = []
             with pytest.raises(ZeroDivisionError):
-                async with aclosing(
-                    as_completed_safe(
-                        [
-                            do_job(0.1, 1),
-                            do_job(0.2, 2),
-                            # cancellation occurs here
-                            do_job(0.3, 3),
-                        ],
-                        context=context,
-                    )
-                ) as ag:
+                ag = as_completed_safe(
+                    [
+                        do_job(0.1, 1),
+                        do_job(0.2, 2),
+                        # cancellation occurs here
+                        do_job(0.3, 3),
+                    ],
+                    context=context,
+                )
+                async with aclosing(ag) as ag:
                     async for result in ag:
                         results.append(await result)
                         loop_count += 1
@@ -304,7 +300,7 @@ async def test_as_completed_safe_error_from_body_without_aclosing() -> None:
             # This is "unsafe" because it cannot guarantee the completion of
             # the internal supervisor.
             with pytest.raises(ZeroDivisionError):
-                async for result in as_completed_safe(
+                ag = as_completed_safe(
                     [
                         do_job(0.1, 1),
                         do_job(0.2, 2),
@@ -312,7 +308,8 @@ async def test_as_completed_safe_error_from_body_without_aclosing() -> None:
                         do_job(0.3, 3),
                     ],
                     context=context,
-                ):
+                )
+                async for result in ag:
                     results.append(await result)
                     loop_count += 1
                     if loop_count == 2:
