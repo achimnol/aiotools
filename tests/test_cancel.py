@@ -61,7 +61,7 @@ async def test_cancel_and_wait_simple_task_already_done() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cancel_swallowed() -> None:
+async def test_cancel_and_wait_properly_swallowed() -> None:
     """
     Test if cancel_and_wait() correctly distinguish whether
     the task is explicitly uncanceled or the task has properly
@@ -89,6 +89,40 @@ async def test_cancel_swallowed() -> None:
         assert task.done()
         assert not task.cancelled()
         assert result_holder == ["start", "cancelling", "swallowed"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_wait_simple_task_invalid_state() -> None:
+    """
+    Test cancellation on a task that does not propagate cancellation.
+
+    In legacy asyncio codes, top-level tasks often swallowed the cancellation to
+    prevent _bogus_ cancellation errors.  However, this is now considered a bad
+    practice and any underlying frameworks should consume them appropriately.
+
+    Now ``cancel_and_wait()`` correctly handles the decision whether to re-raise
+    cancellation for externally triggered cancellations, while the call itself
+    consumes the cancellation.  To achieve this, ``cancel_and_wait()`` internally
+    validates if the target task re-raises cancellation when required.
+    """
+    result_holder: list[str] = []
+
+    async def simple_task() -> None:
+        try:
+            await asyncio.sleep(0.1)
+            result_holder.append("done")
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.1)
+            result_holder.append("cancelled")
+            # Missing re-raise here!
+
+    with VirtualClock().patch_loop():
+        task = asyncio.create_task(simple_task())
+        await asyncio.sleep(0.05)
+        with pytest.raises(asyncio.InvalidStateError):
+            await cancel_and_wait(task)
+        assert result_holder == ["cancelled"]
+        assert task.done()
 
 
 @pytest.mark.asyncio
@@ -190,7 +224,7 @@ async def test_cancel_and_wait_simple_task_shielded() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cancel_and_wait_simple_task_self_cancelled_within_shield_scope() -> None:
+async def test_shield_scope_self_cancellation() -> None:
     """
     Test cancellation on a task that its body is shielded but cancels by itself.
     """
@@ -206,6 +240,8 @@ async def test_cancel_and_wait_simple_task_self_cancelled_within_shield_scope() 
             raise asyncio.CancelledError
             # should not reach here
             result_holder.append("shield-end")
+        await asyncio.sleep(0.1)
+        result_holder.append("task-end")
 
     with VirtualClock().patch_loop():
         result_holder.clear()
@@ -219,37 +255,54 @@ async def test_cancel_and_wait_simple_task_self_cancelled_within_shield_scope() 
 
 
 @pytest.mark.asyncio
-async def test_cancel_and_wait_simple_task_invalid_state() -> None:
+async def test_shield_scope_nested() -> None:
     """
-    Test cancellation on a task that does not propagate cancellation.
-
-    In legacy asyncio codes, top-level tasks often swallowed the cancellation to
-    prevent _bogus_ cancellation errors.  However, this is now considered a bad
-    practice and any underlying frameworks should consume them appropriately.
-
-    Now ``cancel_and_wait()`` correctly handles the decision whether to re-raise
-    cancellation for externally triggered cancellations, while the call itself
-    consumes the cancellation.  To achieve this, ``cancel_and_wait()`` internally
-    validates if the target task re-raises cancellation when required.
+    Test cancellation on a task that its body is "deeply" shielded.
     """
     result_holder: list[str] = []
 
-    async def simple_task() -> None:
-        try:
+    async def nested_task() -> None:
+        result_holder.append("task-start")
+        await asyncio.sleep(0.1)
+        with ShieldScope():
+            result_holder.append("shield-step0")
             await asyncio.sleep(0.1)
-            result_holder.append("done")
-        except asyncio.CancelledError:
+            with ShieldScope():
+                result_holder.append("shield-step1")
+                await asyncio.sleep(0.1)
+                result_holder.append("shield-step2")
             await asyncio.sleep(0.1)
-            result_holder.append("cancelled")
-            # Missing re-raise here!
+            result_holder.append("shield-step3")
+        await asyncio.sleep(0.1)
+        result_holder.append("task-done")
 
     with VirtualClock().patch_loop():
-        task = asyncio.create_task(simple_task())
-        await asyncio.sleep(0.05)
-        with pytest.raises(asyncio.InvalidStateError):
-            await cancel_and_wait(task)
-        assert result_holder == ["cancelled"]
-        assert task.done()
+        task = asyncio.create_task(nested_task())
+        await asyncio.sleep(0.15)
+        await cancel_and_wait(task)
+        # It should be cancelled when exiting the outmost shieldscope.
+        assert result_holder == [
+            "task-start",
+            "shield-step0",
+            "shield-step1",
+            "shield-step2",
+            "shield-step3",
+        ]
+        assert task.cancelled()
+
+        result_holder.clear()
+        task = asyncio.create_task(nested_task())
+        await asyncio.sleep(0.25)
+        await cancel_and_wait(task)
+        # It should be cancelled when exiting the outmost shieldscope.
+        assert result_holder == [
+            "task-start",
+            "shield-step0",
+            "shield-step1",
+            "shield-step2",
+            "shield-step3",
+        ]
+        assert task.cancelled()
 
 
 @pytest.mark.asyncio
@@ -706,29 +759,6 @@ async def test_cancel_and_wait_taskscope_error_during_cancellation() -> None:
         assert len(errors) == 2
         assert isinstance(errors[0], ValueError)
         assert isinstance(errors[1], ZeroDivisionError)
-
-
-@pytest.mark.asyncio
-async def test_cancel_and_wait_taskscope_outer_cancelled() -> None:
-    results: list[str] = []
-
-    async def failing_child(delay: float) -> None:
-        await asyncio.sleep(delay)
-        raise ZeroDivisionError
-
-    async def parent() -> None:
-        async with TaskScope() as ts:
-            ts.create_task(failing_child(0.2))
-            await asyncio.sleep(0.5)
-            results.append("context-final")  # cancelled as taskscope is cancelled
-        await asyncio.sleep(0.5)
-        results.append("parent-final")  # cancelled as parent is cancelled
-
-    with VirtualClock().patch_loop():
-        parent_task = asyncio.create_task(parent())
-        await asyncio.sleep(0.1)  # trigger cancellation before child fails
-        await cancel_and_wait(parent_task)  # no error as it's successful cancellation
-        assert results == []
 
 
 @pytest.mark.asyncio

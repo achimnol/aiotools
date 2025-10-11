@@ -16,6 +16,13 @@ from aiotools import (
 T = TypeVar("T")
 
 
+# @pytest.fixture(scope="module")
+# def event_loop_policy() -> _AbstractEventLoopPolicy:
+#     import uvloop
+#
+#     return uvloop.EventLoopPolicy()
+
+
 async def fail_after(delay: float) -> None:
     await asyncio.sleep(delay)
     raise ZeroDivisionError()
@@ -338,3 +345,419 @@ async def test_taskscope_move_on_after() -> None:
     assert results == [4, 1, 2]
     assert errors == []
     assert cancelled == 1  # cancelled due to timeout
+
+
+@pytest.mark.asyncio
+async def test_taskscope_cancelled_from_outside() -> None:
+    results: list[str] = []
+
+    async def failing_child(delay: float) -> None:
+        await asyncio.sleep(delay)
+        raise ZeroDivisionError
+
+    async def succeeding_child(delay: float, result: str) -> None:
+        await asyncio.sleep(delay)
+        results.append(result)
+
+    async def parent() -> None:
+        results.append("parent-begin")
+        async with TaskScope() as ts:
+            results.append("context-begin")
+            ts.create_task(failing_child(0.2))  # concluded after cancel
+            ts.create_task(succeeding_child(0.08, "s1"))  # concluded before cancel
+            ts.create_task(succeeding_child(0.12, "s2"))  # concluded after cancel
+            await asyncio.sleep(0.5)
+            results.append("context-end")  # skipped as taskscope is cancelled
+        await asyncio.sleep(0.5)
+        results.append("parent-end")  # skipped as parent is cancelled
+
+    with VirtualClock().patch_loop():
+        parent_task = asyncio.create_task(parent())
+        await asyncio.sleep(0.1)
+        await cancel_and_wait(parent_task)
+        assert results == ["parent-begin", "context-begin", "s1"]
+
+
+@pytest.mark.asyncio
+async def test_taskscope_aclose() -> None:
+    results: list[str] = []
+
+    async def failing_child(delay: float) -> None:
+        await asyncio.sleep(delay)
+        raise ZeroDivisionError
+
+    async def succeeding_child(delay: float, result: str) -> None:
+        try:
+            await asyncio.sleep(delay)
+            results.append(result)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.7)
+            results.append(f"cancelled-{result}")
+            raise
+
+    async def close_scope(delay: float, ts: TaskScope) -> None:
+        await asyncio.sleep(delay)
+        results.append("aclose-trigger")
+        await ts.aclose()
+        results.append("aclose-done")
+
+    async def parent() -> None:
+        results.append("parent-begin")
+        async with TaskScope() as ts:
+            results.append("context-begin")
+            ts.create_task(failing_child(0.2))  # concluded after cancel
+            ts.create_task(succeeding_child(0.08, "s1"))  # concluded before cancel
+            ts.create_task(succeeding_child(0.12, "s2"))  # concluded after cancel
+            asyncio.create_task(close_scope(0.1, ts))  # self-close
+            await asyncio.sleep(0.11)
+            results.append("context-end")  # skipped as scope is cancelled
+        await asyncio.sleep(0.5)
+        results.append("parent-end")  # skipped as parent is cancelled
+
+    with VirtualClock().patch_loop():
+        parent_task = asyncio.create_task(parent())
+        await asyncio.sleep(0.1)
+        with pytest.raises(asyncio.CancelledError):
+            # cancellation triggered by a separate call to aclose()
+            await parent_task
+        assert results == [
+            "parent-begin",
+            "context-begin",
+            "s1",
+            "aclose-trigger",
+            "cancelled-s2",
+            "aclose-done",  # aclose() should have waited until cancellation
+        ]
+
+
+@pytest.mark.asyncio
+async def test_taskscope_shielded_nested_1() -> None:
+    """
+    Test if nested task scopes with shield defers cancellation properly.
+    """
+    result_holder: list[str] = []
+
+    async def nested_task() -> None:
+        result_holder.append("task-start")
+        await asyncio.sleep(0.1)
+        async with TaskScope(shield=True):
+            result_holder.append("outer-scope-begin")
+            await asyncio.sleep(0.1)
+            async with TaskScope(shield=True):
+                result_holder.append("inner-scope-step0")
+                await asyncio.sleep(0.1)  # cancelled here
+                result_holder.append("inner-scope-step1")  # not skipped
+            await asyncio.sleep(0.1)
+            result_holder.append("outer-scope-end")  # not skipped
+        # raising up deferred cancellation here
+        await asyncio.sleep(0.1)
+        result_holder.append("task-done")
+
+    with VirtualClock().patch_loop():
+        result_holder.clear()
+        task = asyncio.create_task(nested_task())
+        await asyncio.sleep(0.25)
+        await cancel_and_wait(task)
+        assert result_holder == [
+            "task-start",
+            "outer-scope-begin",
+            "inner-scope-step0",
+            "inner-scope-step1",
+            "outer-scope-end",
+        ]
+        assert task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_taskscope_shielded_nested_2() -> None:
+    """
+    Test if inner scopes are also shielded by an outer scope with shield
+    while the cancellation is deferred until the outmost scope's exit.
+    """
+    result_holder: list[str] = []
+
+    async def nested_task() -> None:
+        result_holder.append("task-start")
+        await asyncio.sleep(0.1)
+        async with TaskScope(shield=True):
+            result_holder.append("outer-scope-begin")
+            await asyncio.sleep(0.1)
+            async with TaskScope(shield=False):
+                result_holder.append("inner-scope-step0")
+                await asyncio.sleep(0.1)  # cancelled here
+                result_holder.append("inner-scope-step1")  # not skipped
+            await asyncio.sleep(0.1)
+            result_holder.append("outer-scope-end")  # not skipped
+        # raising up deferred cancellation here
+        await asyncio.sleep(0.1)
+        result_holder.append("task-done")
+
+    with VirtualClock().patch_loop():
+        task = asyncio.create_task(nested_task())
+        await asyncio.sleep(0.25)
+        await cancel_and_wait(task)
+        assert result_holder == [
+            "task-start",
+            "outer-scope-begin",
+            "inner-scope-step0",
+            "inner-scope-step1",  # shielded
+            "outer-scope-end",  # shielded
+        ]
+        assert task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_taskscope_shielded_nested_3() -> None:
+    """
+    Test if outer non-shielded scope is cancelled by deferred
+    cancellation from an inner shielded scope.
+    """
+    result_holder: list[str] = []
+
+    async def nested_task() -> None:
+        result_holder.append("task-start")
+        await asyncio.sleep(0.1)
+        async with TaskScope(shield=False):
+            result_holder.append("outer-scope-begin")
+            await asyncio.sleep(0.1)
+            async with TaskScope(shield=True):
+                result_holder.append("inner-scope-step0")
+                await asyncio.sleep(0.1)  # cancelled here
+                result_holder.append("inner-scope-step1")
+            # raising up deferred cancellation here
+            await asyncio.sleep(0.1)
+            result_holder.append("outer-scope-end")
+        await asyncio.sleep(0.1)
+        result_holder.append("task-done")
+
+    with VirtualClock().patch_loop():
+        result_holder.clear()
+        task = asyncio.create_task(nested_task())
+        await asyncio.sleep(0.25)
+        await cancel_and_wait(task)
+        assert result_holder == [
+            "task-start",
+            "outer-scope-begin",
+            "inner-scope-step0",
+            "inner-scope-step1",  # shielded
+        ]
+        assert task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_taskscope_shielded_nested_4() -> None:
+    """
+    Deep nesting via scopes within a single task.
+
+    The cancellation propagates upwards with different effects
+    to each taskscope level depending on the shield option.
+    """
+    context_body_trace: list[str] = []
+    task_result_trace: set[str] = set()
+
+    async def work(delay: float, result: str) -> None:
+        try:
+            print(f"work begin ({result})")
+            await asyncio.sleep(delay)
+            task_result_trace.add(result)
+            print(f"work end ({result})")
+        except asyncio.CancelledError:
+            print(f"cancelled ({result})")
+            raise
+
+    async def nested_task() -> None:
+        context_body_trace.append("level0-begin")
+        await asyncio.sleep(0.1)
+        # Upper level subtasks run longer than lower level subtasks
+        # to check their cancellation triggers.
+        async with TaskScope(shield=False) as ts1:
+            context_body_trace.append("level1-begin")
+            ts1.create_task(work(15.0, "L1"), name="L1")
+            await asyncio.sleep(0.1)
+            async with TaskScope(shield=True) as ts2:
+                context_body_trace.append("level2-begin")
+                ts2.create_task(work(14.0, "L2"), name="L2")
+                async with TaskScope(shield=False) as ts3:
+                    context_body_trace.append("level3-begin")
+                    ts3.create_task(work(13.0, "L3"), name="L3")
+                    async with TaskScope(shield=False) as ts4:
+                        context_body_trace.append("level4-begin")
+                        ts4.create_task(work(12.0, "L4"), name="L4")
+                        async with TaskScope(shield=True) as ts5:
+                            context_body_trace.append("level5-begin")
+                            ts5.create_task(work(11.0, "L5"), name="L5")
+                            await asyncio.sleep(0.1)  # cancelled here
+                            context_body_trace.append("level5-end")
+                        await asyncio.sleep(0.1)
+                        context_body_trace.append("level4-end")
+                    await asyncio.sleep(0.1)
+                    context_body_trace.append("level3-end")
+                await asyncio.sleep(0.1)
+                context_body_trace.append("level2-end")
+            # raising up deferred cancellation here
+            await asyncio.sleep(0.1)
+            context_body_trace.append("level1-end")
+        await asyncio.sleep(0.1)
+        context_body_trace.append("level0-end")
+
+    with VirtualClock().patch_loop():
+        context_body_trace.clear()
+        task = asyncio.create_task(nested_task())
+        await asyncio.sleep(0.25)
+        await cancel_and_wait(task)
+        assert context_body_trace == [
+            "level0-begin",
+            "level1-begin",
+            "level2-begin",
+            "level3-begin",
+            "level4-begin",
+            "level5-begin",
+            "level5-end",
+            "level4-end",
+            "level3-end",
+            "level2-end",
+        ]
+        assert task.cancelled()
+        assert task_result_trace == {"L5", "L4", "L3", "L2"}
+
+
+@pytest.mark.asyncio
+async def test_taskscope_shielded_nested_4_mix() -> None:
+    """
+    Deep nesting via scopes within a single task, but with
+    a mix of asyncio.TaskGroup and aiotools.TaskScope(shield=True).
+
+    This test shows the consistent behavior when mixing aiotools.TaskScope
+    and asyncio.TaskGroup.
+
+    The cancellation is shielded by the topmost TaskScope(shield=True).
+    """
+    context_body_trace: list[str] = []
+    task_result_trace: set[str] = set()
+
+    async def work(delay: float, result: str) -> None:
+        try:
+            print(f"work begin ({result})")
+            await asyncio.sleep(delay)
+            task_result_trace.add(result)
+            print(f"work end ({result})")
+        except asyncio.CancelledError:
+            print(f"cancelled ({result})")
+            raise
+
+    async def nested_task() -> None:
+        context_body_trace.append("level0-begin")
+        await asyncio.sleep(0.1)
+        # Upper level subtasks run longer than lower level subtasks
+        # to check their cancellation triggers.
+        async with asyncio.TaskGroup() as ts1:
+            context_body_trace.append("level1-begin")
+            ts1.create_task(work(15.0, "L1"), name="L1")
+            await asyncio.sleep(0.1)
+            async with TaskScope(shield=True) as ts2:
+                context_body_trace.append("level2-begin")
+                ts2.create_task(work(14.0, "L2"), name="L2")
+                async with asyncio.TaskGroup() as ts3:
+                    context_body_trace.append("level3-begin")
+                    ts3.create_task(work(13.0, "L3"), name="L3")
+                    async with asyncio.TaskGroup() as ts4:
+                        context_body_trace.append("level4-begin")
+                        ts4.create_task(work(12.0, "L4"), name="L4")
+                        async with TaskScope(shield=True) as ts5:
+                            context_body_trace.append("level5-begin")
+                            ts5.create_task(work(11.0, "L5"), name="L5")
+                            await asyncio.sleep(0.1)  # cancelled here
+                            context_body_trace.append("level5-end")
+                        await asyncio.sleep(0.1)
+                        context_body_trace.append("level4-end")
+                    await asyncio.sleep(0.1)
+                    context_body_trace.append("level3-end")
+                await asyncio.sleep(0.1)
+                context_body_trace.append("level2-end")
+            # raising up deferred cancellation here
+            await asyncio.sleep(0.1)
+            context_body_trace.append("level1-end")
+        await asyncio.sleep(0.1)
+        context_body_trace.append("level0-end")
+
+    with VirtualClock().patch_loop():
+        context_body_trace.clear()
+        task = asyncio.create_task(nested_task())
+        await asyncio.sleep(0.25)
+        await cancel_and_wait(task)
+        assert context_body_trace == [
+            "level0-begin",
+            "level1-begin",
+            "level2-begin",
+            "level3-begin",
+            "level4-begin",
+            "level5-begin",
+            "level5-end",
+            "level4-end",
+            "level3-end",
+            "level2-end",
+            # level1, level0 are cancelled
+        ]
+        assert task.cancelled()
+        assert task_result_trace == {"L5", "L4", "L3", "L2"}
+
+
+@pytest.mark.asyncio
+async def test_taskscope_shielded_nested_5() -> None:
+    """
+    Deep nesting via tasks.
+
+    Since cancellation is delivered till the topmost shielded taskscope
+    and it keeps all its child tasks running, inner tasks at any inner
+    level are not affected by the cancellation at all.
+    """
+    context_body_trace: list[str] = []
+    task_result_trace: set[str] = set()
+    shield_per_level = [False, False, True, False, False, True]
+
+    async def store_result(result: str, level: int) -> None:
+        try:
+            print(f"work begin ({result})")
+            await asyncio.sleep(30.0 - level * 2)
+            print(f"work end ({result})")
+            task_result_trace.add(result)
+        except asyncio.CancelledError:
+            print(f"work cancelled ({result})")
+            raise
+
+    async def work(level: int) -> None:
+        context_body_trace.append(f"level{level}-begin")
+        async with TaskScope(shield=shield_per_level[level]) as ts:
+            ts.create_task(store_result(f"L{level}", level), name=f"L{level}")
+            if level < 5:
+                ts.create_task(work(level + 1))
+        # if not shielded, ts raises deferred cancellation here.
+        await asyncio.sleep(0.1)
+        context_body_trace.append(f"level{level}-end")
+
+    with VirtualClock().patch_loop():
+        context_body_trace.clear()
+        task = asyncio.create_task(work(0))
+        await asyncio.sleep(0.55)
+        await cancel_and_wait(task)
+        assert context_body_trace == [
+            "level0-begin",
+            "level1-begin",
+            "level2-begin",
+            "level3-begin",
+            "level4-begin",
+            "level5-begin",
+            "level5-end",
+            "level4-end",
+            "level3-end",
+            # level2-end is skipped as the exit handler of TaskScope
+            # raises the deferred cancellation.
+            # level1, level0 are also cancelled.
+        ]
+        assert task.cancelled()
+        assert task_result_trace == {
+            "L5",
+            "L4",
+            "L3",
+            "L2",  # the task inside the shielded scope is done.
+        }
