@@ -16,6 +16,14 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+2.2.0 (2025-10-12)
+------------------
+
+### Fixes
+* Treat explicitly uncancelled termination as a non-error in `cancel_and_wait()` ([#92](https://github.com/achimnol/aiotools/issues/92))
+* Ensure consistency when nesting and mixing `aiotools.TaskScope` and `asyncio.TaskGroup` with different shield options and reimplement `ShieldScope` based on the improved `TaskScope` ([#93](https://github.com/achimnol/aiotools/issues/93))
+
+
 2.1.0 (2025-10-09)
 ------------------
 
