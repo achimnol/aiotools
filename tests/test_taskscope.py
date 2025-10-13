@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import sys
 from collections.abc import Callable
-from typing import Any, Protocol, Self, TypeVar, cast
+from contextlib import AbstractContextManager
+from typing import Any, TypeVar, cast
 
 import anyio
 import pytest
@@ -16,7 +17,6 @@ from aiotools import (
     cancel_and_wait,
     move_on_after,
 )
-from aiotools.types import OptExcInfo
 
 T = TypeVar("T")
 
@@ -26,12 +26,6 @@ T = TypeVar("T")
 #     import uvloop
 #
 #     return uvloop.EventLoopPolicy()
-
-
-class ShieldScopeLike(Protocol):
-    def __enter__(self) -> Self: ...
-
-    def __exit__(self, *exc_info: OptExcInfo) -> bool: ...
 
 
 shield_scope_factories: list[ParameterSet] = [
@@ -783,7 +777,7 @@ async def test_taskscope_shielded_nested_5() -> None:
 @pytest.mark.parametrize("shield_scope_factory", shield_scope_factories)
 @pytest.mark.asyncio
 async def test_shieldscope_code_block(
-    shield_scope_factory: Callable[[], ShieldScopeLike],
+    shield_scope_factory: Callable[[], AbstractContextManager[Any, None]],
 ) -> None:
     results: list[str] = []
 
