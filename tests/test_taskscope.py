@@ -36,7 +36,7 @@ class ShieldScopeLike(Protocol):
 
 shield_scope_factories: list[ParameterSet] = [
     pytest.param(lambda: anyio.CancelScope(shield=True), id="anyio.CancelScope"),
-    pytest.param(lambda: ShieldScope(), id="aiotools.TaskScope"),
+    pytest.param(lambda: ShieldScope(), id="aiotools.ShieldScope"),
 ]
 
 
