@@ -444,6 +444,7 @@ class TaskScope(TaskContext):
         # Since Python 3.8 Tasks propagate all exceptions correctly,
         # except for KeyboardInterrupt and SystemExit which are
         # still considered special.
+        # Discussion: https://github.com/python/cpython/issues/135736
         assert isinstance(exc, BaseException)
         return isinstance(exc, (SystemExit, KeyboardInterrupt))
 

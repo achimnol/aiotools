@@ -7,6 +7,7 @@ from typing import Any, TypeVar, cast
 import pytest
 
 from aiotools import (
+    ShieldScope,
     TaskScope,
     VirtualClock,
     cancel_and_wait,
@@ -761,3 +762,40 @@ async def test_taskscope_shielded_nested_5() -> None:
             "L3",
             "L2",  # the task inside the shielded scope is done.
         }
+
+
+@pytest.mark.asyncio
+async def test_shieldscope_code_block() -> None:
+    results: list[str] = []
+
+    async def work() -> None:
+        try:
+            results.append("work-begin")
+            await asyncio.sleep(0.10)
+            results.append("work-end")
+        finally:
+            with ShieldScope():
+                results.append("cleanup-begin")
+                await asyncio.sleep(0.10)
+                results.append("cleanup-done")
+
+    with VirtualClock().patch_loop():
+        task = asyncio.create_task(work())
+        await asyncio.sleep(0.05)  # cancel before shieldscope
+        await cancel_and_wait(task)
+        assert results == [
+            "work-begin",
+            "cleanup-begin",
+            "cleanup-done",
+        ]
+
+        results.clear()
+        task = asyncio.create_task(work())
+        await asyncio.sleep(0.15)  # cancel during shieldscope
+        await cancel_and_wait(task)
+        assert results == [
+            "work-begin",
+            "work-end",
+            "cleanup-begin",
+            "cleanup-done",
+        ]
