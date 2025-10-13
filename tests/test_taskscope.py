@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from typing import Any, TypeVar, cast
+from collections.abc import Callable
+from typing import Any, Protocol, Self, TypeVar, cast
 
+import anyio
 import pytest
+from _pytest.mark.structures import ParameterSet
 
 from aiotools import (
     ShieldScope,
@@ -13,6 +16,7 @@ from aiotools import (
     cancel_and_wait,
     move_on_after,
 )
+from aiotools.types import OptExcInfo
 
 T = TypeVar("T")
 
@@ -22,6 +26,18 @@ T = TypeVar("T")
 #     import uvloop
 #
 #     return uvloop.EventLoopPolicy()
+
+
+class ShieldScopeLike(Protocol):
+    def __enter__(self) -> Self: ...
+
+    def __exit__(self, *exc_info: OptExcInfo) -> bool: ...
+
+
+shield_scope_factories: list[ParameterSet] = [
+    pytest.param(lambda: anyio.CancelScope(shield=True), id="anyio.CancelScope"),
+    pytest.param(lambda: ShieldScope(), id="aiotools.TaskScope"),
+]
 
 
 async def fail_after(delay: float) -> None:
@@ -764,8 +780,11 @@ async def test_taskscope_shielded_nested_5() -> None:
         }
 
 
+@pytest.mark.parametrize("shield_scope_factory", shield_scope_factories)
 @pytest.mark.asyncio
-async def test_shieldscope_code_block() -> None:
+async def test_shieldscope_code_block(
+    shield_scope_factory: Callable[[], ShieldScopeLike],
+) -> None:
     results: list[str] = []
 
     async def work() -> None:
@@ -774,7 +793,7 @@ async def test_shieldscope_code_block() -> None:
             await asyncio.sleep(0.10)
             results.append("work-end")
         finally:
-            with ShieldScope():
+            with shield_scope_factory():
                 results.append("cleanup-begin")
                 await asyncio.sleep(0.10)
                 results.append("cleanup-done")
