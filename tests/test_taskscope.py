@@ -837,7 +837,7 @@ async def test_shieldscope_code_block_bare(
             await asyncio.sleep(0.10)
             results.append("work-end")
         finally:
-            with shield_scope_factory() as scope:
+            with scope:
                 results.append("cleanup-begin")
                 await asyncio.sleep(0.10)
                 results.append("cleanup-done")
