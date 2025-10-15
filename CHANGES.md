@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+2.2.1 (2025-10-15)
+------------------
+
+### Fixes
+* Use weak key dict to prevent memroy leak when storing task states by task scopes ([#95](https://github.com/achimnol/aiotools/issues/95))
+
+
 2.2.0 (2025-10-12)
 ------------------
 
