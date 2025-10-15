@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from typing import Any, TypeVar, cast
+from collections.abc import Callable
+from contextlib import AbstractContextManager
+from typing import Any, Protocol, TypeVar, cast
 
+import anyio
 import pytest
+from _pytest.mark.structures import ParameterSet
 
 from aiotools import (
     ShieldScope,
@@ -22,6 +26,16 @@ T = TypeVar("T")
 #     import uvloop
 #
 #     return uvloop.EventLoopPolicy()
+
+
+class CancellableContextManager(AbstractContextManager[Any], Protocol):
+    def cancel(self, msg: str | None = None) -> None: ...
+
+
+shield_scope_factories: list[ParameterSet] = [
+    pytest.param(lambda: anyio.CancelScope(shield=True), id="anyio.CancelScope"),
+    pytest.param(lambda: ShieldScope(), id="aiotools.ShieldScope"),
+]
 
 
 async def fail_after(delay: float) -> None:
@@ -764,8 +778,11 @@ async def test_taskscope_shielded_nested_5() -> None:
         }
 
 
+@pytest.mark.parametrize("shield_scope_factory", shield_scope_factories)
 @pytest.mark.asyncio
-async def test_shieldscope_code_block() -> None:
+async def test_shieldscope_code_block_inside_task(
+    shield_scope_factory: Callable[[], AbstractContextManager[Any, None]],
+) -> None:
     results: list[str] = []
 
     async def work() -> None:
@@ -774,7 +791,7 @@ async def test_shieldscope_code_block() -> None:
             await asyncio.sleep(0.10)
             results.append("work-end")
         finally:
-            with ShieldScope():
+            with shield_scope_factory():
                 results.append("cleanup-begin")
                 await asyncio.sleep(0.10)
                 results.append("cleanup-done")
@@ -798,4 +815,41 @@ async def test_shieldscope_code_block() -> None:
             "work-end",
             "cleanup-begin",
             "cleanup-done",
+        ]
+
+
+@pytest.mark.parametrize("shield_scope_factory", shield_scope_factories)
+@pytest.mark.asyncio
+async def test_shieldscope_code_block_bare(
+    shield_scope_factory: Callable[[], CancellableContextManager],
+) -> None:
+    results: list[str] = []
+
+    def canceller(scope: CancellableContextManager) -> None:
+        scope.cancel()
+
+    async def work() -> None:
+        scope = shield_scope_factory()
+        loop = asyncio.get_running_loop()
+        loop.call_later(0.15, lambda: canceller(scope))
+        try:
+            results.append("work-begin")
+            await asyncio.sleep(0.10)
+            results.append("work-end")
+        finally:
+            with scope:
+                results.append("cleanup-begin")
+                await asyncio.sleep(0.10)
+                results.append("cleanup-done")
+
+    with VirtualClock().patch_loop():
+        task = asyncio.create_task(work())
+        await task
+        # await asyncio.sleep(0.15)  # cancel during shieldscope
+        # await cancel_and_wait(task)
+        assert results == [
+            "work-begin",
+            "work-end",
+            "cleanup-begin",
+            "cleanup-done",  # still missing with anyio.CancelScope?
         ]

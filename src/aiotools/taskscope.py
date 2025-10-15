@@ -415,6 +415,12 @@ class TaskScope(TaskContext):
             for t in self._tasks:
                 t.cancel(msg=msg)
 
+    def cancel(self, msg: str | None = None) -> None:
+        """
+        Alias to the :meth:`abort()` method.
+        """
+        return self.abort(msg)
+
     async def aclose(self) -> None:
         """
         Triggers cancellation of the scope and all its children, then waits for completion.
@@ -587,10 +593,11 @@ class ShieldScope(TaskScope):
         super().__init__(shield=True, timeout=timeout)
         self._disable_subtask = False
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> Self:
         # When used in a synchronous context, users SHOULD NOT spawn child tasks using this.
         self._disable_subtask = True
         self._enter_scope()
+        return self
 
     def __exit__(self, *exc_info: OptExcInfo) -> bool:
         try:
