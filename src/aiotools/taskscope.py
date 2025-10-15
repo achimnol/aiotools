@@ -15,6 +15,7 @@ from typing import (
     TypeGuard,
     TypeVar,
 )
+from weakref import WeakKeyDictionary
 
 from .taskcontext import ErrorCallback, LoopExceptionHandler, TaskContext
 from .types import CoroutineLike, OptExcInfo
@@ -33,7 +34,7 @@ class _TaskState:
     task_scope: TaskScope | None
 
 
-_task_states: dict[asyncio.Task[Any], _TaskState] = {}
+_task_states: WeakKeyDictionary[asyncio.Task[Any], _TaskState] = WeakKeyDictionary()
 _has_callgraph: Final = hasattr(asyncio, "future_add_to_awaited_by")
 
 
