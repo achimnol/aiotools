@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import threading
 from asyncio import TimerHandle, events, exceptions, tasks
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -34,7 +35,16 @@ class _TaskState:
     task_scope: TaskScope | None
 
 
-_task_states: WeakKeyDictionary[asyncio.Task[Any], _TaskState] = WeakKeyDictionary()
+# As of Python 3.14, we should avoid weakref sharing between threads
+# to avoid lock contention in free-threaded builds.
+_local = threading.local()
+_task_states: WeakKeyDictionary[asyncio.Task[Any], _TaskState]
+if hasattr(_local, "_aiotools_task_states"):
+    _task_states = _local._aiotools_task_states
+else:
+    _task_states = WeakKeyDictionary()
+    _local._aiotools_task_states = _task_states
+
 _has_callgraph: Final = hasattr(asyncio, "future_add_to_awaited_by")
 
 
