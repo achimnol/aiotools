@@ -11,6 +11,7 @@ from unittest import mock
 import pytest
 
 from aiotools import fork as fork_mod
+from aiotools import gather_safe
 from aiotools.fork import (
     AbstractChildProcess,
     MPContext,
@@ -144,17 +145,20 @@ async def test_fork_many(has_pidfd: bool, mp_context: MPContext) -> None:
     with mock.patch.object(fork_mod, "_has_pidfd", has_pidfd):
         os.setpgrp()
         proc_list: list[AbstractChildProcess] = []
-        for _ in range(32):
-            proc = await afork(child_for_fork_many, mp_context=mp_context)
-            proc_list.append(proc)
+        proc_list_raw = await gather_safe(
+            afork(child_for_fork_many, mp_context=mp_context) for _ in range(32)
+        )
+        for proc in proc_list_raw:
+            assert not isinstance(proc, BaseException)
             assert proc.pid > 0
             if isinstance(proc, PidfdChildProcess):
                 assert proc._pidfd > 0
+            proc_list.append(proc)
         for i in range(16):
             proc_list[i].send_signal(signal.SIGINT)
         for i in range(16, 32):
             proc_list[i].send_signal(signal.SIGTERM)
-        ret_list = await asyncio.gather(*[proc.wait() for proc in proc_list])
+        ret_list = await gather_safe(proc.wait() for proc in proc_list)
         for i in range(16):
             assert ret_list[i] == 101
         for i in range(16, 32):
