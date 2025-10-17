@@ -16,6 +16,14 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+2.2.2 (2025-10-17)
+------------------
+
+### Fixes
+* Use thread-local storage to store per-task states and avoid lock contention in free-threaded builds ([#96](https://github.com/achimnol/aiotools/issues/96))
+* Replace `lru_cache()` with the `aio-libs/async_lru` package while preserving backward-compatibility of the API and improving typing support ([#97](https://github.com/achimnol/aiotools/issues/97))
+
+
 2.2.1 (2025-10-15)
 ------------------
 
