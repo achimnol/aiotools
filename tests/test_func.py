@@ -68,19 +68,19 @@ async def test_lru_cache() -> None:
     assert calc_count == 1
     assert (await calc(2)) == 4
     assert calc_count == 2
-    assert (await calc(1)) == 1
+    assert (await calc(1)) == 1  # cache hit, 1 is moved to latest
     assert calc_count == 2
-    assert (await calc(3)) == 9
+    assert (await calc(3)) == 9  # evicting 2
     assert calc_count == 3
-    assert (await calc(1)) == 1  # evicted and re-executed
+    assert (await calc(2)) == 4  # re-executed
     assert calc_count == 4
-    assert (await calc(1)) == 1  # cached again
+    assert (await calc(2)) == 4  # cache hit again
     assert calc_count == 4
 
-    with pytest.raises(NotImplementedError):
-        calc.cache_info()  # type: ignore[attr-defined]
-
-    calc.cache_clear()  # type: ignore[attr-defined]
+    assert calc.cache_info().currsize == 2
+    assert calc.cache_info().hits == 2
+    assert calc.cache_info().misses == calc_count
+    calc.cache_clear()
 
     assert (await calc(1)) == 1
     assert calc_count == 5

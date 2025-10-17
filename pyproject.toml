@@ -21,6 +21,9 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development",
 ]
+dependencies = [
+    "async-lru>=2.0.5",
+]
 
 [project.urls]
 Documentation = "https://aiotools.readthedocs.io"
