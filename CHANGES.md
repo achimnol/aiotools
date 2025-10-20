@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+2.2.3 (2025-10-20)
+------------------
+
+### Features
+* `start_server()` now accepts an optional `runner` argument (default: `asyncio.run`) to allow using custom coroutine runner implementations such as `uvloop.run`, for forward compatibility with Python 3.16 and later ([#99](https://github.com/achimnol/aiotools/issues/99))
+
+
 2.2.2 (2025-10-17)
 ------------------
 
