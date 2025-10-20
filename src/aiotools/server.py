@@ -38,6 +38,7 @@ from collections.abc import (
     AsyncGenerator,
     Callable,
     Collection,
+    Coroutine,
     Generator,
     Mapping,
     Sequence,
@@ -293,6 +294,7 @@ def _worker_main(
     args: Sequence[Any],
     *,
     prestart_hook: Callable[[int], None] | None = None,
+    runner: Callable[[Coroutine[Any, Any, None]], None] = asyncio.run,
 ) -> int:
     process_index.set(proc_idx)
     if prestart_hook:
@@ -349,7 +351,7 @@ def _worker_main(
         finally:
             intr_write_pipe.close()
 
-    asyncio.run(_wrapped_worker())
+    runner(_wrapped_worker())
     return 0
 
 
@@ -416,6 +418,7 @@ def start_server(
     prestart_hook: Callable[[int], None] | None = None,
     ignore_child_interrupts: bool = False,
     run_to_completion: bool = False,
+    runner: Callable[[Coroutine[Any, Any, None]], None] = asyncio.run,
 ) -> None:
     """
     Starts a multi-process server where each process has their own individual
@@ -489,10 +492,6 @@ def start_server(
             A function to be called once before creating the
             event loop in the children.  The function should
             accept an int argument representing the process index.
-            You may use this hook to initialize the event loop
-            with custom settings (e.g., applying ``uvloop``)
-            or to perform any other necessary setup before the
-            main function is called.
 
         ignore_child_interrupts:
             By default, any unhandled exceptions in the
@@ -507,6 +506,11 @@ def start_server(
             If True, the main/worker processes will NOT wait forever
             until interrupted but *immediately exit* when the main
             functions complete.  This flag implies **ignore_child_interrupts**.
+
+        runner:
+            A function to run the root coroutine, which defaults to
+            ``asyncio.run``.  You may set it to ``uvloop.run`` or other
+            runner functions.
 
     Returns:
         None
@@ -565,8 +569,8 @@ def start_server(
 
     .. versionadded:: 1.9.0
 
-        The **mp_context**, **prestart_hook**, **ignore_child_interrupts**,
-        and **run_to_completion** arguments.
+       The **mp_context**, **prestart_hook**, **ignore_child_interrupts**,
+       and **run_to_completion** arguments.
 
     .. versionchanged:: 2.1.0
 
@@ -576,6 +580,12 @@ def start_server(
        Using custom stop signals with **extra_proc** is now STRONGLY DISCOURAGED
        as it causes multiprocessing's resource tracker killed by them and
        there is no way to control this behavior from our side.
+
+    .. versionadded:: 2.2.3
+
+       The **runner** argument to replace event loop implementations
+       (e.g., ``uvloop.run()``) in response to pending deprecation of
+       event loop policies in Python 3.16.
     """
 
     @main_context
@@ -674,6 +684,7 @@ def start_server(
                                 run_to_completion,
                                 (*main_args_tuple, *args),
                                 prestart_hook=prestart_hook,
+                                runner=runner,
                             ),
                             mp_context=mp_context,
                         )
@@ -755,4 +766,4 @@ def start_server(
             main_loop.remove_reader(read_pipe.fileno())
             read_pipe.close()
 
-    asyncio.run(_parent_main())
+    runner(_parent_main())
