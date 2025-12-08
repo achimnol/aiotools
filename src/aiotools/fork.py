@@ -38,6 +38,7 @@ __all__ = (
     "AbstractChildProcess",
     "PosixChildProcess",
     "PidfdChildProcess",
+    "WindowsChildProcess",
     "afork",
 )
 
@@ -70,6 +71,9 @@ if hasattr(os, "pidfd_open"):
             _has_pidfd = True
         # if the kernel does not support this,
         # it will say errno.ENOSYS or errno.EPERM
+
+# SIGKILL is not defined on Windows, so we define a cross-platform constant
+_SIGKILL = getattr(signal, "SIGKILL", 9)
 
 
 class AbstractChildProcess(metaclass=ABCMeta):
@@ -265,6 +269,61 @@ class PidfdChildProcess(AbstractChildProcess):
         return self._returncode
 
 
+class WindowsChildProcess(AbstractChildProcess):
+    """
+    A Windows-compatible version of :class:`AbstractChildProcess`.
+
+    This implementation uses the multiprocessing.Process API directly,
+    which provides cross-platform process management.
+
+    .. versionadded:: 2.3.0
+    """
+
+    poll_interval: ClassVar[float] = 0.05
+
+    def __init__(self, proc: MPProcess, pid: int) -> None:
+        self._proc = proc
+        self._pid = pid
+        self._terminated = False
+        self._returncode: int | None = None
+
+    @property
+    def pid(self) -> int:
+        return self._pid
+
+    def send_signal(self, signum: int) -> None:
+        if self._terminated:
+            if signum != _SIGKILL:
+                log.warning(
+                    "WindowsChildProcess(%d).send_signal(%d): "
+                    "The process has already terminated.",
+                    self._pid,
+                    signum,
+                )
+            return
+        # On Windows, we can only terminate or kill processes
+        # SIGTERM and SIGINT -> terminate() (graceful)
+        # SIGKILL -> kill() (forceful)
+        if signum == _SIGKILL:
+            log.warning("Force-killed hanging child: %d", self._pid)
+            self._proc.kill()
+        else:
+            # For SIGTERM, SIGINT, or any other signal, use terminate()
+            self._proc.terminate()
+
+    async def wait(self) -> int:
+        while self._returncode is None:
+            if not self._proc.is_alive():
+                self._proc.join()  # Ensure process is cleaned up
+                self._returncode = (
+                    self._proc.exitcode if self._proc.exitcode is not None else 255
+                )
+                break
+            await asyncio.sleep(self.poll_interval)
+        self._terminated = True
+        return self._returncode
+
+
 def _child_main(
     write_pipe: mpc.Connection,
     child_func: Callable[[], int],
@@ -275,7 +334,9 @@ def _child_main(
     # in worker processes, but we want the default behavior where SIGINT
     # raises KeyboardInterrupt so that child_func can handle it properly.
     signal.signal(signal.SIGINT, signal.default_int_handler)
-    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    if sys.platform != "win32":
+        # SIG_DFL for SIGTERM is only available on Unix
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
     try:
         # notify the parent that the child is ready to execute the requested function.
         write_pipe.send_bytes(b"\0")
@@ -342,6 +403,37 @@ async def _clone_pidfd(
     return proc, pid, fd
 
 
+async def _fork_windows(
+    child_func: Callable[[], int],
+    mp_context: MPContext,
+) -> tuple[MPProcess, int]:
+    """
+    Windows-compatible fork implementation.
+
+    On Windows, we cannot use loop.add_reader() with pipes, so we use
+    asyncio.to_thread() to wait for the child's readiness notification
+    in a separate thread.
+    """
+    read_pipe, write_pipe = mp_context.Pipe()
+    proc = mp_context.Process(
+        target=_child_main,
+        args=(write_pipe, child_func),
+        daemon=True,
+    )
+    proc.start()
+    assert proc.pid is not None
+    pid = proc.pid
+
+    # Wait for the child's readiness notification using a thread
+    # because Windows doesn't support add_reader() on pipes
+    def wait_for_ready() -> bytes:
+        return read_pipe.recv_bytes(1)
+
+    await asyncio.to_thread(wait_for_ready)
+    read_pipe.close()
+    return proc, pid
+
+
 async def afork(
     child_func: Callable[[], int],
     *,
@@ -358,15 +450,25 @@ async def afork(
                     Note that the function must set up a new event loop if it
                     wants to run asyncio codes.
         mp_context: The multiprocessing context to use. If not provided, the default
-                    context will be used.
+                    context will be used. On Windows, this defaults to "spawn".
 
     .. versionadded:: 1.9.0
 
         The argument ``mp_context``.
+
+    .. versionchanged:: 2.3.0
+
+        Added Windows support using :class:`WindowsChildProcess`.
     """
     if mp_context is None:
-        mp_context = mp.get_context()
-    if _has_pidfd:
+        if sys.platform == "win32":
+            mp_context = mp.get_context("spawn")
+        else:
+            mp_context = mp.get_context()
+    if sys.platform == "win32":
+        proc, pid = await _fork_windows(child_func, mp_context)
+        return WindowsChildProcess(proc, pid)
+    elif _has_pidfd:
         proc, pid, pidfd = await _clone_pidfd(child_func, mp_context)
         return PidfdChildProcess(proc, pid, pidfd)
     else:

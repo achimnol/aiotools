@@ -51,6 +51,12 @@ from typing import Any, ParamSpec, TypeVar
 from .context import AbstractAsyncContextManager
 from .fork import AbstractChildProcess, MPContext, afork
 
+# Platform detection
+_is_unix = sys.platform != "win32"
+
+# SIGKILL is not defined on Windows, so we define a cross-platform constant
+_SIGKILL = getattr(signal, "SIGKILL", 9)
+
 __all__ = (
     "main_context",
     "server_context",
@@ -311,18 +317,28 @@ def _worker_main(
                 ctx.yield_return = signum
                 forever_future.cancel()
 
-        for signum in stop_signals:
-            loop.add_signal_handler(
-                signum,
-                functools.partial(handle_stop_signal, signum),
-            )
         interrupted = asyncio.Event()
         ctx = worker_actxmgr(loop, proc_idx, args)
         forever_future: asyncio.Future[None] = loop.create_future()
 
-        # Allow the worker to be interrupted during initialization
-        # (in case of initialization failures in other workers)
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
+        if _is_unix:
+            for signum in stop_signals:
+                loop.add_signal_handler(
+                    signum,
+                    functools.partial(handle_stop_signal, signum),
+                )
+            # Allow the worker to be interrupted during initialization
+            # (in case of initialization failures in other workers)
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
+        else:
+            # On Windows, use signal.signal() for SIGINT and SIGTERM
+            # Note: Only these two signals are supported on Windows
+            def _win_signal_handler(signum: int, frame: Any) -> None:
+                handle_stop_signal(signal.Signals(signum))
+
+            for signum in stop_signals:
+                if signum in (signal.SIGINT, signal.SIGTERM):
+                    signal.signal(signum, _win_signal_handler)
 
         err_ctx = "enter"
         try:
@@ -386,8 +402,10 @@ def _extra_main(
 
     # restore signal handler.
     for signum in stop_signals:
-        signal.signal(signum, raise_stop)
-    signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
+        if _is_unix or signum in (signal.SIGINT, signal.SIGTERM):
+            signal.signal(signum, raise_stop)
+    if _is_unix:
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
     intr_event: threading.Event | None = None
 
     try:
@@ -397,7 +415,8 @@ def _extra_main(
         log.warning(f"extra_proc[{proc_idx}] did not handle stop signals.")
     finally:
         # same as in _worker_main()
-        signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
+        if _is_unix:
+            signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
     return 0
 
 
@@ -619,9 +638,11 @@ def start_server(
     main_ctx: ServerMainContextManager[Any] = main_ctxmgr()
 
     # temporarily block signals and register signal handlers to main_loop
-    signal.pthread_sigmask(signal.SIG_BLOCK, sigblock_mask)
+    if _is_unix:
+        signal.pthread_sigmask(signal.SIG_BLOCK, sigblock_mask)
 
     async def _parent_main() -> None:
+        nonlocal children
         main_loop = asyncio.get_running_loop()
         main_future: asyncio.Future[None] = main_loop.create_future()
 
@@ -635,11 +656,23 @@ def start_server(
             # an arbitrary timing upon async child failures.
             main_future.cancel()
 
-        for signum in stop_signals:
-            main_loop.add_signal_handler(
-                signum,
-                functools.partial(handle_stop_signal, signum),
-            )
+        if _is_unix:
+            for signum in stop_signals:
+                main_loop.add_signal_handler(
+                    signum,
+                    functools.partial(handle_stop_signal, signum),
+                )
+        else:
+            # On Windows, use signal.signal() for SIGINT and SIGTERM
+            def _win_signal_handler(signum: int, frame: Any) -> None:
+                # Schedule the handler to run in the event loop
+                main_loop.call_soon_threadsafe(
+                    functools.partial(handle_stop_signal, signal.Signals(signum))
+                )
+
+            for signum in stop_signals:
+                if signum in (signal.SIGINT, signal.SIGTERM):
+                    signal.signal(signum, _win_signal_handler)
 
         # Build a reliable worker-to-main interrupt channel using a pipe.
         # This channel is used when the worker main functions raise an unhandled exception,
@@ -653,11 +686,33 @@ def start_server(
             if not ignore_child_interrupts and not run_to_completion:
                 # self-interrupt to initiate the main-to-worker interrupts
                 log.debug(f"Child {child_idx} has interrupted the main program.")
-                signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
-                os.kill(0, signal.SIGINT)
+                if _is_unix:
+                    signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGINT})
+                    os.kill(0, signal.SIGINT)
+                else:
+                    # On Windows, send SIGINT to the current process
+                    os.kill(os.getpid(), signal.SIGINT)
 
         read_pipe, write_pipe = mp.Pipe()
-        main_loop.add_reader(read_pipe.fileno(), handle_child_interrupt, read_pipe)
+        # Track whether we should stop reading from the pipe
+        pipe_reader_active = True
+
+        if _is_unix:
+            main_loop.add_reader(read_pipe.fileno(), handle_child_interrupt, read_pipe)
+        else:
+            # On Windows, we can't use add_reader with pipes, so use a thread
+            async def _windows_pipe_reader() -> None:
+                nonlocal pipe_reader_active
+                while pipe_reader_active:
+                    try:
+                        # Use to_thread to avoid blocking the event loop
+                        has_data = await asyncio.to_thread(read_pipe.poll, 0.1)
+                        if has_data:
+                            handle_child_interrupt(read_pipe)
+                    except (EOFError, OSError):
+                        break
+
+            pipe_reader_task = main_loop.create_task(_windows_pipe_reader())
 
         # start
         try:
@@ -727,7 +782,8 @@ def start_server(
                 write_pipe.close()
 
                 # unblock the stop signals for user/external interrupts.
-                signal.pthread_sigmask(signal.SIG_UNBLOCK, sigblock_mask)
+                if _is_unix:
+                    signal.pthread_sigmask(signal.SIG_UNBLOCK, sigblock_mask)
 
                 # run!
                 try:
@@ -761,9 +817,18 @@ def start_server(
                             "Timeout during waiting for child processes; killing all",
                         )
                         for child in children:
-                            child.send_signal(signal.SIGKILL)
+                            child.send_signal(_SIGKILL)
         finally:
-            main_loop.remove_reader(read_pipe.fileno())
+            if _is_unix:
+                main_loop.remove_reader(read_pipe.fileno())
+            else:
+                # Stop the Windows pipe reader task
+                pipe_reader_active = False
+                pipe_reader_task.cancel()
+                try:
+                    await pipe_reader_task
+                except asyncio.CancelledError:
+                    pass
             read_pipe.close()
 
     runner(_parent_main())

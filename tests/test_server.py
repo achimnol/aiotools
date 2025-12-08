@@ -22,12 +22,7 @@ from _pytest.mark.structures import ParameterSet
 import aiotools
 from aiotools.fork import MPContext
 
-if sys.platform == "win32":
-    pytest.skip(
-        "server tests not supported on Windows",
-        allow_module_level=True,
-    )
-
+# Build the list of multiprocessing contexts to test
 target_mp_contexts: list[ParameterSet] = []
 for method in mp.get_all_start_methods():
     marks: list[pytest.MarkDecorator] = []
@@ -41,32 +36,50 @@ for method in mp.get_all_start_methods():
     param = pytest.param(mp.get_context(method), marks=marks, id=method)
     target_mp_contexts.append(param)
 
+# Helper to check if we're on Unix
+_is_unix = sys.platform != "win32"
+
 
 @pytest.fixture
 def restore_signal() -> Iterator[None]:
-    os.setpgrp()
-    old_alrm = signal.getsignal(signal.SIGALRM)
+    if _is_unix:
+        os.setpgrp()
+        old_alrm = signal.getsignal(signal.SIGALRM)
+        old_usr1 = signal.getsignal(signal.SIGUSR1)
     old_intr = signal.getsignal(signal.SIGINT)
     old_term = signal.getsignal(signal.SIGTERM)
-    old_intr = signal.getsignal(signal.SIGUSR1)
     yield
-    signal.signal(signal.SIGALRM, old_alrm)
+    if _is_unix:
+        signal.signal(signal.SIGALRM, old_alrm)
+        signal.signal(signal.SIGUSR1, old_usr1)
     signal.signal(signal.SIGINT, old_intr)
     signal.signal(signal.SIGTERM, old_term)
-    signal.signal(signal.SIGUSR1, old_term)
 
 
 @pytest.fixture
 def set_timeout() -> Iterator[Callable[[float, Callable[..., None]], None]]:
-    def make_timeout(sec: float, callback: Any) -> None:
-        def _callback(signum: int, frame: FrameType | None) -> None:
-            signal.alarm(0)
-            callback()
+    timers: list[threading.Timer] = []
 
-        signal.signal(signal.SIGALRM, _callback)
-        signal.setitimer(signal.ITIMER_REAL, sec)
+    def make_timeout(sec: float, callback: Any) -> None:
+        if _is_unix:
+
+            def _callback(signum: int, frame: FrameType | None) -> None:
+                signal.alarm(0)
+                callback()
+
+            signal.signal(signal.SIGALRM, _callback)
+            signal.setitimer(signal.ITIMER_REAL, sec)
+        else:
+            # On Windows, use threading.Timer instead
+            timer = threading.Timer(sec, callback)
+            timer.start()
+            timers.append(timer)
 
     yield make_timeout
+
+    # Cancel any pending timers on cleanup
+    for timer in timers:
+        timer.cancel()
 
 
 def write_record(record_name: str, msg: str) -> None:
@@ -99,7 +112,16 @@ def exec_recorder() -> Iterator[str]:
 
 
 def interrupt(pid: int = 0, signum: signal.Signals = signal.SIGINT) -> None:
-    os.kill(pid, signum)
+    if _is_unix:
+        os.kill(pid, signum)
+    else:
+        # On Windows, os.kill() only supports SIGTERM (terminate)
+        # For process groups (pid=0), we need a different approach
+        if pid == 0:
+            # Send to current process
+            os.kill(os.getpid(), signal.SIGTERM)
+        else:
+            os.kill(pid, signal.SIGTERM)
 
 
 @aiotools.server_context
@@ -177,6 +199,7 @@ async def myserver_signal(
     write_record(record_name, f"terminated:{proc_idx}:{received_signum}")
 
 
+@pytest.mark.skipif(not _is_unix, reason="SIGUSR1/SIGUSR2 not available on Windows")
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_multiproc_custom_stop_signals(
     restore_signal: None,
@@ -340,6 +363,7 @@ async def myworker_for_custom_stop_signals(
     worker_signals[proc_idx] = yield
 
 
+@pytest.mark.skipif(not _is_unix, reason="SIGUSR1 not available on Windows")
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_user_main_custom_stop_signals(
     restore_signal: None,
@@ -487,6 +511,7 @@ def extra_proc_for_custom_stop_signal(
         received_signals[key] = e.args[0]
 
 
+@pytest.mark.skipif(not _is_unix, reason="SIGUSR1 not available on Windows")
 @pytest.mark.parametrize("mp_context", target_mp_contexts)
 def test_server_extra_proc_custom_stop_signal(
     set_timeout: Callable[[float, Callable[..., None]], None],

@@ -1,6 +1,7 @@
 # mypy: disable-error-code="deprecated"
 # pyright: reportDeprecated=false
 
+import sys
 from importlib.metadata import version
 
 __version__ = version("aiotools")
@@ -32,17 +33,33 @@ from .defer import (
     adefer,
     defer,
 )
+
+# fork module: afork() now works on all platforms
 from .fork import (
     AbstractChildProcess,
-    PidfdChildProcess,
-    PosixChildProcess,
     afork,
 )
+
+if sys.platform == "win32":
+    from .fork import WindowsChildProcess
+else:
+    from .fork import (
+        PidfdChildProcess,
+        PosixChildProcess,
+    )
 from .func import (
     apartial,
     lru_cache,
 )
 from .iter import aiter
+from .loop import (
+    LoopFactory,
+    Runner,
+    get_fast_loop_factory,
+    get_fast_runner,
+)
+
+# server module is now cross-platform
 from .server import (
     AsyncServerContextManager,
     InterruptedBySignal,
@@ -92,9 +109,10 @@ from .utils import (
     race,
 )
 
+# Alias for backward compatibility
 main = main_context
 
-__all__ = (
+__all__ = [
     # .cancel
     "cancel_and_wait",
     # .compat
@@ -118,21 +136,22 @@ __all__ = (
     "AsyncDeferFunc",
     "adefer",
     "defer",
-    # .fork
+    # .fork (cross-platform)
     "AbstractChildProcess",
-    "PosixChildProcess",
-    "PidfdChildProcess",
     "afork",
     # .func
     "apartial",
     "lru_cache",
     # .iter
     "aiter",
-    # .server
+    # .loop
+    "LoopFactory",
+    "Runner",
+    "get_fast_loop_factory",
+    "get_fast_runner",
+    # .server (cross-platform)
     "main",
     "main_context",
-    # NOTE: "@aiotools.server" still works,
-    #       but server_context is provided to silence typecheckers.
     "server_context",
     "start_server",
     "process_index",
@@ -173,4 +192,15 @@ __all__ = (
     "gather_safe",
     "race",
     "__version__",
-)
+]
+
+# Platform-specific fork class exports
+if sys.platform == "win32":
+    __all__ += [
+        "WindowsChildProcess",
+    ]
+else:
+    __all__ += [
+        "PosixChildProcess",
+        "PidfdChildProcess",
+    ]
