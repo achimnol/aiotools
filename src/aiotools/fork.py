@@ -72,6 +72,9 @@ if hasattr(os, "pidfd_open"):
         # if the kernel does not support this,
         # it will say errno.ENOSYS or errno.EPERM
 
+# SIGKILL is not defined on Windows, so we define a cross-platform constant
+_SIGKILL = getattr(signal, "SIGKILL", 9)
+
 
 class AbstractChildProcess(metaclass=ABCMeta):
     """
@@ -290,7 +293,7 @@ class WindowsChildProcess(AbstractChildProcess):
 
     def send_signal(self, signum: int) -> None:
         if self._terminated:
-            if signum != signal.SIGKILL:
+            if signum != _SIGKILL:
                 log.warning(
                     "WindowsChildProcess(%d).send_signal(%d): "
                     "The process has already terminated.",
@@ -301,7 +304,7 @@ class WindowsChildProcess(AbstractChildProcess):
         # On Windows, we can only terminate or kill processes
         # SIGTERM and SIGINT -> terminate() (graceful)
         # SIGKILL -> kill() (forceful)
-        if signum == signal.SIGKILL:
+        if signum == _SIGKILL:
             log.warning("Force-killed hanging child: %d", self._pid)
             self._proc.kill()
         else:

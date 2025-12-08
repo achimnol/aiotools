@@ -54,6 +54,9 @@ from .fork import AbstractChildProcess, MPContext, afork
 # Platform detection
 _is_unix = sys.platform != "win32"
 
+# SIGKILL is not defined on Windows, so we define a cross-platform constant
+_SIGKILL = getattr(signal, "SIGKILL", 9)
+
 __all__ = (
     "main_context",
     "server_context",
@@ -814,7 +817,7 @@ def start_server(
                             "Timeout during waiting for child processes; killing all",
                         )
                         for child in children:
-                            child.send_signal(signal.SIGKILL)
+                            child.send_signal(_SIGKILL)
         finally:
             if _is_unix:
                 main_loop.remove_reader(read_pipe.fileno())
