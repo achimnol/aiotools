@@ -702,7 +702,9 @@ def start_server(
                 nonlocal pipe_reader_active
                 while pipe_reader_active:
                     try:
-                        if read_pipe.poll(0.1):  # 100ms timeout
+                        # Use to_thread to avoid blocking the event loop
+                        has_data = await asyncio.to_thread(read_pipe.poll, 0.1)
+                        if has_data:
                             handle_child_interrupt(read_pipe)
                     except (EOFError, OSError):
                         break
