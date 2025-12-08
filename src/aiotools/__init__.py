@@ -1,6 +1,7 @@
 # mypy: disable-error-code="deprecated"
 # pyright: reportDeprecated=false
 
+import sys
 from importlib.metadata import version
 
 __version__ = version("aiotools")
@@ -32,26 +33,34 @@ from .defer import (
     adefer,
     defer,
 )
-from .fork import (
-    AbstractChildProcess,
-    PidfdChildProcess,
-    PosixChildProcess,
-    afork,
-)
+if sys.platform != "win32":
+    from .fork import (
+        AbstractChildProcess,
+        PidfdChildProcess,
+        PosixChildProcess,
+        afork,
+    )
 from .func import (
     apartial,
     lru_cache,
 )
 from .iter import aiter
-from .server import (
-    AsyncServerContextManager,
-    InterruptedBySignal,
-    ServerMainContextManager,
-    main_context,
-    process_index,
-    server_context,
-    start_server,
+from .loop import (
+    LoopFactory,
+    Runner,
+    get_fast_loop_factory,
+    get_fast_runner,
 )
+if sys.platform != "win32":
+    from .server import (
+        AsyncServerContextManager,
+        InterruptedBySignal,
+        ServerMainContextManager,
+        main_context,
+        process_index,
+        server_context,
+        start_server,
+    )
 from .supervisor import Supervisor
 from .taskcontext import (
     ErrorArg,
@@ -92,9 +101,10 @@ from .utils import (
     race,
 )
 
-main = main_context
+if sys.platform != "win32":
+    main = main_context
 
-__all__ = (
+__all__ = [
     # .cancel
     "cancel_and_wait",
     # .compat
@@ -118,27 +128,16 @@ __all__ = (
     "AsyncDeferFunc",
     "adefer",
     "defer",
-    # .fork
-    "AbstractChildProcess",
-    "PosixChildProcess",
-    "PidfdChildProcess",
-    "afork",
     # .func
     "apartial",
     "lru_cache",
     # .iter
     "aiter",
-    # .server
-    "main",
-    "main_context",
-    # NOTE: "@aiotools.server" still works,
-    #       but server_context is provided to silence typecheckers.
-    "server_context",
-    "start_server",
-    "process_index",
-    "AsyncServerContextManager",
-    "ServerMainContextManager",
-    "InterruptedBySignal",
+    # .loop
+    "LoopFactory",
+    "Runner",
+    "get_fast_loop_factory",
+    "get_fast_runner",
     # .supervisor
     "Supervisor",
     # .taskcontext
@@ -173,4 +172,25 @@ __all__ = (
     "gather_safe",
     "race",
     "__version__",
-)
+]
+
+# Unix-only exports (fork, server)
+if sys.platform != "win32":
+    __all__ += [
+        # .fork
+        "AbstractChildProcess",
+        "PosixChildProcess",
+        "PidfdChildProcess",
+        "afork",
+        # .server
+        "main",
+        "main_context",
+        # NOTE: "@aiotools.server" still works,
+        #       but server_context is provided to silence typecheckers.
+        "server_context",
+        "start_server",
+        "process_index",
+        "AsyncServerContextManager",
+        "ServerMainContextManager",
+        "InterruptedBySignal",
+    ]
