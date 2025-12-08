@@ -33,12 +33,17 @@ from .defer import (
     adefer,
     defer,
 )
-if sys.platform != "win32":
+# fork module: afork() now works on all platforms
+from .fork import (
+    AbstractChildProcess,
+    afork,
+)
+if sys.platform == "win32":
+    from .fork import WindowsChildProcess
+else:
     from .fork import (
-        AbstractChildProcess,
         PidfdChildProcess,
         PosixChildProcess,
-        afork,
     )
 from .func import (
     apartial,
@@ -51,16 +56,16 @@ from .loop import (
     get_fast_loop_factory,
     get_fast_runner,
 )
-if sys.platform != "win32":
-    from .server import (
-        AsyncServerContextManager,
-        InterruptedBySignal,
-        ServerMainContextManager,
-        main_context,
-        process_index,
-        server_context,
-        start_server,
-    )
+# server module is now cross-platform
+from .server import (
+    AsyncServerContextManager,
+    InterruptedBySignal,
+    ServerMainContextManager,
+    main_context,
+    process_index,
+    server_context,
+    start_server,
+)
 from .supervisor import Supervisor
 from .taskcontext import (
     ErrorArg,
@@ -101,8 +106,8 @@ from .utils import (
     race,
 )
 
-if sys.platform != "win32":
-    main = main_context
+# Alias for backward compatibility
+main = main_context
 
 __all__ = [
     # .cancel
@@ -128,6 +133,9 @@ __all__ = [
     "AsyncDeferFunc",
     "adefer",
     "defer",
+    # .fork (cross-platform)
+    "AbstractChildProcess",
+    "afork",
     # .func
     "apartial",
     "lru_cache",
@@ -138,6 +146,15 @@ __all__ = [
     "Runner",
     "get_fast_loop_factory",
     "get_fast_runner",
+    # .server (cross-platform)
+    "main",
+    "main_context",
+    "server_context",
+    "start_server",
+    "process_index",
+    "AsyncServerContextManager",
+    "ServerMainContextManager",
+    "InterruptedBySignal",
     # .supervisor
     "Supervisor",
     # .taskcontext
@@ -174,23 +191,13 @@ __all__ = [
     "__version__",
 ]
 
-# Unix-only exports (fork, server)
-if sys.platform != "win32":
+# Platform-specific fork class exports
+if sys.platform == "win32":
     __all__ += [
-        # .fork
-        "AbstractChildProcess",
+        "WindowsChildProcess",
+    ]
+else:
+    __all__ += [
         "PosixChildProcess",
         "PidfdChildProcess",
-        "afork",
-        # .server
-        "main",
-        "main_context",
-        # NOTE: "@aiotools.server" still works,
-        #       but server_context is provided to silence typecheckers.
-        "server_context",
-        "start_server",
-        "process_index",
-        "AsyncServerContextManager",
-        "ServerMainContextManager",
-        "InterruptedBySignal",
     ]
