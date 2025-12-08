@@ -69,7 +69,11 @@ async def test_fork(has_pidfd: bool, mp_context: MPContext) -> None:
     with mock.patch.object(fork_mod, "_has_pidfd", has_pidfd):
         proc = await afork(child_for_fork, mp_context=mp_context)
         assert proc.pid > 0
-        if _is_unix and PidfdChildProcess is not None and isinstance(proc, PidfdChildProcess):
+        if (
+            _is_unix
+            and PidfdChildProcess is not None
+            and isinstance(proc, PidfdChildProcess)
+        ):
             assert proc._pidfd > 0
         ret = await proc.wait()
         assert ret == 99
@@ -87,7 +91,11 @@ async def test_fork_already_terminated(has_pidfd: bool, mp_context: MPContext) -
     with mock.patch.object(fork_mod, "_has_pidfd", has_pidfd):
         proc = await afork(child_for_fork_already_terminated, mp_context=mp_context)
         assert proc.pid > 0
-        if _is_unix and PidfdChildProcess is not None and isinstance(proc, PidfdChildProcess):
+        if (
+            _is_unix
+            and PidfdChildProcess is not None
+            and isinstance(proc, PidfdChildProcess)
+        ):
             assert proc._pidfd > 0
         await asyncio.sleep(0.5)
         ret = await proc.wait()
@@ -111,7 +119,11 @@ async def test_fork_signal(has_pidfd: bool, mp_context: MPContext) -> None:
             os.setpgrp()
         proc = await afork(child_for_fork_signal, mp_context=mp_context)
         assert proc.pid > 0
-        if _is_unix and PidfdChildProcess is not None and isinstance(proc, PidfdChildProcess):
+        if (
+            _is_unix
+            and PidfdChildProcess is not None
+            and isinstance(proc, PidfdChildProcess)
+        ):
             assert proc._pidfd > 0
         await asyncio.sleep(0.1)
         proc.send_signal(signal.SIGINT)
@@ -170,7 +182,11 @@ async def test_fork_many(has_pidfd: bool, mp_context: MPContext) -> None:
         for proc in proc_list_raw:
             assert not isinstance(proc, BaseException)
             assert proc.pid > 0
-            if _is_unix and PidfdChildProcess is not None and isinstance(proc, PidfdChildProcess):
+            if (
+                _is_unix
+                and PidfdChildProcess is not None
+                and isinstance(proc, PidfdChildProcess)
+            ):
                 assert proc._pidfd > 0
             proc_list.append(proc)
         for i in range(16):

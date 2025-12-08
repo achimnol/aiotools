@@ -62,6 +62,7 @@ def set_timeout() -> Iterator[Callable[[float, Callable[..., None]], None]]:
 
     def make_timeout(sec: float, callback: Any) -> None:
         if _is_unix:
+
             def _callback(signum: int, frame: FrameType | None) -> None:
                 signal.alarm(0)
                 callback()
