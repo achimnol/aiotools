@@ -134,9 +134,10 @@ async def test_fork_signal(has_pidfd: bool, mp_context: MPContext) -> None:
         if _is_unix:
             assert ret == 101
         else:
-            # On Windows, TerminateProcess() is used which sets exit code to 1
-            # The process doesn't get a chance to handle the signal gracefully
-            assert ret in (101, 1, -1, -2, 255)
+            # On Windows, TerminateProcess() is used which sets exit code
+            # to SIGTERM (15) or negated (-15). The process may or may not
+            # get a chance to handle the signal gracefully.
+            assert ret in (101, 1, -1, -2, -15, 15, 255)
 
 
 def child_for_fork_segfault() -> int:
@@ -202,12 +203,13 @@ async def test_fork_many(has_pidfd: bool, mp_context: MPContext) -> None:
             if _is_unix:
                 assert ret_list[i] == 101
             else:
-                # On Windows, TerminateProcess() is used which sets exit code to 1
-                # The process doesn't get a chance to handle the signal gracefully
-                assert ret_list[i] in (101, 1, -1, -2, 255)
+                # On Windows, TerminateProcess() is used which sets exit code
+                # to SIGTERM (15) or negated (-15). The process may or may not
+                # get a chance to handle the signal gracefully.
+                assert ret_list[i] in (101, 1, -1, -2, -15, 15, 255)
         for i in range(16, 32):
             if _is_unix:
                 assert ret_list[i] == -15  # killed by SIGTERM
             else:
-                # On Windows, terminated processes return 1 or similar
-                assert ret_list[i] in (1, -1, -2, 255)
+                # On Windows, terminated processes return SIGTERM (15) or negated
+                assert ret_list[i] in (1, -1, -2, -15, 15, 255)
