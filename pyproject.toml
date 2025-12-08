@@ -25,6 +25,16 @@ dependencies = [
     "async-lru>=2.0.5",
 ]
 
+[project.optional-dependencies]
+# Fast event loop implementations (platform-specific)
+uvloop = ["uvloop>=0.21.0 ; sys_platform != 'win32'"]
+winloop = ["winloop>=0.1.6 ; sys_platform == 'win32'"]
+# Convenience extra: installs the appropriate fast event loop for your platform
+fast = [
+    "uvloop>=0.21.0 ; sys_platform != 'win32'",
+    "winloop>=0.1.6 ; sys_platform == 'win32'",
+]
+
 [project.urls]
 Documentation = "https://aiotools.readthedocs.io"
 Tracker = "https://github.com/achimnol/aiotools/issues"
