@@ -528,3 +528,49 @@ def test_server_extra_proc_custom_stop_signal(
     # so there is nothing we can do here. :(
     assert received_signals[0] == signal.SIGUSR1
     assert received_signals[1] == signal.SIGUSR1
+
+
+@aiotools.server_context
+async def myserver_self_sigkill(
+    loop: asyncio.AbstractEventLoop,
+    proc_idx: int,
+    args: Sequence[Any],
+) -> AsyncGenerator[None, signal.Signals]:
+    async def die() -> None:
+        await asyncio.sleep(0.5)
+        # SIGKILL bypasses _worker_main's exception handler, so the
+        # worker-to-main interrupt byte is never sent -- just like an OOM-kill.
+        os.kill(os.getpid(), signal.SIGKILL)
+
+    task = asyncio.create_task(die())
+    yield
+    task.cancel()
+
+
+@pytest.mark.parametrize("mp_context", target_mp_contexts)
+def test_server_all_workers_killed(
+    set_timeout: Callable[[float, Callable[..., None]], None],
+    restore_signal: None,
+    mp_context: MPContext,
+) -> None:
+    # When all workers die without notifying the main program via the
+    # interrupt channel, the main program should shut down by itself instead of
+    # hanging forever while busy-looping on the EOF'd interrupt channel.
+
+    # Safety net: if the fix regresses, this keeps the test from hanging forever.
+    set_timeout(20.0, functools.partial(interrupt, signum=signal.SIGTERM))
+    begin_wall = time.monotonic()
+    begin_cpu = time.process_time()
+    aiotools.start_server(
+        myserver_self_sigkill,
+        num_workers=2,
+        mp_context=mp_context,
+    )
+    elapsed_wall = time.monotonic() - begin_wall
+    elapsed_cpu = time.process_time() - begin_cpu
+
+    # It should have returned on its own, well before the safety net fired.
+    assert elapsed_wall < 10.0
+    # A busy-loop on the EOF'd interrupt channel would burn CPU time
+    # proportional to the wall time; a healthy main loop stays near zero.
+    assert elapsed_cpu < elapsed_wall / 2
