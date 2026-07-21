@@ -647,8 +647,13 @@ def start_server(
         def handle_child_interrupt(read_pipe: mpconn.Connection) -> None:
             try:
                 child_idx: int = struct.unpack("i", read_pipe.recv_bytes(4))[0]
-            except EOFError:
-                # read_pipe is already closed
+            except (EOFError, OSError):
+                # All writer ends of the pipe are closed (i.e., all workers have
+                # terminated) or the pipe itself is already closed.
+                # We MUST unregister the reader here because the event loop's
+                # selector is level-triggered: an EOF'd fd is reported as readable
+                # on every iteration, which would busy-loop this callback forever.
+                main_loop.remove_reader(read_pipe.fileno())
                 return
             if not ignore_child_interrupts and not run_to_completion:
                 # self-interrupt to initiate the main-to-worker interrupts
@@ -658,6 +663,31 @@ def start_server(
 
         read_pipe, write_pipe = mp.Pipe()
         main_loop.add_reader(read_pipe.fileno(), handle_child_interrupt, read_pipe)
+
+        # Watches termination of all children to avoid the main program from
+        # hanging forever as a zombie supervisor when all children are gone,
+        # e.g., when they are SIGKILLed or OOM-killed without a chance to notify
+        # the main program via the interrupt channel.
+        wait_all_children: asyncio.Task[list[int | BaseException]] | None = None
+
+        async def wait_all_children_termination() -> list[int | BaseException]:
+            return await asyncio.gather(
+                *[child.wait() for child in children],
+                return_exceptions=True,
+            )
+
+        def handle_all_children_termination(
+            fut: asyncio.Task[list[int | BaseException]],
+        ) -> None:
+            if fut.cancelled() or run_to_completion:
+                return
+            if not main_future.done():
+                log.warning(
+                    "All child processes have terminated; "
+                    "shutting down the main program.",
+                )
+                main_ctx.yield_return = _get_default_stop_signal(stop_signals)
+                main_future.cancel()
 
         # start
         try:
@@ -726,6 +756,12 @@ def start_server(
 
                 write_pipe.close()
 
+                if children:
+                    wait_all_children = asyncio.create_task(
+                        wait_all_children_termination()
+                    )
+                    wait_all_children.add_done_callback(handle_all_children_termination)
+
                 # unblock the stop signals for user/external interrupts.
                 signal.pthread_sigmask(signal.SIG_UNBLOCK, sigblock_mask)
 
@@ -739,15 +775,14 @@ def start_server(
                     pass
                 finally:
                     # If interrupted or complete, wait for workers to finish.
+                    # Reuse the already-running watcher task instead of calling
+                    # child.wait() again, as concurrent waiters on the same child
+                    # may lose the exit code to each other.
                     try:
-                        worker_results: list[
-                            int | BaseException
-                        ] = await asyncio.wait_for(
-                            asyncio.gather(
-                                *[child.wait() for child in children],
-                                return_exceptions=True,
-                            ),
-                            wait_timeout,
+                        worker_results: list[int | BaseException] = (
+                            await asyncio.wait_for(wait_all_children, wait_timeout)
+                            if wait_all_children is not None
+                            else []
                         )
                         for child, result in zip(children, worker_results):
                             if isinstance(result, Exception):
@@ -763,6 +798,8 @@ def start_server(
                         for child in children:
                             child.send_signal(signal.SIGKILL)
         finally:
+            if wait_all_children is not None and not wait_all_children.done():
+                wait_all_children.cancel()
             main_loop.remove_reader(read_pipe.fileno())
             read_pipe.close()
 
