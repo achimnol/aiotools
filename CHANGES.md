@@ -16,6 +16,13 @@ Changelog
 
 <!-- towncrier release notes start -->
 
+2.2.4 (2026-07-21)
+------------------
+
+### Fixes
+* Fix `start_server()` busy-looping on a CPU core and hanging forever when all worker processes terminate without notifying the main program via the interrupt channel, such as when they are SIGKILLed or OOM-killed ([#102](https://github.com/achimnol/aiotools/issues/102))
+
+
 2.2.3 (2025-10-20)
 ------------------
 
