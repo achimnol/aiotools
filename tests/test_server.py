@@ -7,7 +7,6 @@ import logging
 import logging.config
 import multiprocessing as mp
 import os
-import resource
 import signal
 import sys
 import tempfile
@@ -561,14 +560,14 @@ def test_server_all_workers_killed(
     # Safety net: if the fix regresses, this keeps the test from hanging forever.
     set_timeout(20.0, functools.partial(interrupt, signum=signal.SIGTERM))
     begin_wall = time.monotonic()
-    begin_cpu = sum(resource.getrusage(resource.RUSAGE_SELF)[:2])
+    begin_cpu = time.process_time()
     aiotools.start_server(
         myserver_self_sigkill,
         num_workers=2,
         mp_context=mp_context,
     )
     elapsed_wall = time.monotonic() - begin_wall
-    elapsed_cpu = sum(resource.getrusage(resource.RUSAGE_SELF)[:2]) - begin_cpu
+    elapsed_cpu = time.process_time() - begin_cpu
 
     # It should have returned on its own, well before the safety net fired.
     assert elapsed_wall < 10.0

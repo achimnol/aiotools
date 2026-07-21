@@ -50,6 +50,7 @@ from typing import Any, ParamSpec, TypeVar
 
 from .context import AbstractAsyncContextManager
 from .fork import AbstractChildProcess, MPContext, afork
+from .utils import gather_safe
 
 __all__ = (
     "main_context",
@@ -272,6 +273,13 @@ def main_context(
         return ServerMainContextManager(func, args, kwargs)
 
     return helper
+
+
+def _get_signal_name(signum: int) -> str:
+    try:
+        return signal.Signals(signum).name
+    except ValueError:
+        return str(signum)
 
 
 def _get_default_stop_signal(
@@ -671,23 +679,15 @@ def start_server(
         wait_all_children: asyncio.Task[list[int | BaseException]] | None = None
 
         async def wait_all_children_termination() -> list[int | BaseException]:
-            return await asyncio.gather(
-                *[child.wait() for child in children],
-                return_exceptions=True,
-            )
-
-        def handle_all_children_termination(
-            fut: asyncio.Task[list[int | BaseException]],
-        ) -> None:
-            if fut.cancelled() or run_to_completion:
-                return
-            if not main_future.done():
+            results = await gather_safe([child.wait() for child in children])
+            if not run_to_completion and not main_future.done():
                 log.warning(
                     "All child processes have terminated; "
                     "shutting down the main program.",
                 )
                 main_ctx.yield_return = _get_default_stop_signal(stop_signals)
                 main_future.cancel()
+            return results
 
         # start
         try:
@@ -760,7 +760,6 @@ def start_server(
                     wait_all_children = asyncio.create_task(
                         wait_all_children_termination()
                     )
-                    wait_all_children.add_done_callback(handle_all_children_termination)
 
                 # unblock the stop signals for user/external interrupts.
                 signal.pthread_sigmask(signal.SIG_UNBLOCK, sigblock_mask)
@@ -785,11 +784,28 @@ def start_server(
                             else []
                         )
                         for child, result in zip(children, worker_results):
-                            if isinstance(result, Exception):
+                            if isinstance(result, BaseException):
                                 log.error(
                                     "Waiting for a child process [%d] has failed by an error.",
                                     child.pid,
                                     exc_info=result,
+                                )
+                            elif result < 0:
+                                # A negative return code means that the child was
+                                # killed by the signal of its absolute value,
+                                # which the child could not handle by itself
+                                # (e.g., SIGKILL by the OOM killer).
+                                log.warning(
+                                    "A child process [%d] was terminated by the signal %s.",
+                                    child.pid,
+                                    _get_signal_name(-result),
+                                )
+                            elif result > 0:
+                                log.warning(
+                                    "A child process [%d] has exited with a non-zero "
+                                    "status %d.",
+                                    child.pid,
+                                    result,
                                 )
                     except asyncio.TimeoutError:
                         log.warning(
