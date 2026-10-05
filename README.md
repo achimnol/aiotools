@@ -54,7 +54,9 @@ Consider the following commonly used pattern:
 ```python
 task = asyncio.create_task(...)
 task.cancel()
-await task  # PROBLEM: would it raise CancelledError or not? should we propagate it or not?
+await (
+    task
+)  # PROBLEM: would it raise CancelledError or not? should we propagate it or not?
 ```
 
 It has been the reponsibility of the author of tasks and the caller of them to
@@ -82,17 +84,23 @@ async def work():
         ...
     except asyncio.CancelledError:
         with aiotools.ShieldScope():
-            await cleanup()  # any async code here is not affected by multiple cancellation
+            await (
+                cleanup()
+            )  # any async code here is not affected by multiple cancellation
             raise
+
 
 async def parent():
     work_task = asyncio.create_task(work())
     ...
     await cancel_and_wait(work_task)
 
+
 parent_task = asyncio.create_task(parent())
 ...
-await cancel_and_wait(parent_task)  # it may trigger double cancellation, but it will return after the shielded block completes.
+await cancel_and_wait(
+    parent_task
+)  # it may trigger double cancellation, but it will return after the shielded block completes.
 ```
 
 ### Async Context Manager
@@ -105,11 +113,13 @@ classes.
 import asyncio
 import aiotools
 
+
 @aiotools.actxmgr
 async def mygen(a):
     await asyncio.sleep(1)
     yield a + 1
     await asyncio.sleep(1)
+
 
 async def somewhere():
     async with mygen(1) as b:
@@ -126,6 +136,7 @@ import aiotools
 
 lock = asyncio.Lock()
 
+
 @aiotools.actxmgr
 async def mygen(a):
     await lock.acquire()
@@ -134,12 +145,13 @@ async def mygen(a):
     finally:
         lock.release()
 
+
 async def somewhere():
     try:
         async with mygen(1) as b:
-            raise RuntimeError('oops')
+            raise RuntimeError("oops")
     except RuntimeError:
-        print('caught!')  # you can catch exceptions here.
+        print("caught!")  # you can catch exceptions here.
 ```
 
 You can also create a group of async context managers, which
@@ -149,9 +161,11 @@ are entered/exited all at once using `asyncio.gather()`.
 import asyncio
 import aiotools
 
+
 @aiotools.actxmgr
 async def mygen(a):
     yield a + 10
+
 
 async def somewhere():
     ctxgrp = aiotools.actxgroup(mygen(i) for i in range(10))
@@ -170,22 +184,25 @@ This implements a common pattern to launch asyncio-based server daemons.
 import asyncio
 import aiotools
 
+
 async def echo(reader, writer):
     data = await reader.read(100)
     writer.write(data)
     await writer.drain()
     writer.close()
 
+
 @aiotools.server
 async def myworker(loop, pidx, args):
-    server = await asyncio.start_server(echo, '0.0.0.0', 8888, reuse_port=True)
-    print(f'[{pidx}] started')
+    server = await asyncio.start_server(echo, "0.0.0.0", 8888, reuse_port=True)
+    print(f"[{pidx}] started")
     yield  # wait until terminated
     server.close()
     await server.wait_closed()
-    print(f'[{pidx}] terminated')
+    print(f"[{pidx}] terminated")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Run the above server using 4 worker processes.
     aiotools.start_server(myworker, num_workers=4)
 ```
@@ -209,6 +226,7 @@ within the TaskScope context.
 
 ```python
 import aiotools
+
 
 async def do():
     async with aiotools.TaskScope() as ts:
@@ -238,9 +256,11 @@ import aiotools
 
 i = 0
 
+
 async def mytick(interval):
     print(i)
     i += 1
+
 
 async def somewhere():
     task = aiotools.create_timer(mytick, 1.0)
@@ -265,8 +285,10 @@ the timer is cancelled.
 import asyncio
 import aiotools
 
+
 async def mytick(interval):
     await asyncio.sleep(100)  # cancelled on every next interval.
+
 
 async def somewhere():
     t = aiotools.create_timer(mytick, 1.0, aiotools.TimerDelayPolicy.CANCEL)
@@ -285,6 +307,7 @@ This is also used in [our timer test suite](https://github.com/achimnol/aiotools
 ```python
 import aiotools
 import pytest
+
 
 @pytest.mark.asyncio
 async def test_sleeps():
