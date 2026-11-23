@@ -109,7 +109,8 @@ def adefer(
 ) -> Callable[P, Awaitable[R]]:
     """
     An asynchronous version of the defer API.
-    It can defer coroutine functions, coroutines, and normal functions.
+    It can defer awaitable objects and normal functions. If a deferred function
+    returns an awaitable, it is awaited before running the next cleanup.
     """
     assert inspect.iscoroutinefunction(func), "the decorated function must be async"
 
@@ -126,11 +127,11 @@ def adefer(
         finally:
             while deferreds:
                 f = deferreds.pop()
-                if inspect.iscoroutinefunction(f):
-                    await f()
-                elif inspect.iscoroutine(f):
-                    await f
+                if callable(f):
+                    result = f()
+                    if inspect.isawaitable(result):
+                        await result
                 else:
-                    f()  # type: ignore[operator]
+                    await f
 
     return _wrapped
